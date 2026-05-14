@@ -67,11 +67,21 @@ def iter_search_results(lines, predicate=None):
     match line.split(':'):
       case (file_path, line_num, _, *_):
         if line_num.isdecimal():
-          file_path += ':' + line_num
-        yield file_path
+          yield file_path, line_num
+        else:
+          yield file_path
 
       case (file_path, _) | (file_path,):
         yield file_path
+
+def _open_file(tool, file_path, line_num=None):
+  if line_num is None:
+    cmd = tool, file_path
+  elif tool in ("vim", "nvim"):
+    cmd = tool, file_path, f"+{line_num}"
+  else:
+    cmd = tool, f"{file_path}:{line_num}"
+  sp.run(cmd)
 
 def open_search_result(lines, result_idx, config, predicate=None, tool="subl"):
   if config.hide_filenames:
@@ -87,8 +97,13 @@ def open_search_result(lines, result_idx, config, predicate=None, tool="subl"):
       break
     result_idx -= 1
 
-  if filepath_to_open:
-    sp.run((tool, filepath_to_open))
+  match filepath_to_open:
+    case None:
+      pass
+    case (file_path, line_num):
+      _open_file(tool, file_path, line_num)
+    case _:
+      _open_file(tool, filepath_to_open)
 
 if __name__ == "__main__":
   _PREFIX = os.getenv("GG_SEARCH_IN") or os.getenv("GG_SEARCH_IN_DEFAULT") or "./"
