@@ -76,7 +76,13 @@ def iter_search_results(lines, predicate=None):
 
 def _open_file(tool, file_path, line_num=None):
   if line_num is None:
-    cmd = tool, file_path
+    cmd = "cat" if tool == "" else tool, file_path
+
+  elif tool == "":
+    ctx_window = 12
+    head, tail = max(1, int(line_num) - ctx_window), int(line_num) + ctx_window
+    cmd = "sed", "-n", f"{head},{tail}p", file_path
+
   elif tool in ("vim", "nvim"):
     cmd = tool, file_path, f"+{line_num}"
   else:
