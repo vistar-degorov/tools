@@ -62,6 +62,7 @@ if __name__ == "__main__":
       sys.stderr.write(f"Error reading {filename}\n")
       continue
 
+    imported_names_in_file = set()
     list_header = f"- {filename}:\n"
     for _, new_name, begin_idx in _parse_imports(text):
       if new_name == "*":
@@ -71,6 +72,10 @@ if __name__ == "__main__":
       except re.error as err:
         sys.stderr.write(f"Error in {filename}:\n  {err}\n")
         continue
-      if rx.search(text, begin_idx) is None:
-        print(f"{list_header}    {new_name}")
+
+      dup_message = "  (duplicate)" if new_name in imported_names_in_file else ""
+      imported_names_in_file.add(new_name)
+
+      if rx.search(text, begin_idx) is None or dup_message:
+        print(f"{list_header}    {new_name}{dup_message}")
         list_header = ""
