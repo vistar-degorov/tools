@@ -2,7 +2,7 @@
 
 import os
 import sys
-from finddef import Config, split_result_idx, open_search_result, remove_color_codes
+from finddef import Config, get_search_result, open_with
 
 if __name__ == "__main__":
   if sys.stdin.isatty():
@@ -18,4 +18,4 @@ if __name__ == "__main__":
   config = Config([])
 
   _TOOL = os.getenv("GG_TOOL") or os.getenv("GG_TOOL_DEFAULT") or ""
-  open_search_result(inp, idx, config, tool=_TOOL)
+  open_with(_TOOL, get_search_result(inp, idx, config))

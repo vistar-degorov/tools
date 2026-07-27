@@ -6,7 +6,7 @@ import subprocess as sp
 import shlex
 import sys
 from pathlib import PurePath as Path
-from finddef import Config, split_result_idx, open_search_result, remove_color_codes
+from finddef import Config, split_result_idx, get_search_result, open_with, remove_color_codes
 
 if __name__ == "__main__":
   _PREFIX = os.getenv("GG_SEARCH_IN") or os.getenv("GG_SEARCH_IN_DEFAULT") or "./"
@@ -72,10 +72,13 @@ if __name__ == "__main__":
     if result_idx is None:
       sys.stdout.buffer.write(outp)
     else:
-      open_search_result(outp.splitlines(), result_idx, config, tool=_TOOL)
+      open_with(_TOOL, get_search_result(outp.splitlines(), result_idx, config))
   elif result_idx is None:
     for line in outp.splitlines():
       if has_no_import(remove_color_codes(line.decode("utf-8"))):
         sys.stdout.buffer.write(line + b"\n")
   else:
-    open_search_result(outp.splitlines(), result_idx, config, tool=_TOOL, predicate=has_no_import)
+    open_with(
+      _TOOL,
+      get_search_result(outp.splitlines(), result_idx, config, predicate=has_no_import)
+    )

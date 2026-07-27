@@ -89,7 +89,16 @@ def _open_file(tool, file_path, line_num=None, ctx_window=12):
     cmd = tool, f"{file_path}:{line_num}"
   sp.run(cmd)
 
-def open_search_result(lines, result_idx, config, tool, predicate=None):
+def open_with(tool, args):
+  match args:
+    case None:
+      pass
+    case (file_path, line_num):
+      _open_file(tool, file_path, line_num)
+    case file_path:
+      _open_file(tool, file_path)
+
+def get_search_result(lines, result_idx, config, predicate=None):
   if config.hide_filenames:
     return
   elif config.only_filenames:
@@ -103,13 +112,7 @@ def open_search_result(lines, result_idx, config, tool, predicate=None):
       break
     result_idx -= 1
 
-  match filepath_to_open:
-    case None:
-      pass
-    case (file_path, line_num):
-      _open_file(tool, file_path, line_num)
-    case _:
-      _open_file(tool, filepath_to_open)
+  return filepath_to_open
 
 if __name__ == "__main__":
   _PREFIX = os.getenv("GG_SEARCH_IN") or os.getenv("GG_SEARCH_IN_DEFAULT") or "./"
@@ -156,4 +159,4 @@ if __name__ == "__main__":
   if result_idx is None:
     sys.stdout.buffer.write(outp)
   else:
-    open_search_result(outp.splitlines(), result_idx, config, tool=_TOOL)
+    open_with(_TOOL, get_search_result(outp.splitlines(), result_idx, config))
