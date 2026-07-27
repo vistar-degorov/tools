@@ -13,6 +13,8 @@ if __name__ == "__main__":
   _EXTEN = os.getenv("GG_SEARCH_EXT") or os.getenv("GG_SEARCH_EXT_DEFAULT") or ".py"
   _EXTEN = _EXTEN.split()
 
+  _TOOL = os.getenv("GG_TOOL") or os.getenv("GG_TOOL_DEFAULT") or ""
+
   _IMPORT_RX = []
   if {".py", ".ts", ".tsx"}.intersection(_EXTEN):
     _IMPORT_RX.append(re.compile(r"\bimport "))
@@ -70,10 +72,10 @@ if __name__ == "__main__":
     if result_idx is None:
       sys.stdout.buffer.write(outp)
     else:
-      open_search_result(outp.splitlines(), result_idx, config)
+      open_search_result(outp.splitlines(), result_idx, config, tool=_TOOL)
   elif result_idx is None:
     for line in outp.splitlines():
       if has_no_import(remove_color_codes(line.decode("utf-8"))):
         sys.stdout.buffer.write(line + b"\n")
   else:
-    open_search_result(outp.splitlines(), result_idx, config, has_no_import)
+    open_search_result(outp.splitlines(), result_idx, config, tool=_TOOL, predicate=has_no_import)

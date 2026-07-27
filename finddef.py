@@ -74,13 +74,13 @@ def iter_search_results(lines, predicate=None):
       case (file_path, _) | (file_path,):
         yield file_path
 
-def _open_file(tool, file_path, line_num=None):
+def _open_file(tool, file_path, line_num=None, ctx_window=12):
   if line_num is None:
     cmd = "cat" if tool == "" else tool, file_path
 
   elif tool == "":
-    ctx_window = 12
-    head, tail = max(1, int(line_num) - ctx_window), int(line_num) + ctx_window
+    line_num = int(line_num)
+    head, tail = max(1, line_num - ctx_window), line_num + ctx_window
     cmd = "sed", "-n", f"{head},{tail}p", file_path
 
   elif tool in ("vim", "nvim"):
@@ -89,7 +89,7 @@ def _open_file(tool, file_path, line_num=None):
     cmd = tool, f"{file_path}:{line_num}"
   sp.run(cmd)
 
-def open_search_result(lines, result_idx, config, predicate=None, tool="subl"):
+def open_search_result(lines, result_idx, config, tool, predicate=None):
   if config.hide_filenames:
     return
   elif config.only_filenames:
@@ -115,6 +115,8 @@ if __name__ == "__main__":
   _PREFIX = os.getenv("GG_SEARCH_IN") or os.getenv("GG_SEARCH_IN_DEFAULT") or "./"
   _EXTEN = os.getenv("GG_SEARCH_EXT") or os.getenv("GG_SEARCH_EXT_DEFAULT") or ".py"
   _EXTEN = _EXTEN.split()
+
+  _TOOL = os.getenv("GG_TOOL") or os.getenv("GG_TOOL_DEFAULT") or ""
 
   pats = (
     r"\bclass \+{NAME} *:",
@@ -154,4 +156,4 @@ if __name__ == "__main__":
   if result_idx is None:
     sys.stdout.buffer.write(outp)
   else:
-    open_search_result(outp.splitlines(), result_idx, config)
+    open_search_result(outp.splitlines(), result_idx, config, tool=_TOOL)
