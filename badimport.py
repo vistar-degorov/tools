@@ -51,7 +51,14 @@ if __name__ == "__main__":
       if not should_ignore(match, text):
         yield from _parse_import(match, trailing_comma_ok=True)
 
+  if sys.argv[1:] in (["--version"], ["-v"]):
+    sys.exit("0.0.1")
+
   for filename in sys.argv[1:]:
+    if filename.startswith("-"):
+      sys.stderr.write(f"Ignoring argument {filename}\n")
+      continue
+
     if Path(filename).name == "__init__.py":
       continue
 
