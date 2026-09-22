@@ -1,6 +1,5 @@
 #! /usr/bin/python
 
-import io
 from pathlib import Path
 import sys
 import tokenize
@@ -9,22 +8,19 @@ import tokenize
 VERSION = "0.0.2"
 
 
-def _tokenize_best_effort(text):
-  tokens = []
-  lines = text.splitlines(keepends=True)
+def _tokenize_best_effort(input_stream):
   line_offset = 0
 
-  while line_offset < len(lines):
-    segment = "".join(lines[line_offset:])
-    token_generator = tokenize.generate_tokens(io.StringIO(segment).readline)
+  token_generator = tokenize.generate_tokens(input_stream.readline)
+  while True:
     try:
       while True:
-        item = next(token_generator)
-        item = item._replace(
-          start=(item.start[0] + line_offset, item.start[1]),
-          end=(item.end[0] + line_offset, item.end[1]),
+        token = next(token_generator)
+        token = token._replace(
+          start=(token.start[0] + line_offset, token.start[1]),
+          end=(token.end[0] + line_offset, token.end[1]),
         )
-        tokens.append(item)
+        yield token
     except StopIteration:
       break
     except IndentationError as err:
@@ -32,11 +28,11 @@ def _tokenize_best_effort(text):
       # still visible. Tokens yielded before the error remain useful.
       error_line = err.lineno or 1
       line_offset += max(1, error_line)
+      token_generator = tokenize.generate_tokens(input_stream.readline)
     except tokenize.TokenError:
       # Errors such as an unterminated bracket occur at EOF, after all tokens
       # that can be recovered have already been yielded.
       break
-  return tokens
 
 
 def _iter_statements(tokens):
@@ -265,8 +261,8 @@ def _parse_import_statement(statement):
   return imports, excluded_names
 
 
-def analyze_imports(text):
-  tokens = _tokenize_best_effort(text)
+def parse_imports(input_stream):
+  tokens = list(_tokenize_best_effort(input_stream))
   imports = []
   excluded_names = set()
 
@@ -303,12 +299,11 @@ if __name__ == "__main__":
 
     try:
       with open(filename, 'r') as istr:
-        text = istr.read()
+        imports, usages = parse_imports(istr)
+
     except FileNotFoundError:
       sys.stderr.write(f"Error reading {filename}\n")
       continue
-
-    imports, usages = analyze_imports(text)
 
     imported_names_in_file = set()
     list_header = f"- {filename}:\n"
