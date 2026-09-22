@@ -32,15 +32,14 @@ if :
 broken_assignment =
 import unused_after_broken_assignment
 
-# An inconsistent dedent makes tokenize raise IndentationError. badimport
-# should skip the offending line and resume with the following import.
+# Leading indentation is removed before tokenization, so inconsistent dedents
+# should not prevent the following imports from being analyzed.
 if True:
   correctly_indented = True
  incorrectly_indented = False
 import unused_after_bad_indent
 
-# A second inconsistent dedent forces another tokenizer restart, producing
-# a third token segment for badimport to analyze.
+# Include another inconsistent dedent to exercise the same normalization.
 if True:
   also_correctly_indented = True
  incorrectly_indented_again = False

@@ -8,31 +8,15 @@ import tokenize
 VERSION = "0.0.2"
 
 
-def _tokenize_best_effort(input_stream):
-  line_offset = 0
+def _tokenize_stream(input_stream):
+  def unindented_readline():
+    return input_stream.readline().lstrip(" \t\f")
 
-  token_generator = tokenize.generate_tokens(input_stream.readline)
-  while True:
-    try:
-      while True:
-        token = next(token_generator)
-        token = token._replace(
-          start=(token.start[0] + line_offset, token.start[1]),
-          end=(token.end[0] + line_offset, token.end[1]),
-        )
-        yield token
-    except StopIteration:
-      break
-    except IndentationError as err:
-      # Skip the offending line and resume so imports later in the file are
-      # still visible. Tokens yielded before the error remain useful.
-      error_line = err.lineno or 1
-      line_offset += max(1, error_line)
-      token_generator = tokenize.generate_tokens(input_stream.readline)
-    except tokenize.TokenError:
-      # Errors such as an unterminated bracket occur at EOF, after all tokens
-      # that can be recovered have already been yielded.
-      break
+  try:
+    yield from tokenize.generate_tokens(unindented_readline)
+  except (IndentationError, tokenize.TokenError):
+    # Analyze all tokens produced before an unrecoverable tokenization error.
+    pass
 
 
 def _iter_statements(tokens):
@@ -262,7 +246,7 @@ def _parse_import_statement(statement):
 
 
 def parse_imports(input_stream):
-  tokens = list(_tokenize_best_effort(input_stream))
+  tokens = list(_tokenize_stream(input_stream))
   imports = []
   excluded_names = set()
 
