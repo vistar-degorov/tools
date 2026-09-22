@@ -1,7 +1,5 @@
 #! /usr/bin/python
 
-import argparse
-import ast
 from pathlib import Path
 import sys
 import tokenize
@@ -10,37 +8,105 @@ import tokenize
 VERSION = "0.0.2"
 
 
-def _tokenize_stream(input_stream):
-  def unindented_readline():
-    return input_stream.readline().lstrip(" \t\f")
+def _tokenize_best_effort(input_stream):
+  line_offset = 0
 
-  try:
-    yield from tokenize.generate_tokens(unindented_readline)
-  except (IndentationError, tokenize.TokenError):
-    # Analyze all tokens produced before an unrecoverable tokenization error.
-    pass
+  token_generator = tokenize.generate_tokens(input_stream.readline)
+  while True:
+    try:
+      while True:
+        token = next(token_generator)
+        token = token._replace(
+          start=(token.start[0] + line_offset, token.start[1]),
+          end=(token.end[0] + line_offset, token.end[1]),
+        )
+        yield token
+    except StopIteration:
+      break
+    except IndentationError as err:
+      # Skip the offending line and resume so imports later in the file are
+      # still visible. Tokens yielded before the error remain useful.
+      error_line = err.lineno or 1
+      line_offset += max(1, error_line)
+      token_generator = tokenize.generate_tokens(input_stream.readline)
+    except tokenize.TokenError:
+      # Errors such as an unterminated bracket occur at EOF, after all tokens
+      # that can be recovered have already been yielded.
+      break
 
 
-def _names_in_fstring(token):
-  literal = token.string
-  prefix = literal[:2].lower()
-  if not (prefix.startswith("f") or prefix == "rf"):
-    return
+def _iter_statements(tokens):
+  current = []
+  bracket_depth = 0
+  ignored = {
+    tokenize.COMMENT,
+    tokenize.ENCODING,
+    tokenize.INDENT,
+    tokenize.DEDENT,
+  }
 
-  try:
-    expression = ast.parse(literal, mode="eval").body
-  except SyntaxError:
-    return
-  if not isinstance(expression, ast.JoinedStr):
-    return
+  for item in tokens:
+    if item.type in ignored:
+      continue
+    if item.type == tokenize.ENDMARKER:
+      break
+    if item.type in (tokenize.NEWLINE, tokenize.NL):
+      if bracket_depth == 0 and current:
+        yield current
+        current = []
+      continue
+    if item.type == tokenize.ERRORTOKEN and item.string in ("\n", "\r\n"):
+      if bracket_depth == 0 and current:
+        yield current
+        current = []
+      continue
 
-  for node in ast.walk(expression):
-    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-      yield node.id
+    # Recover after an unmatched opening bracket when a later physical line
+    # clearly starts another import statement.
+    starts_import = (
+      item.type == tokenize.NAME
+      and item.string in ("from", "import")
+      and item.line[:item.start[1]].strip() == ""
+    )
+    continues_from_import = (
+      current
+      and current[0].string == "from"
+      and item.string == "import"
+      and not any(
+        token.string == "import" for token in current[1:]
+      )
+    )
+    if current and starts_import and not continues_from_import:
+      yield current
+      current = []
+      bracket_depth = 0
+
+    if item.type == tokenize.OP:
+      if item.string in "([{":
+        bracket_depth += 1
+      elif item.string in ")]}":
+        bracket_depth = max(0, bracket_depth - 1)
+      elif bracket_depth == 0 and item.string in (";", ":"):
+        if current:
+          yield current
+          current = []
+        continue
+
+    current.append(item)
+
+  if current:
+    yield current
+
+
+def _is_name(item, value=None):
+  return (
+    item.type == tokenize.NAME
+    and (value is None or item.string == value)
+  )
 
 
 def _parse_dotted_name(statement, index):
-  if index >= len(statement) or statement[index].type != tokenize.NAME:
+  if index >= len(statement) or not _is_name(statement[index]):
     return None, index
   if statement[index].string in ("as", "import"):
     return None, index
@@ -49,44 +115,42 @@ def _parse_dotted_name(statement, index):
   index += 1
   while (
     index + 1 < len(statement)
+    and statement[index].type == tokenize.OP
     and statement[index].string == "."
-    and statement[index + 1].type == tokenize.NAME
+    and _is_name(statement[index + 1])
   ):
     parts.append(statement[index + 1].string)
     index += 2
   return ".".join(parts), index
 
 
-def _parse_import_names(statement, index, *, allow_dotted):
+def _parse_direct_import(statement):
   imported_names = []
+  index = 1
 
   while index < len(statement):
-    original_name, alias = None, None
-
-    if allow_dotted:
-      original_name, next_index = _parse_dotted_name(statement, index)
-    elif statement[index].type == tokenize.NAME:
-      original_name = statement[index].string
-      next_index = index + 1
-
+    original_name, next_index = _parse_dotted_name(statement, index)
     if original_name is None:
       break
     index = next_index
 
-    if index + 1 < len(statement) and statement[index].string == "as" \
-      and statement[index + 1].type == tokenize.NAME:
+    alias = None
+    if index < len(statement) and _is_name(statement[index], "as"):
+      if index + 1 >= len(statement) or not _is_name(statement[index + 1]):
+        index += 1
+        break
       alias = statement[index + 1].string
       index += 2
 
-    if alias:
-      bound_name = alias
-    elif allow_dotted:
-      bound_name = original_name.split(".", 1)[0]
-    else:
-      bound_name = original_name
-    imported_names.append((alias or original_name, bound_name))
+    displayed_name = alias or original_name
+    bound_name = alias or original_name.split(".", 1)[0]
+    imported_names.append((displayed_name, bound_name))
 
-    if not (index < len(statement) and statement[index].string == ","):
+    if not (
+      index < len(statement)
+      and statement[index].type == tokenize.OP
+      and statement[index].string == ","
+    ):
       break
     index += 1
 
@@ -94,47 +158,94 @@ def _parse_import_names(statement, index, *, allow_dotted):
 
 
 def _parse_from_import(statement, import_index):
+  imported_names = []
   index = import_index + 1
   parenthesized = False
 
-  if (index < len(statement) and statement[index].string == "("):
+  if (
+    index < len(statement)
+    and statement[index].type == tokenize.OP
+    and statement[index].string == "("
+  ):
     parenthesized = True
     index += 1
 
-  if (index < len(statement) and statement[index].string == "*"):
+  if (
+    index < len(statement)
+    and statement[index].type == tokenize.OP
+    and statement[index].string == "*"
+  ):
     return [("*", "*")], index + 1
 
-  imported_names, index = _parse_import_names(statement, index, allow_dotted=False)
-  if (parenthesized and index < len(statement)
-    and statement[index].string == ")"):
+  while index < len(statement):
+    if (
+      parenthesized
+      and statement[index].type == tokenize.OP
+      and statement[index].string == ")"
+    ):
+      index += 1
+      break
+    if not _is_name(statement[index]):
+      break
+
+    original_name = statement[index].string
     index += 1
+    alias = None
+    if index < len(statement) and _is_name(statement[index], "as"):
+      if index + 1 >= len(statement) or not _is_name(statement[index + 1]):
+        index += 1
+        break
+      alias = statement[index + 1].string
+      index += 2
+
+    displayed_name = alias or original_name
+    imported_names.append((displayed_name, displayed_name))
+
+    if (
+      index < len(statement)
+      and statement[index].type == tokenize.OP
+      and statement[index].string == ","
+    ):
+      index += 1
+      continue
+    if (
+      parenthesized
+      and index < len(statement)
+      and statement[index].type == tokenize.OP
+      and statement[index].string == ")"
+    ):
+      index += 1
+    break
 
   return imported_names, index
 
 
 def _parse_import_statement(statement):
-  if not statement:
+  if not statement or not _is_name(statement[0]):
     return None
 
-  match statement[0].string:
-    case "import":
-      imported_names, end_index = _parse_import_names(
-        statement, 1, allow_dotted=True)
-
-    case "from":
-      for import_index in range(1, len(statement)):
-        if statement[import_index].string == "import":
-          break
-      else:
-        return None
-
-      module_name = "".join(token.string for token in statement[1:import_index])
-      imported_names, end_index = _parse_from_import(statement, import_index)
-      if module_name == "__future__":
-        imported_names = []
-
-    case _:
+  if statement[0].string == "import":
+    imported_names, end_index = _parse_direct_import(statement)
+  elif statement[0].string == "from":
+    import_index = next(
+      (
+        index
+        for index, item in enumerate(statement[1:], start=1)
+        if _is_name(item, "import")
+      ),
+      None,
+    )
+    if import_index is None:
       return None
+
+    module_name = "".join(
+      item.string for item in statement[1:import_index]
+    )
+    imported_names, end_index = _parse_from_import(statement, import_index)
+    if module_name == "__future__":
+      imported_names = []
+  else:
+    return None
 
   end_index = max(1, end_index)
   end_position = statement[end_index - 1].end
@@ -142,126 +253,48 @@ def _parse_import_statement(statement):
     (displayed_name, bound_name, end_position)
     for displayed_name, bound_name in imported_names
   ]
-  return imports, end_index
-
-
-def _finish_import_candidate(statement, imports, bound_names, usages):
-  if (import_stmt := _parse_import_statement(statement)) is None:
-    usage_index = 0
-  else:
-    statement_imports, usage_index = import_stmt
-    imports.extend(statement_imports)
-    bound_names.update(
-      bound_name for _, bound_name, _ in statement_imports)
-
-  # A malformed import can have tokens after the part that was parsed.
-  for token in statement[usage_index:]:
-    if token.string in bound_names:
-      usages[token.string] = token.start
-    elif token.type == tokenize.STRING:
-      for name in _names_in_fstring(token):
-        if name in bound_names:
-          usages[name] = token.start
+  excluded_names = {
+    item.start
+    for item in statement[:end_index]
+    if item.type == tokenize.NAME
+  }
+  return imports, excluded_names
 
 
 def parse_imports(input_stream):
+  tokens = list(_tokenize_best_effort(input_stream))
   imports = []
+  excluded_names = set()
+
+  for statement in _iter_statements(tokens):
+    parsed = _parse_import_statement(statement)
+    if parsed is None:
+      continue
+    statement_imports, statement_excluded_names = parsed
+    imports.extend(statement_imports)
+    excluded_names.update(statement_excluded_names)
+
   usages = {}
-  bound_names = set()
-  import_candidate = None
-  statement_start = True
-  ignored = {
-    tokenize.COMMENT,
-    tokenize.ENCODING,
-    tokenize.INDENT,
-    tokenize.DEDENT,
-  }
+  for item in tokens:
+    if item.type == tokenize.NAME and item.start not in excluded_names:
+      usages.setdefault(item.string, []).append(item.start)
 
-  for token in _tokenize_stream(input_stream):
-    t_type = token.type
-
-    if t_type in ignored:
-      continue
-    if t_type == tokenize.ENDMARKER:
-      break
-
-    t_value = token.string
-    if t_type == tokenize.NL:
-      continue
-    if t_type == tokenize.NEWLINE or (
-      t_type == tokenize.ERRORTOKEN and t_value in ("\n", "\r\n")):
-      if import_candidate is not None:
-        _finish_import_candidate(
-          import_candidate, imports, bound_names, usages)
-        import_candidate = None
-      statement_start = True
-      continue
-
-    # Recover when a later physical line clearly starts another import after
-    # an unmatched opening bracket or explicit line continuation.
-    if (
-      t_value in ("from", "import")
-      and not statement_start
-      and token.start[1] == 0
-    ):
-      continues_from_import = (
-        t_value == "import"
-        and import_candidate is not None
-        and import_candidate[0].string == "from"
-        and all(part.string != "import" for part in import_candidate)
-      )
-      if not continues_from_import:
-        if import_candidate is not None:
-          _finish_import_candidate(
-            import_candidate, imports, bound_names, usages)
-          import_candidate = None
-        statement_start = True
-
-    if t_value in (";", ":"):
-      if import_candidate is not None:
-        _finish_import_candidate(
-          import_candidate, imports, bound_names, usages)
-        import_candidate = None
-      statement_start = True
-      continue
-
-    if import_candidate is not None:
-      import_candidate.append(token)
-    elif statement_start and t_value in ("from", "import"):
-      import_candidate = [token]
-    else:
-      if t_value in bound_names:
-        usages[t_value] = token.start
-      elif t_type == tokenize.STRING:
-        for name in _names_in_fstring(token):
-          if name in bound_names:
-            usages[name] = token.start
-
-    statement_start = False
-
-  if import_candidate is not None:
-    _finish_import_candidate(import_candidate, imports, bound_names, usages)
-
+  imports.sort(key=lambda item: item[2])
   return imports, usages
 
 
-def _parse_arguments(arguments=None):
-  parser = argparse.ArgumentParser(
-    description="Find unused and duplicate imports in Python code.")
-  parser.add_argument(
-    "-v", "--version", action="version", version=VERSION)
-  parser.add_argument(
-    "-i", "--include-init", action="store_true",
-    help="include __init__.py files")
-  parser.add_argument("filenames", metavar="FILE", nargs="*")
-  return parser.parse_intermixed_args(arguments)
+if __name__ == "__main__":
 
+  if sys.argv[1:] in (["--version"], ["-v"]):
+    print(VERSION)
+    sys.exit(0)
 
-def main():
-  arguments = _parse_arguments()
+  for filename in sys.argv[1:]:
+    if filename.startswith("-"):
+      sys.stderr.write(f"Ignoring argument {filename}\n")
+      continue
 
-  for filename in arguments.filenames:
-    if not arguments.include_init and Path(filename).name == "__init__.py":
+    if Path(filename).name == "__init__.py":
       continue
 
     try:
@@ -281,12 +314,12 @@ def main():
       duplicate = displayed_name in imported_names_in_file
       imported_names_in_file.add(displayed_name)
 
-      used_later = usages.get(bound_name, (0, 0)) > end_position
+      used_later = any(
+        position > end_position
+        for position in usages.get(bound_name, ())
+      )
+
       if not used_later or duplicate:
         suffix = "  (duplicate)" if duplicate else ""
         print(f"{list_header}    {displayed_name}{suffix}")
         list_header = ""
-
-
-if __name__ == "__main__":
-  main()
