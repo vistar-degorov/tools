@@ -29,17 +29,17 @@ def _iter_statements(tokens):
     tokenize.DEDENT,
   }
 
-  for item in tokens:
-    if item.type in ignored:
+  for token in tokens:
+    if token.type in ignored:
       continue
-    if item.type == tokenize.ENDMARKER:
+    if token.type == tokenize.ENDMARKER:
       break
-    if item.type in (tokenize.NEWLINE, tokenize.NL):
+    if token.type in (tokenize.NEWLINE, tokenize.NL):
       if bracket_depth == 0 and current:
         yield current
         current = []
       continue
-    if item.type == tokenize.ERRORTOKEN and item.string in ("\n", "\r\n"):
+    if token.type == tokenize.ERRORTOKEN and token.string in ("\n", "\r\n"):
       if bracket_depth == 0 and current:
         yield current
         current = []
@@ -48,14 +48,14 @@ def _iter_statements(tokens):
     # Recover after an unmatched opening bracket when a later physical line
     # clearly starts another import statement.
     starts_import = (
-      item.type == tokenize.NAME
-      and item.string in ("from", "import")
-      and item.line[:item.start[1]].strip() == ""
+      token.type == tokenize.NAME
+      and token.string in ("from", "import")
+      and token.line[:token.start[1]].strip() == ""
     )
     continues_from_import = (
       current
       and current[0].string == "from"
-      and item.string == "import"
+      and token.string == "import"
       and not any(
         token.string == "import" for token in current[1:]
       )
@@ -65,27 +65,27 @@ def _iter_statements(tokens):
       current = []
       bracket_depth = 0
 
-    if item.type == tokenize.OP:
-      if item.string in "([{":
+    if token.type == tokenize.OP:
+      if token.string in "([{":
         bracket_depth += 1
-      elif item.string in ")]}":
+      elif token.string in ")]}":
         bracket_depth = max(0, bracket_depth - 1)
-      elif bracket_depth == 0 and item.string in (";", ":"):
+      elif bracket_depth == 0 and token.string in (";", ":"):
         if current:
           yield current
           current = []
         continue
 
-    current.append(item)
+    current.append(token)
 
   if current:
     yield current
 
 
-def _is_name(item, value=None):
+def _is_name(token, value=None):
   return (
-    item.type == tokenize.NAME
-    and (value is None or item.string == value)
+    token.type == tokenize.NAME
+    and (value is None or token.string == value)
   )
 
 
@@ -214,8 +214,8 @@ def _parse_import_statement(statement):
     import_index = next(
       (
         index
-        for index, item in enumerate(statement[1:], start=1)
-        if _is_name(item, "import")
+        for index, token in enumerate(statement[1:], start=1)
+        if _is_name(token, "import")
       ),
       None,
     )
@@ -223,7 +223,7 @@ def _parse_import_statement(statement):
       return None
 
     module_name = "".join(
-      item.string for item in statement[1:import_index]
+      token.string for token in statement[1:import_index]
     )
     imported_names, end_index = _parse_from_import(statement, import_index)
     if module_name == "__future__":
@@ -238,9 +238,9 @@ def _parse_import_statement(statement):
     for displayed_name, bound_name in imported_names
   ]
   excluded_names = {
-    item.start
-    for item in statement[:end_index]
-    if item.type == tokenize.NAME
+    token.start
+    for token in statement[:end_index]
+    if token.type == tokenize.NAME
   }
   return imports, excluded_names
 
@@ -259,11 +259,11 @@ def parse_imports(input_stream):
     excluded_names.update(statement_excluded_names)
 
   usages = {}
-  for item in tokens:
-    if item.type == tokenize.NAME and item.start not in excluded_names:
-      usages.setdefault(item.string, []).append(item.start)
+  for token in tokens:
+    if token.type == tokenize.NAME and token.start not in excluded_names:
+      usages.setdefault(token.string, []).append(token.start)
 
-  imports.sort(key=lambda item: item[2])
+  imports.sort(key=lambda token: token[2])
   return imports, usages
 
 
