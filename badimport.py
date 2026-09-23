@@ -34,12 +34,8 @@ def _iter_statements(tokens):
       continue
     if token.type == tokenize.ENDMARKER:
       break
-    if token.type in (tokenize.NEWLINE, tokenize.NL):
-      if bracket_depth == 0 and current:
-        yield current
-        current = []
-      continue
-    if token.type == tokenize.ERRORTOKEN and token.string in ("\n", "\r\n"):
+    if token.type in (tokenize.NEWLINE, tokenize.NL) or (
+      token.type == tokenize.ERRORTOKEN and token.string in ("\n", "\r\n")):
       if bracket_depth == 0 and current:
         yield current
         current = []
