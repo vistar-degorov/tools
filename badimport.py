@@ -267,8 +267,7 @@ def parse_imports(input_stream):
   return imports, usages
 
 
-if __name__ == "__main__":
-
+def main():
   if sys.argv[1:] in (["--version"], ["-v"]):
     print(VERSION)
     sys.exit(0)
@@ -307,3 +306,7 @@ if __name__ == "__main__":
         suffix = "  (duplicate)" if duplicate else ""
         print(f"{list_header}    {displayed_name}{suffix}")
         list_header = ""
+
+
+if __name__ == "__main__":
+  main()
