@@ -247,19 +247,16 @@ def parse_imports(input_stream):
   excluded_names = set()
 
   for statement in _iter_statements(tokens):
-    parsed = _parse_import_statement(statement)
-    if parsed is None:
-      continue
-    statement_imports, statement_excluded_names = parsed
-    imports.extend(statement_imports)
-    excluded_names.update(statement_excluded_names)
+    if (parsed := _parse_import_statement(statement)) is not None:
+      statement_imports, statement_excluded_names = parsed
+      imports.extend(statement_imports)
+      excluded_names.update(statement_excluded_names)
 
   usages = {}
   for token in tokens:
     if token.type == tokenize.NAME and token.start not in excluded_names:
       usages.setdefault(token.string, []).append(token.start)
 
-  imports.sort(key=lambda token: token[2])
   return imports, usages
 
 
