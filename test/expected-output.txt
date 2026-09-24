@@ -1,0 +1,11 @@
+- test/badimport_input.py:
+    duplicate_math  (duplicate)
+    sys
+    RenamedCounter
+    unused_before_string
+    unused_comma
+    unused_inside_broken_if
+    unused_after_broken_assignment
+    unused_after_bad_indent
+    unused_after_second_bad_indent
+    unused_after_unclosed_bracket

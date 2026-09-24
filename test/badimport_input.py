@@ -16,7 +16,14 @@ from pathlib import Path
 
 # Neither of these should be interpreted as an import.
 # import ignored_comment
-IMPORT_EXAMPLE = "import ignored_string"
+"import ignored_string"
+"from ignore.me import ignore_me"
+
+# weird syntax
+from weird.syntax import "ignore_me", ignore_me_2
+from weird.syntax import unused_before_string, "ignore_me"
+from weird.syntax import unused_comma , , , ,
+
 
 # These imports are used.
 print(collections.abc)
@@ -28,6 +35,10 @@ print(deque())
 # Syntax errors do not normally stop the tokenizer.
 if :
   import unused_inside_broken_if
+
+# An incomplete from-import should be ignored.
+from operator
+from operator import
 
 broken_assignment =
 import unused_after_broken_assignment
