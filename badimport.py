@@ -107,12 +107,18 @@ def _parse_dotted_name(statement, index):
   return ".".join(parts), index
 
 
-def _parse_direct_import(statement):
+def _parse_import_names(statement, index, *, allow_dotted):
   imported_names = []
-  index = 1
 
   while index < len(statement):
-    original_name, next_index = _parse_dotted_name(statement, index)
+    if allow_dotted:
+      original_name, next_index = _parse_dotted_name(statement, index)
+    elif _is_name(statement[index]):
+      original_name = statement[index].string
+      next_index = index + 1
+    else:
+      original_name = None
+
     if original_name is None:
       break
     index = next_index
@@ -126,7 +132,12 @@ def _parse_direct_import(statement):
       index += 2
 
     displayed_name = alias or original_name
-    bound_name = alias or original_name.split(".", 1)[0]
+    if alias:
+      bound_name = alias
+    elif allow_dotted:
+      bound_name = original_name.split(".", 1)[0]
+    else:
+      bound_name = original_name
     imported_names.append((displayed_name, bound_name))
 
     if not (
@@ -141,7 +152,6 @@ def _parse_direct_import(statement):
 
 
 def _parse_from_import(statement, import_index):
-  imported_names = []
   index = import_index + 1
   parenthesized = False
 
@@ -160,45 +170,15 @@ def _parse_from_import(statement, import_index):
   ):
     return [("*", "*")], index + 1
 
-  while index < len(statement):
-    if (
-      parenthesized
-      and statement[index].type == tokenize.OP
-      and statement[index] == ")"
-    ):
-      index += 1
-      break
-    if not _is_name(statement[index]):
-      break
-
-    original_name = statement[index].string
+  imported_names, index = _parse_import_names(
+    statement, index, allow_dotted=False)
+  if (
+    parenthesized
+    and index < len(statement)
+    and statement[index].type == tokenize.OP
+    and statement[index] == ")"
+  ):
     index += 1
-    alias = None
-    if index < len(statement) and statement[index] == "as":
-      if index + 1 >= len(statement) or not _is_name(statement[index + 1]):
-        index += 1
-        break
-      alias = statement[index + 1].string
-      index += 2
-
-    displayed_name = alias or original_name
-    imported_names.append((displayed_name, displayed_name))
-
-    if (
-      index < len(statement)
-      and statement[index].type == tokenize.OP
-      and statement[index] == ","
-    ):
-      index += 1
-      continue
-    if (
-      parenthesized
-      and index < len(statement)
-      and statement[index].type == tokenize.OP
-      and statement[index] == ")"
-    ):
-      index += 1
-    break
 
   return imported_names, index
 
@@ -209,7 +189,8 @@ def _parse_import_statement(statement):
 
   match statement:
     case "import", *_:
-      imported_names, end_index = _parse_direct_import(statement)
+      imported_names, end_index = _parse_import_names(
+        statement, 1, allow_dotted=True)
 
     case "from", *tail:
       import_index = next(
