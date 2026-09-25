@@ -26,63 +26,6 @@ def _tokenize_stream(input_stream):
     pass
 
 
-def _iter_statements(tokens):
-  current = []
-  bracket_depth = 0
-  ignored = {
-    tokenize.COMMENT,
-    tokenize.ENCODING,
-    tokenize.INDENT,
-    tokenize.DEDENT,
-  }
-
-  for token in tokens:
-    if token.type in ignored:
-      continue
-    if token.type == tokenize.ENDMARKER:
-      break
-    if token.type in (tokenize.NEWLINE, tokenize.NL) or (
-      token.type == tokenize.ERRORTOKEN and token in ("\n", "\r\n")):
-      if bracket_depth == 0 and current:
-        yield current
-        current = []
-      continue
-
-    # Recover after an unmatched opening bracket when a later physical line
-    # clearly starts another import statement.
-    starts_import = (
-      token.type == tokenize.NAME
-      and token in ("from", "import")
-      and token.line[:token.start[1]].strip() == ""
-    )
-    continues_from_import = (
-      current
-      and current[0] == "from"
-      and token == "import"
-      and "import" not in current[1:]
-    )
-    if current and starts_import and not continues_from_import:
-      yield current
-      current = []
-      bracket_depth = 0
-
-    if token.type == tokenize.OP:
-      if token in ("(", "[", "{"):
-        bracket_depth += 1
-      elif token in (")", "]", "}"):
-        bracket_depth = max(0, bracket_depth - 1)
-      elif bracket_depth == 0 and token in (";", ":"):
-        if current:
-          yield current
-          current = []
-        continue
-
-    current.append(token)
-
-  if current:
-    yield current
-
-
 def _names_in_fstring(token):
   quote_index = min(
     (
@@ -208,28 +151,106 @@ def _parse_import_statement(statement):
   return imports, end_index
 
 
+def _finish_import_candidate(statement, imports, bound_names, usages):
+  if (import_stmt := _parse_import_statement(statement)) is None:
+    usage_index = 0
+  else:
+    statement_imports, usage_index = import_stmt
+    imports.extend(statement_imports)
+    bound_names.update(
+      bound_name for _, bound_name, _ in statement_imports)
+
+  # A malformed import can have tokens after the part that was parsed.
+  for token in statement[usage_index:]:
+    if token.type == tokenize.NAME and token.string in bound_names:
+      usages[token.string] = token.start
+    elif token.type == tokenize.STRING:
+      for name in _names_in_fstring(token):
+        if name in bound_names:
+          usages[name] = token.start
+
+
 def parse_imports(input_stream):
   imports = []
   usages = {}
   bound_names = set()
+  import_candidate = None
+  bracket_depth = 0
+  statement_start = True
+  ignored = {
+    tokenize.COMMENT,
+    tokenize.ENCODING,
+    tokenize.INDENT,
+    tokenize.DEDENT,
+  }
 
-  tokens = _tokenize_stream(input_stream)
-  for statement in _iter_statements(tokens):
-    if (import_stmt := _parse_import_statement(statement)) is not None:
-      statement_imports, usage_index = import_stmt
-      imports.extend(statement_imports)
-      bound_names |= {
-        bound_name for _, bound_name, _ in statement_imports
-      }
-      statement = statement[usage_index:]
+  for token in _tokenize_stream(input_stream):
+    if token.type in ignored:
+      continue
+    if token.type == tokenize.ENDMARKER:
+      break
+    if token.type in (tokenize.NEWLINE, tokenize.NL) or (
+      token.type == tokenize.ERRORTOKEN and token in ("\n", "\r\n")):
+      if bracket_depth == 0:
+        if import_candidate is not None:
+          _finish_import_candidate(
+            import_candidate, imports, bound_names, usages)
+          import_candidate = None
+        statement_start = True
+      continue
 
-    for token in statement:
+    # Recover after an unmatched opening bracket or explicit line continuation
+    # when a later physical line clearly starts another import statement.
+    starts_import_line = (
+      token.type == tokenize.NAME
+      and token in ("from", "import")
+      and token.line[:token.start[1]].strip() == ""
+    )
+    continues_from_import = (
+      import_candidate
+      and import_candidate[0] == "from"
+      and token == "import"
+      and "import" not in import_candidate[1:]
+    )
+    if (not statement_start and starts_import_line
+      and not continues_from_import):
+      if import_candidate is not None:
+        _finish_import_candidate(
+          import_candidate, imports, bound_names, usages)
+        import_candidate = None
+      bracket_depth = 0
+      statement_start = True
+
+    if token.type == tokenize.OP:
+      if token in ("(", "[", "{"):
+        bracket_depth += 1
+      elif token in (")", "]", "}"):
+        bracket_depth = max(0, bracket_depth - 1)
+      elif bracket_depth == 0 and token in (";", ":"):
+        if import_candidate is not None:
+          _finish_import_candidate(
+            import_candidate, imports, bound_names, usages)
+          import_candidate = None
+        statement_start = True
+        continue
+
+    if import_candidate is not None:
+      import_candidate.append(token)
+    elif statement_start and token.type == tokenize.NAME \
+      and token in ("from", "import"):
+      import_candidate = [token]
+    else:
       if token.type == tokenize.NAME and token.string in bound_names:
         usages[token.string] = token.start
       elif token.type == tokenize.STRING:
         for name in _names_in_fstring(token):
           if name in bound_names:
             usages[name] = token.start
+
+    statement_start = False
+
+  if import_candidate is not None:
+    _finish_import_candidate(import_candidate, imports, bound_names, usages)
 
   return imports, usages
 
