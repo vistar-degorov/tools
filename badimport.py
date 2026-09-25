@@ -196,28 +196,27 @@ def parse_imports(input_stream):
         statement_start = True
       continue
 
-    # Recover after an unmatched opening bracket or explicit line continuation
-    # when a later physical line clearly starts another import statement.
-    starts_import_line = (
+    # Recover when a later physical line clearly starts another import after
+    # an unmatched opening bracket or explicit line continuation.
+    if (
       t_type == tokenize.NAME
       and t_value in ("from", "import")
-      and token.line[:token.start[1]].strip() == ""
-    )
-    continues_from_import = (
-      starts_import_line
-      and t_value == "import"
-      and import_candidate is not None
-      and import_candidate[0].string == "from"
-      and all(token.string != "import" for token in import_candidate[1:])
-    )
-    if (not statement_start and starts_import_line
-      and not continues_from_import):
-      if import_candidate is not None:
-        _finish_import_candidate(
-          import_candidate, imports, bound_names, usages)
-        import_candidate = None
-      bracket_depth = 0
-      statement_start = True
+      and not statement_start
+      and token.start[1] == 0
+    ):
+      continues_from_import = (
+        t_value == "import"
+        and import_candidate is not None
+        and import_candidate[0].string == "from"
+        and all(part.string != "import" for part in import_candidate)
+      )
+      if not continues_from_import:
+        if import_candidate is not None:
+          _finish_import_candidate(
+            import_candidate, imports, bound_names, usages)
+          import_candidate = None
+        bracket_depth = 0
+        statement_start = True
 
     if t_type == tokenize.OP:
       if t_value in ("(", "[", "{"):
