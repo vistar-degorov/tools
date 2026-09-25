@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import collections.abc
+from decimal import Decimal
+import fractions
 import json as json_module
 import math as duplicate_math
 import math as duplicate_math
 import os
+import statistics as stats
 import sys
 from collections import (
   Counter as RenamedCounter,
@@ -31,6 +34,7 @@ print(duplicate_math.pi)
 print(json_module.dumps({"cwd": os.getcwd()}))
 print(Path("."))
 print(deque())
+f"{Decimal('1')} {fractions.Fraction(1, 2)!r:>{stats.mean([8])}}"
 
 # Syntax errors do not normally stop the tokenizer.
 if :
