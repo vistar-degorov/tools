@@ -224,15 +224,14 @@ def parse_imports(input_stream):
 
   tokens = _tokenize_stream(input_stream)
   for statement in _iter_statements(tokens):
-    usage_index = 0
-    if (parsed := _parse_import_statement(statement)) is not None:
-      statement_imports, usage_index = parsed
+    if (import_stmt := _parse_import_statement(statement)) is not None:
+      statement_imports, usage_index = import_stmt
       imports.extend(statement_imports)
+      statement = statement[usage_index:]
 
-    for token in statement[usage_index:]:
+    for token in statement:
       for name in _usage_names(token):
-        if usages.get(name, (0, 0)) < token.start:
-          usages[name] = token.start
+        usages[name] = token.start
 
   return imports, usages
 
