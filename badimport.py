@@ -111,13 +111,6 @@ def _names_in_fstring(token):
       yield node.id
 
 
-def _usage_names(token):
-  if _is_name(token):
-    yield token.string
-  elif token.type == tokenize.STRING:
-    yield from _names_in_fstring(token)
-
-
 def _parse_dotted_name(statement, index):
   if index >= len(statement) or not _is_name(statement[index]):
     return None, index
@@ -230,8 +223,11 @@ def parse_imports(input_stream):
       statement = statement[usage_index:]
 
     for token in statement:
-      for name in _usage_names(token):
-        usages[name] = token.start
+      if token.type == tokenize.NAME:
+        usages[token.string] = token.start
+      elif token.type == tokenize.STRING:
+        for name in _names_in_fstring(token):
+          usages[name] = token.start
 
   return imports, usages
 
