@@ -19,8 +19,7 @@ def _tokenize_stream(input_stream):
     return input_stream.readline().lstrip(" \t\f")
 
   try:
-    tokens = (Token(*t) for t in tokenize.generate_tokens(unindented_readline))
-    yield from tokens
+    yield from tokenize.generate_tokens(unindented_readline)
   except (IndentationError, tokenize.TokenError):
     # Analyze all tokens produced before an unrecoverable tokenization error.
     pass
@@ -179,12 +178,16 @@ def parse_imports(input_stream):
   }
 
   for token in _tokenize_stream(input_stream):
-    if token.type in ignored:
+    t_type = token.type
+
+    if t_type in ignored:
       continue
-    if token.type == tokenize.ENDMARKER:
+    if t_type == tokenize.ENDMARKER:
       break
-    if token.type in (tokenize.NEWLINE, tokenize.NL) or (
-      token.type == tokenize.ERRORTOKEN and token in ("\n", "\r\n")):
+
+    t_value = token.string
+    if t_type in (tokenize.NEWLINE, tokenize.NL) or (
+      t_type == tokenize.ERRORTOKEN and t_value in ("\n", "\r\n")):
       if bracket_depth == 0:
         if import_candidate is not None:
           _finish_import_candidate(
@@ -196,14 +199,14 @@ def parse_imports(input_stream):
     # Recover after an unmatched opening bracket or explicit line continuation
     # when a later physical line clearly starts another import statement.
     starts_import_line = (
-      token.type == tokenize.NAME
-      and token in ("from", "import")
+      t_type == tokenize.NAME
+      and t_value in ("from", "import")
       and token.line[:token.start[1]].strip() == ""
     )
     continues_from_import = (
       import_candidate
       and import_candidate[0] == "from"
-      and token == "import"
+      and t_value == "import"
       and "import" not in import_candidate[1:]
     )
     if (not statement_start and starts_import_line
@@ -215,12 +218,12 @@ def parse_imports(input_stream):
       bracket_depth = 0
       statement_start = True
 
-    if token.type == tokenize.OP:
-      if token in ("(", "[", "{"):
+    if t_type == tokenize.OP:
+      if t_value in ("(", "[", "{"):
         bracket_depth += 1
-      elif token in (")", "]", "}"):
+      elif t_value in (")", "]", "}"):
         bracket_depth = max(0, bracket_depth - 1)
-      elif bracket_depth == 0 and token in (";", ":"):
+      elif bracket_depth == 0 and t_value in (";", ":"):
         if import_candidate is not None:
           _finish_import_candidate(
             import_candidate, imports, bound_names, usages)
@@ -229,14 +232,14 @@ def parse_imports(input_stream):
         continue
 
     if import_candidate is not None:
-      import_candidate.append(token)
-    elif statement_start and token.type == tokenize.NAME \
-      and token in ("from", "import"):
-      import_candidate = [token]
+      import_candidate.append(Token(*token))
+    elif statement_start and t_type == tokenize.NAME \
+      and t_value in ("from", "import"):
+      import_candidate = [Token(*token)]
     else:
-      if token.type == tokenize.NAME and token.string in bound_names:
-        usages[token.string] = token.start
-      elif token.type == tokenize.STRING:
+      if t_type == tokenize.NAME and t_value in bound_names:
+        usages[t_value] = token.start
+      elif t_type == tokenize.STRING:
         for name in _names_in_fstring(token):
           if name in bound_names:
             usages[name] = token.start
