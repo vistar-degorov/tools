@@ -231,7 +231,8 @@ def parse_imports(input_stream):
 
     for token in statement[usage_index:]:
       for name in _usage_names(token):
-        usages.setdefault(name, []).append(token.start)
+        if usages.get(name, (0, 0)) < token.start:
+          usages[name] = token.start
 
   return imports, usages
 
@@ -266,10 +267,7 @@ def main():
       duplicate = displayed_name in imported_names_in_file
       imported_names_in_file.add(displayed_name)
 
-      used_later = any(
-        position > end_position
-        for position in usages.get(bound_name, ())
-      )
+      used_later = usages.get(bound_name, (0, 0)) > end_position
 
       if not used_later or duplicate:
         suffix = "  (duplicate)" if duplicate else ""
