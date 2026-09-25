@@ -1,5 +1,6 @@
 #! /usr/bin/python
 
+import ast
 from pathlib import Path
 import sys
 import tokenize
@@ -86,6 +87,37 @@ def _iter_statements(tokens):
 
 def _is_name(token):
   return token.type == tokenize.NAME
+
+
+def _names_in_fstring(token):
+  quote_index = min(
+    (
+      index
+      for index, character in enumerate(token.string)
+      if character in "'\""
+    ),
+    default=len(token.string),
+  )
+  if "f" not in token.string[:quote_index].lower():
+    return
+
+  try:
+    expression = ast.parse(token.string, mode="eval").body
+  except SyntaxError:
+    return
+  if not isinstance(expression, ast.JoinedStr):
+    return
+
+  for node in ast.walk(expression):
+    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+      yield node.id
+
+
+def _usage_names(token):
+  if _is_name(token):
+    yield token.string
+  elif token.type == tokenize.STRING:
+    yield from _names_in_fstring(token)
 
 
 def _parse_dotted_name(statement, index):
@@ -200,8 +232,8 @@ def parse_imports(input_stream):
       imports.extend(statement_imports)
 
     for token in statement[usage_index:]:
-      if _is_name(token):
-        usages.setdefault(token.string, []).append(token.start)
+      for name in _usage_names(token):
+        usages.setdefault(name, []).append(token.start)
 
   return imports, usages
 
