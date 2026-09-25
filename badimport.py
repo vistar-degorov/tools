@@ -185,29 +185,23 @@ def _parse_import_statement(statement):
     (displayed_name, bound_name, end_position)
     for displayed_name, bound_name in imported_names
   ]
-  excluded_names = {
-    token.start
-    for token in statement[:end_index]
-    if token.type == tokenize.NAME
-  }
-  return imports, excluded_names
+  return imports, end_index
 
 
 def parse_imports(input_stream):
-  tokens = list(_tokenize_stream(input_stream))
   imports = []
-  excluded_names = set()
-
-  for statement in _iter_statements(tokens):
-    if (parsed := _parse_import_statement(statement)) is not None:
-      statement_imports, statement_excluded_names = parsed
-      imports.extend(statement_imports)
-      excluded_names.update(statement_excluded_names)
-
   usages = {}
-  for token in tokens:
-    if token.type == tokenize.NAME and token.start not in excluded_names:
-      usages.setdefault(token.string, []).append(token.start)
+
+  tokens = _tokenize_stream(input_stream)
+  for statement in _iter_statements(tokens):
+    usage_index = 0
+    if (parsed := _parse_import_statement(statement)) is not None:
+      statement_imports, usage_index = parsed
+      imports.extend(statement_imports)
+
+    for token in statement[usage_index:]:
+      if _is_name(token):
+        usages.setdefault(token.string, []).append(token.start)
 
   return imports, usages
 
