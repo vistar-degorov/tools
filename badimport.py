@@ -211,20 +211,25 @@ def _parse_import_statement(statement):
 def parse_imports(input_stream):
   imports = []
   usages = {}
+  bound_names = set()
 
   tokens = _tokenize_stream(input_stream)
   for statement in _iter_statements(tokens):
     if (import_stmt := _parse_import_statement(statement)) is not None:
       statement_imports, usage_index = import_stmt
       imports.extend(statement_imports)
+      bound_names |= {
+        bound_name for _, bound_name, _ in statement_imports
+      }
       statement = statement[usage_index:]
 
     for token in statement:
-      if token.type == tokenize.NAME:
+      if token.type == tokenize.NAME and token.string in bound_names:
         usages[token.string] = token.start
       elif token.type == tokenize.STRING:
         for name in _names_in_fstring(token):
-          usages[name] = token.start
+          if name in bound_names:
+            usages[name] = token.start
 
   return imports, usages
 
@@ -260,7 +265,6 @@ def main():
       imported_names_in_file.add(displayed_name)
 
       used_later = usages.get(bound_name, (0, 0)) > end_position
-
       if not used_later or duplicate:
         suffix = "  (duplicate)" if duplicate else ""
         print(f"{list_header}    {displayed_name}{suffix}")
