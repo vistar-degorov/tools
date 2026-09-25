@@ -190,14 +190,14 @@ def _parse_from_import(statement, import_index):
 
 
 def _parse_import_statement(statement):
-  match statement:
-    case "import", *_:
+  match statement[:1]:
+    case "import",:
       imported_names, end_index = _parse_import_names(
         statement, 1, allow_dotted=True)
 
-    case "from", *tail:
+    case "from",:
       try:
-        import_index = tail.index("import") + 1
+        import_index = statement.index("import")
       except ValueError:
         return None
 
