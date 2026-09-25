@@ -59,9 +59,7 @@ def _iter_statements(tokens):
       current
       and current[0] == "from"
       and token == "import"
-      and not any(
-        token == "import" for token in current[1:]
-      )
+      and "import" not in current[1:]
     )
     if current and starts_import and not continues_from_import:
       yield current
