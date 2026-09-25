@@ -9,11 +9,6 @@ import tokenize
 VERSION = "0.0.2"
 
 
-class Token(tokenize.TokenInfo):
-  def __eq__(self, value: str) -> bool:
-    return self.string == value
-
-
 def _tokenize_stream(input_stream):
   def unindented_readline():
     return input_stream.readline().lstrip(" \t\f")
@@ -46,14 +41,14 @@ def _names_in_fstring(token):
 def _parse_dotted_name(statement, index):
   if index >= len(statement) or statement[index].type != tokenize.NAME:
     return None, index
-  if statement[index] in ("as", "import"):
+  if statement[index].string in ("as", "import"):
     return None, index
 
   parts = [statement[index].string]
   index += 1
   while (
     index + 1 < len(statement)
-    and statement[index] == "."
+    and statement[index].string == "."
     and statement[index + 1].type == tokenize.NAME
   ):
     parts.append(statement[index + 1].string)
@@ -77,7 +72,7 @@ def _parse_import_names(statement, index, *, allow_dotted):
       break
     index = next_index
 
-    if index + 1 < len(statement) and statement[index] == "as" \
+    if index + 1 < len(statement) and statement[index].string == "as" \
       and statement[index + 1].type == tokenize.NAME:
       alias = statement[index + 1].string
       index += 2
@@ -90,7 +85,7 @@ def _parse_import_names(statement, index, *, allow_dotted):
       bound_name = original_name
     imported_names.append((alias or original_name, bound_name))
 
-    if not (index < len(statement) and statement[index] == ","):
+    if not (index < len(statement) and statement[index].string == ","):
       break
     index += 1
 
@@ -101,30 +96,35 @@ def _parse_from_import(statement, import_index):
   index = import_index + 1
   parenthesized = False
 
-  if (index < len(statement) and statement[index] == "("):
+  if (index < len(statement) and statement[index].string == "("):
     parenthesized = True
     index += 1
 
-  if (index < len(statement) and statement[index] == "*"):
+  if (index < len(statement) and statement[index].string == "*"):
     return [("*", "*")], index + 1
 
   imported_names, index = _parse_import_names(statement, index, allow_dotted=False)
-  if (parenthesized and index < len(statement) and statement[index] == ")"):
+  if (parenthesized and index < len(statement)
+    and statement[index].string == ")"):
     index += 1
 
   return imported_names, index
 
 
 def _parse_import_statement(statement):
-  match statement[:1]:
-    case "import",:
+  if not statement:
+    return None
+
+  match statement[0].string:
+    case "import":
       imported_names, end_index = _parse_import_names(
         statement, 1, allow_dotted=True)
 
-    case "from",:
-      try:
-        import_index = statement.index("import")
-      except ValueError:
+    case "from":
+      for import_index in range(1, len(statement)):
+        if statement[import_index].string == "import":
+          break
+      else:
         return None
 
       module_name = "".join(token.string for token in statement[1:import_index])
@@ -204,10 +204,11 @@ def parse_imports(input_stream):
       and token.line[:token.start[1]].strip() == ""
     )
     continues_from_import = (
-      import_candidate
-      and import_candidate[0] == "from"
+      starts_import_line
       and t_value == "import"
-      and "import" not in import_candidate[1:]
+      and import_candidate is not None
+      and import_candidate[0].string == "from"
+      and all(token.string != "import" for token in import_candidate[1:])
     )
     if (not statement_start and starts_import_line
       and not continues_from_import):
@@ -232,10 +233,10 @@ def parse_imports(input_stream):
         continue
 
     if import_candidate is not None:
-      import_candidate.append(Token(*token))
+      import_candidate.append(token)
     elif statement_start and t_type == tokenize.NAME \
       and t_value in ("from", "import"):
-      import_candidate = [Token(*token)]
+      import_candidate = [token]
     else:
       if t_type == tokenize.NAME and t_value in bound_names:
         usages[t_value] = token.start
