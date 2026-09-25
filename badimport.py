@@ -83,10 +83,6 @@ def _iter_statements(tokens):
     yield current
 
 
-def _is_name(token):
-  return token.type == tokenize.NAME
-
-
 def _names_in_fstring(token):
   quote_index = min(
     (
@@ -112,7 +108,7 @@ def _names_in_fstring(token):
 
 
 def _parse_dotted_name(statement, index):
-  if index >= len(statement) or not _is_name(statement[index]):
+  if index >= len(statement) or statement[index].type != tokenize.NAME:
     return None, index
   if statement[index] in ("as", "import"):
     return None, index
@@ -122,7 +118,7 @@ def _parse_dotted_name(statement, index):
   while (
     index + 1 < len(statement)
     and statement[index] == "."
-    and _is_name(statement[index + 1])
+    and statement[index + 1].type == tokenize.NAME
   ):
     parts.append(statement[index + 1].string)
     index += 2
@@ -137,7 +133,7 @@ def _parse_import_names(statement, index, *, allow_dotted):
 
     if allow_dotted:
       original_name, next_index = _parse_dotted_name(statement, index)
-    elif _is_name(statement[index]):
+    elif statement[index].type == tokenize.NAME:
       original_name = statement[index].string
       next_index = index + 1
 
@@ -145,7 +141,8 @@ def _parse_import_names(statement, index, *, allow_dotted):
       break
     index = next_index
 
-    if index + 1 < len(statement) and statement[index] == "as" and _is_name(statement[index + 1]):
+    if index + 1 < len(statement) and statement[index] == "as" \
+      and statement[index + 1].type == tokenize.NAME:
       alias = statement[index + 1].string
       index += 2
 
