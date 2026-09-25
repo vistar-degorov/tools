@@ -27,19 +27,13 @@ def _tokenize_stream(input_stream):
 
 
 def _names_in_fstring(token):
-  quote_index = min(
-    (
-      index
-      for index, character in enumerate(token.string)
-      if character in "'\""
-    ),
-    default=len(token.string),
-  )
-  if "f" not in token.string[:quote_index].lower():
+  literal = token.string
+  prefix = literal[:2].lower()
+  if not (prefix.startswith("f") or prefix == "rf"):
     return
 
   try:
-    expression = ast.parse(token.string, mode="eval").body
+    expression = ast.parse(literal, mode="eval").body
   except SyntaxError:
     return
   if not isinstance(expression, ast.JoinedStr):
