@@ -155,7 +155,7 @@ def _finish_import_candidate(statement, imports, bound_names, usages):
 
   # A malformed import can have tokens after the part that was parsed.
   for token in statement[usage_index:]:
-    if token.type == tokenize.NAME and token.string in bound_names:
+    if token.string in bound_names:
       usages[token.string] = token.start
     elif token.type == tokenize.STRING:
       for name in _names_in_fstring(token):
@@ -199,8 +199,7 @@ def parse_imports(input_stream):
     # Recover when a later physical line clearly starts another import after
     # an unmatched opening bracket or explicit line continuation.
     if (
-      t_type == tokenize.NAME
-      and t_value in ("from", "import")
+      t_value in ("from", "import")
       and not statement_start
       and token.start[1] == 0
     ):
@@ -218,26 +217,24 @@ def parse_imports(input_stream):
         bracket_depth = 0
         statement_start = True
 
-    if t_type == tokenize.OP:
-      if t_value in ("(", "[", "{"):
-        bracket_depth += 1
-      elif t_value in (")", "]", "}"):
-        bracket_depth = max(0, bracket_depth - 1)
-      elif bracket_depth == 0 and t_value in (";", ":"):
-        if import_candidate is not None:
-          _finish_import_candidate(
-            import_candidate, imports, bound_names, usages)
-          import_candidate = None
-        statement_start = True
-        continue
+    if t_value in ("(", "[", "{"):
+      bracket_depth += 1
+    elif t_value in (")", "]", "}"):
+      bracket_depth = max(0, bracket_depth - 1)
+    elif bracket_depth == 0 and t_value in (";", ":"):
+      if import_candidate is not None:
+        _finish_import_candidate(
+          import_candidate, imports, bound_names, usages)
+        import_candidate = None
+      statement_start = True
+      continue
 
     if import_candidate is not None:
       import_candidate.append(token)
-    elif statement_start and t_type == tokenize.NAME \
-      and t_value in ("from", "import"):
+    elif statement_start and t_value in ("from", "import"):
       import_candidate = [token]
     else:
-      if t_type == tokenize.NAME and t_value in bound_names:
+      if t_value in bound_names:
         usages[t_value] = token.start
       elif t_type == tokenize.STRING:
         for name in _names_in_fstring(token):
