@@ -156,10 +156,8 @@ def main(arguments=None):
     return 0
 
   completed = run_command(cmd)
-  if completed.returncode > 1:
+  if completed.returncode != 0:
     return completed.returncode
-  if completed.returncode == 1:
-    return 1
   if not structured:
     sys.stdout.buffer.write(completed.stdout)
     return 0
