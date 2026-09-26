@@ -1,9 +1,13 @@
+import errno
 import json
 import os
 from pathlib import Path
+import pty
 import subprocess
 import tempfile
 import unittest
+
+from git_search import remove_color_codes
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -43,6 +47,10 @@ def target():
 
 TEST_ONLY = True
 """)
+    self._write("nested/scoped.py", """\
+def scoped():
+  return True
+""")
     self._write(".gitignore", "ignored.py\n")
     subprocess.run(
       ("git", "add", "."), cwd=self.repository, check=True)
@@ -51,9 +59,12 @@ TEST_ONLY = True
     self._write("ignored.py", "class Ignored:\n  pass\n")
 
     self.environment = os.environ.copy()
-    for name in ("GG_SEARCH_IN", "GG_SEARCH_EXT", "GG_TOOL"):
+    for name in (
+      "GG_SEARCH_IN", "GG_SEARCH_IN_DEFAULT",
+      "GG_SEARCH_EXT", "GG_SEARCH_EXT_DEFAULT",
+      "GG_TOOL", "GG_TOOL_DEFAULT",
+    ):
       self.environment.pop(name, None)
-    self.environment["GG_SEARCH_IN_DEFAULT"] = "wrong-directory"
     self.environment["GG_TOOL_DEFAULT"] = "tool-that-must-not-run"
 
   def tearDown(self):
@@ -73,6 +84,43 @@ TEST_ONLY = True
       text=True,
     )
 
+  def _run_tty(self, script, *arguments):
+    command = ("python", str(script), *arguments)
+    master, slave = pty.openpty()
+    try:
+      process = subprocess.Popen(
+        command,
+        cwd=self.repository,
+        env=self.environment,
+        stdout=slave,
+        stderr=subprocess.PIPE,
+      )
+    finally:
+      os.close(slave)
+
+    chunks = []
+    try:
+      while True:
+        try:
+          chunk = os.read(master, 4096)
+        except OSError as error:
+          if error.errno == errno.EIO:
+            break
+          raise
+        if not chunk:
+          break
+        chunks.append(chunk)
+    finally:
+      os.close(master)
+
+    _, stderr = process.communicate()
+    return subprocess.CompletedProcess(
+      command,
+      process.returncode,
+      b"".join(chunks).decode(errors="replace"),
+      stderr.decode(errors="replace"),
+    )
+
   def test_empty_invocation_prints_usage(self):
     for script in (GG, FINDDEF):
       with self.subTest(script=script.name):
@@ -87,10 +135,19 @@ TEST_ONLY = True
     self.assertGreaterEqual(
       self._run(GG, "--bad-git-option", "target").returncode, 2)
 
-  def test_default_scope_ignores_interactive_environment_default(self):
-    result = self._run(GG, "target")
+  def test_default_scope_is_independent_of_output_destination(self):
+    self.environment["GG_SEARCH_IN_DEFAULT"] = "nested/"
+    piped = self._run(GG, "scoped")
+    terminal = self._run_tty(GG, "scoped")
+    self.assertEqual(piped.returncode, 0)
+    self.assertEqual(terminal.returncode, 0)
+    self.assertIn("nested/scoped.py:", piped.stdout)
+    self.assertIn("nested/scoped.py:", remove_color_codes(terminal.stdout))
+
+  def test_terminal_output_is_colored(self):
+    result = self._run_tty(GG, "target")
     self.assertEqual(result.returncode, 0)
-    self.assertIn("a.py:", result.stdout)
+    self.assertIn("\x1b[", result.stdout)
 
   def test_default_word_search(self):
     result = self._run(GG, "target")
