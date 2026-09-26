@@ -169,7 +169,6 @@ def parse_imports(input_stream):
   usages = {}
   bound_names = set()
   import_candidate = None
-  bracket_depth = 0
   statement_start = True
   ignored = {
     tokenize.COMMENT,
@@ -187,14 +186,15 @@ def parse_imports(input_stream):
       break
 
     t_value = token.string
-    if t_type in (tokenize.NEWLINE, tokenize.NL) or (
+    if t_type == tokenize.NL:
+      continue
+    if t_type == tokenize.NEWLINE or (
       t_type == tokenize.ERRORTOKEN and t_value in ("\n", "\r\n")):
-      if bracket_depth == 0:
-        if import_candidate is not None:
-          _finish_import_candidate(
-            import_candidate, imports, bound_names, usages)
-          import_candidate = None
-        statement_start = True
+      if import_candidate is not None:
+        _finish_import_candidate(
+          import_candidate, imports, bound_names, usages)
+        import_candidate = None
+      statement_start = True
       continue
 
     # Recover when a later physical line clearly starts another import after
@@ -215,14 +215,9 @@ def parse_imports(input_stream):
           _finish_import_candidate(
             import_candidate, imports, bound_names, usages)
           import_candidate = None
-        bracket_depth = 0
         statement_start = True
 
-    if t_value == "(":
-      bracket_depth += 1
-    elif t_value == ")":
-      bracket_depth = max(0, bracket_depth - 1)
-    elif bracket_depth == 0 and t_value in (";", ":"):
+    if t_value in (";", ":"):
       if import_candidate is not None:
         _finish_import_candidate(
           import_candidate, imports, bound_names, usages)
