@@ -1,5 +1,6 @@
 #! /usr/bin/python
 
+import argparse
 import ast
 from pathlib import Path
 import sys
@@ -249,17 +250,23 @@ def parse_imports(input_stream):
   return imports, usages
 
 
+def _parse_arguments(arguments=None):
+  parser = argparse.ArgumentParser(
+    description="Find unused and duplicate imports in Python code.")
+  parser.add_argument(
+    "-v", "--version", action="version", version=VERSION)
+  parser.add_argument(
+    "-i", "--include-init", action="store_true",
+    help="include __init__.py files")
+  parser.add_argument("filenames", metavar="FILE", nargs="*")
+  return parser.parse_intermixed_args(arguments)
+
+
 def main():
-  if sys.argv[1:] in (["--version"], ["-v"]):
-    print(VERSION)
-    sys.exit(0)
+  arguments = _parse_arguments()
 
-  for filename in sys.argv[1:]:
-    if filename.startswith("-"):
-      sys.stderr.write(f"Ignoring argument {filename}\n")
-      continue
-
-    if Path(filename).name == "__init__.py":
+  for filename in arguments.filenames:
+    if not arguments.include_init and Path(filename).name == "__init__.py":
       continue
 
     try:
