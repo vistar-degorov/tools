@@ -78,12 +78,11 @@ def remove_color_codes(text):
   return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
-def resolve_setting(name, fallback, *, interactive_default=True):
+def resolve_setting(name, fallback):
   if value := os.getenv(name):
     return value
-  if interactive_default and sys.stdout.isatty():
-    if value := os.getenv(f"{name}_DEFAULT"):
-      return value
+  if value := os.getenv(f"{name}_DEFAULT"):
+    return value
   return fallback
 
 

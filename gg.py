@@ -183,12 +183,12 @@ def main(arguments=None):
   prefix = options.root or resolve_setting("GG_SEARCH_IN", "./")
   pathspecs = config.format(prefix, extensions)
   custom_output = has_output_modifiers(config.flags)
-  structured = not custom_output
-  if custom_output and (
+  structured = (
     options.json
     or options.select is not None
     or options.result_idx is not None
-  ):
+  )
+  if custom_output and structured:
     options.parser.error(
       "output-formatting git grep options cannot be combined with "
       "selection or --json")
