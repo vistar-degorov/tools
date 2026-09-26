@@ -218,9 +218,9 @@ def parse_imports(input_stream):
         bracket_depth = 0
         statement_start = True
 
-    if t_value in ("(", "[", "{"):
+    if t_value == "(":
       bracket_depth += 1
-    elif t_value in (")", "]", "}"):
+    elif t_value == ")":
       bracket_depth = max(0, bracket_depth - 1)
     elif bracket_depth == 0 and t_value in (";", ":"):
       if import_candidate is not None:
