@@ -13,6 +13,7 @@ from git_search import remove_color_codes
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
 GG = TOOLS_DIRECTORY / "gg.py"
 FINDDEF = TOOLS_DIRECTORY / "finddef.py"
+OPEN_RESULT = TOOLS_DIRECTORY / "open_result.py"
 
 
 class GitSearchTest(unittest.TestCase):
@@ -212,6 +213,20 @@ def scoped():
     result = self._run(GG, "--pattern", "route/123")
     self.assertEqual(result.returncode, 0)
     self.assertIn('route = "route/123"', result.stdout)
+
+  def test_open_result_uses_shared_selection_and_display(self):
+    environment = self.environment.copy()
+    environment.pop("GG_TOOL_DEFAULT")
+    result = subprocess.run(
+      ("python", str(OPEN_RESULT), "999"),
+      cwd=self.repository,
+      env=environment,
+      input="a.py:3:def target():\nb.py:4:def target():\n",
+      capture_output=True,
+      text=True,
+    )
+    self.assertEqual(result.returncode, 0)
+    self.assertTrue(result.stdout.startswith("b.py:4:0\n"), result.stdout)
 
 
 if __name__ == "__main__":
