@@ -2,7 +2,7 @@
 
 import os
 import sys
-from finddef import Config, get_search_result, open_with
+from git_search import Config, get_search_result, open_with
 
 if __name__ == "__main__":
   if sys.stdin.isatty():
