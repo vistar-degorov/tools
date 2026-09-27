@@ -74,6 +74,50 @@ def split_result_idx(query):
   return query, None
 
 
+def parse_search_arguments(
+  parser,
+  value_attribute,
+  value_label,
+  arguments=None,
+):
+  arguments = list(sys.argv[1:] if arguments is None else arguments)
+  if "--" in arguments:
+    separator = arguments.index("--")
+    wrapper_arguments = arguments[:separator]
+    passthrough = arguments[separator + 1:]
+  else:
+    wrapper_arguments = arguments
+    passthrough = []
+
+  options, remaining = parser.parse_known_args(wrapper_arguments)
+  value = getattr(options, value_attribute)
+  if value is not None:
+    result_idx = None
+    grep_args = [*remaining, *passthrough]
+  else:
+    if not remaining or remaining[-1] in (
+      "+debug", "+print", "+t", "+to",
+    ):
+      parser.error(f"{value_label} is required")
+    value, result_idx = split_result_idx(remaining[-1])
+    grep_args = [*remaining[:-1], *passthrough]
+
+  if options.select is not None and result_idx is not None:
+    parser.error(f"use either {value_label}/N or --select, not both")
+  if options.json and options.open_result:
+    parser.error("--json cannot be combined with --open")
+  if options.open_result and options.select is None and result_idx is None:
+    parser.error(f"--open requires --select or {value_label}/N")
+  if value == "":
+    parser.error(f"{value_label.lower()} cannot be empty")
+
+  setattr(options, value_attribute, value)
+  options.result_idx = result_idx
+  options.grep_args = grep_args
+  options.parser = parser
+  return options
+
+
 def remove_color_codes(text):
   return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
