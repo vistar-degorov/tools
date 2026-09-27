@@ -9,12 +9,12 @@ from git_search import (
   build_command,
   has_output_modifiers,
   open_search_result,
+  parse_search_arguments,
   parse_null_results,
   resolve_extensions,
   resolve_setting,
   run_command,
   select_result,
-  split_result_idx,
   write_context,
   write_json_results,
 )
@@ -71,41 +71,8 @@ def _argument_parser():
 
 
 def _parse_arguments(arguments=None):
-  parser = _argument_parser()
-  arguments = list(sys.argv[1:] if arguments is None else arguments)
-  if "--" in arguments:
-    separator = arguments.index("--")
-    wrapper_arguments = arguments[:separator]
-    passthrough = arguments[separator + 1:]
-  else:
-    wrapper_arguments = arguments
-    passthrough = []
-
-  options, remaining = parser.parse_known_args(wrapper_arguments)
-  if options.name is not None:
-    name = options.name
-    result_idx = None
-    grep_args = [*remaining, *passthrough]
-  else:
-    if not remaining or remaining[-1] in ("+debug", "+print", "+t", "+to"):
-      parser.error("NAME is required")
-    name, result_idx = split_result_idx(remaining[-1])
-    grep_args = [*remaining[:-1], *passthrough]
-
-  if options.select is not None and result_idx is not None:
-    parser.error("use either NAME/N or --select, not both")
-  if options.json and options.open_result:
-    parser.error("--json cannot be combined with --open")
-  if options.open_result and options.select is None and result_idx is None:
-    parser.error("--open requires --select or NAME/N")
-  if name == "":
-    parser.error("name cannot be empty")
-
-  options.name = name
-  options.result_idx = result_idx
-  options.grep_args = grep_args
-  options.parser = parser
-  return options
+  return parse_search_arguments(
+    _argument_parser(), "name", "NAME", arguments)
 
 
 def _definition_patterns(name, assignments):
