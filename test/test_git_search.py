@@ -52,6 +52,15 @@ TEST_ONLY = True
 def scoped():
   return True
 """)
+    self._write("frontend/index.tsx", """\
+export const featureToggle = true
+""")
+    self._write("frontend/routes/api.ts", """\
+export const endpointPath = "api/status"
+""")
+    self._write("backend/routes/api.ts", """\
+export const endpointPath = "api/status"
+""")
     self._write(".gitignore", "ignored.py\n")
     subprocess.run(
       ("git", "add", "."), cwd=self.repository, check=True)
@@ -173,6 +182,93 @@ def scoped():
     result = self._run(GG, "-A", "1", "target")
     self.assertEqual(result.returncode, 0)
     self.assertIn("target", result.stdout)
+
+  def test_pattern_options_can_be_repeated_and_mixed(self):
+    forms = (
+      ("--pattern", "AlphaMarker", "--pattern", "BetaMarker"),
+      ("--pattern", "AlphaMarker", "-e", "BetaMarker"),
+      ("-e", "AlphaMarker", "--pattern", "BetaMarker"),
+      ("-e", "AlphaMarker", "-e", "BetaMarker"),
+    )
+    for arguments in forms:
+      with self.subTest(arguments=arguments):
+        result = self._run(GG, "+print", *arguments)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        command = shlex.split(result.stdout)
+        patterns = [
+          command[index + 1]
+          for index, argument in enumerate(command[:-1])
+          if argument == "-e"
+        ]
+        self.assertEqual(patterns, ["AlphaMarker", "BetaMarker"])
+
+    result = self._run(
+      GG, "--pattern", "AlphaMarker", "-e", "BetaMarker")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("a.py:", result.stdout)
+    self.assertIn("b.py:", result.stdout)
+
+  def test_repeated_patterns_support_trailing_result_selection(self):
+    result = self._run(
+      GG, "--stdout",
+      "--pattern", "AlphaMarker", "--pattern", "BetaMarker",
+      "a.py", "b.py", "/2",
+    )
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(result.stdout.startswith("b.py:"), result.stdout)
+
+  def test_paths_with_optional_separator_override_default_scope_and_extensions(self):
+    self.environment["GG_SEARCH_IN_DEFAULT"] = "nested/"
+    for separator in ((), ("--",)):
+      with self.subTest(separator=separator):
+        result = self._run(
+          GG, "-n", "featureToggle", *separator,
+          "frontend/index.tsx", "frontend/routes")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("frontend/index.tsx:", result.stdout)
+
+        result = self._run(
+          GG, "--no-word", "--pattern", "api/status", *separator,
+          "frontend", "backend")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("frontend/routes/api.ts:", result.stdout)
+        self.assertIn("backend/routes/api.ts:", result.stdout)
+
+  def test_explicit_paths_still_exclude_tests_by_default(self):
+    self.assertEqual(
+      self._run(GG, "TEST_ONLY", "--", "tests").returncode, 1)
+    self.assertEqual(
+      self._run(GG, "+t", "TEST_ONLY", "--", "tests").returncode, 0)
+
+  def test_finddef_accepts_paths_after_separator(self):
+    self.environment["GG_SEARCH_IN_DEFAULT"] = "nested/"
+    result = self._run(FINDDEF, "target", "--", "b.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("b.py:", result.stdout)
+
+  def test_misplaced_paths_get_an_actionable_hint(self):
+    result = self._run(GG, "-n", "target", "a.py")
+    self.assertEqual(result.returncode, 128)
+    self.assertIn("if any arguments are paths", result.stderr)
+
+  def test_help_explains_paths_and_effective_defaults(self):
+    self.environment["GG_SEARCH_IN_DEFAULT"] = "nested/"
+    self.environment["GG_SEARCH_EXT_DEFAULT"] = ".ts .tsx"
+    result = self._run(GG, "--help")
+    self.assertEqual(result.returncode, 0)
+    help_text = " ".join(result.stdout.split())
+    self.assertIn("[-- PATH ...]", help_text)
+    self.assertIn("Paths go after --", help_text)
+    self.assertIn("effective default: nested/", help_text)
+    self.assertIn("effective default: .ts .tsx", help_text)
+    self.assertIn("line numbers by default", help_text)
+
+  def test_explicit_path_options_are_not_silently_ignored(self):
+    for option in (("--root", "nested/"), ("--ext", "py")):
+      with self.subTest(option=option[0]):
+        result = self._run(GG, *option, "target", "--", "a.py")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("cannot be combined", result.stderr)
 
   def test_untracked_files_are_explicit(self):
     self.assertEqual(self._run(FINDDEF, "Untracked").returncode, 1)

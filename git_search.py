@@ -84,23 +84,23 @@ def parse_search_arguments(
   if "--" in arguments:
     separator = arguments.index("--")
     wrapper_arguments = arguments[:separator]
-    passthrough = arguments[separator + 1:]
+    pathspecs = arguments[separator + 1:]
   else:
     wrapper_arguments = arguments
-    passthrough = []
+    pathspecs = None
 
   options, remaining = parser.parse_known_args(wrapper_arguments)
   value = getattr(options, value_attribute)
   if value is not None:
     result_idx = None
-    grep_args = [*remaining, *passthrough]
+    grep_args = remaining
   else:
     if not remaining or remaining[-1] in (
       "+debug", "+print", "+t", "+to",
     ):
       parser.error(f"{value_label} is required")
     value, result_idx = split_result_idx(remaining[-1])
-    grep_args = [*remaining[:-1], *passthrough]
+    grep_args = remaining[:-1]
 
   if options.select is not None and result_idx is not None:
     parser.error(f"use either {value_label}/N or --select, not both")
@@ -110,10 +110,15 @@ def parse_search_arguments(
     parser.error(f"--open requires --select or {value_label}/N")
   if value == "":
     parser.error(f"{value_label.lower()} cannot be empty")
+  if pathspecs is not None and options.root is not None:
+    parser.error("--root cannot be combined with paths after --")
+  if pathspecs is not None and options.ext is not None:
+    parser.error("--ext cannot be combined with paths after --")
 
   setattr(options, value_attribute, value)
   options.result_idx = result_idx
   options.grep_args = grep_args
+  options.pathspecs = pathspecs
   options.parser = parser
   return options
 
@@ -168,6 +173,12 @@ def build_command(
 
 def run_command(cmd):
   return subprocess.run(cmd, stdout=subprocess.PIPE)
+
+
+def write_pathspec_hint(command_name, grep_args):
+  if any(not argument.startswith(("-", "+")) for argument in grep_args):
+    sys.stderr.write(
+      f"{command_name}: if any arguments are paths, put them after `--`\n")
 
 
 def parse_null_results(output):

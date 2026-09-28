@@ -17,22 +17,36 @@ from git_search import (
   select_result,
   write_context,
   write_json_results,
+  write_pathspec_hint,
 )
 
 
 def _argument_parser():
+  root_default = resolve_setting("GG_SEARCH_IN", "./")
+  extension_default = resolve_setting("GG_SEARCH_EXT", ".py")
   parser = argparse.ArgumentParser(
     allow_abbrev=False,
-    usage="%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] NAME[/N]",
+    usage="%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] NAME[/N] [-- PATH ...]",
     description="Find Python definitions using git grep.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=(
+      "Examples:\n"
+      "  finddef NAME\n"
+      "  finddef -A 2 NAME\n"
+      "  finddef NAME -- PATH ...\n"
+      "  finddef --name NAME --select N -- PATH ...\n"
+      "\n"
+      "Git grep options go before NAME. Paths go after --. Explicit paths "
+      "override the default root and extension filters. Results include line "
+      "numbers by default, so -n is unnecessary.\n"
+      "\n"
       "NAME/N selects a result using forgiving legacy rules: 0 and 1 select "
-      "the first result, and large values select the last. Use --name and "
-      "--select for strict, agent-friendly selection. Git grep options may "
-      "also be placed after --."
+      "the first result, and large values select the last. --select uses "
+      "strict one-based selection."
     ),
   )
-  parser.add_argument("--name", help="exact name; disables the /N shorthand")
+  parser.add_argument(
+    "--name", help="set the name explicitly; useful when it ends in /N")
   parser.add_argument(
     "--select", type=int, metavar="N",
     help="strictly select the one-based result N")
@@ -51,10 +65,14 @@ def _argument_parser():
   parser.add_argument(
     "-u", "--untracked", action="store_true",
     help="include untracked files while respecting .gitignore")
-  parser.add_argument("--root", metavar="PATH", help="search path prefix")
+  parser.add_argument(
+    "--root", metavar="PATH",
+    help=f"search path prefix (effective default: {root_default})")
   parser.add_argument(
     "--ext", action="append", metavar="EXT",
-    help="file extension to search; may be repeated")
+    help=(
+      "file extension to search; may be repeated "
+      f"(effective default: {extension_default})"))
   parser.add_argument(
     "--json", action="store_true", help="write JSON Lines results")
   output = parser.add_mutually_exclusive_group()
@@ -97,9 +115,12 @@ def main(arguments=None):
     options.parser.error("name cannot be empty")
 
   config = Config(options.grep_args, test_mode=options.tests or "exclude")
-  prefix = options.root or resolve_setting("GG_SEARCH_IN", "./")
   extensions = resolve_extensions(options.ext)
-  pathspecs = config.format(prefix, extensions)
+  if options.pathspecs is None:
+    prefix = options.root or resolve_setting("GG_SEARCH_IN", "./")
+    pathspecs = config.format(prefix, extensions)
+  else:
+    pathspecs = (*config.mods, *options.pathspecs)
   patterns = _definition_patterns(name, assignments)
   structured = (
     options.json
@@ -124,6 +145,8 @@ def main(arguments=None):
 
   completed = run_command(cmd)
   if completed.returncode != 0:
+    if completed.returncode == 128:
+      write_pathspec_hint("finddef", options.grep_args)
     return completed.returncode
   if not structured:
     sys.stdout.buffer.write(completed.stdout)

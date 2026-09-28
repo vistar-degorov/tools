@@ -20,24 +20,39 @@ from git_search import (
   select_result,
   write_context,
   write_json_results,
+  write_pathspec_hint,
   write_result,
 )
 
 
 def _argument_parser():
+  root_default = resolve_setting("GG_SEARCH_IN", "./")
+  extension_default = resolve_setting("GG_SEARCH_EXT", ".py")
   parser = argparse.ArgumentParser(
     allow_abbrev=False,
-    usage="%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] PATTERN[/N]",
+    usage=(
+      "%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] PATTERN[/N] [-- PATH ...]"),
     description="Search source code using git grep.",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=(
+      "Examples:\n"
+      "  gg PATTERN\n"
+      "  gg -A 2 PATTERN\n"
+      "  gg PATTERN -- PATH ...\n"
+      "  gg --pattern 'route/123' -- PATH ...\n"
+      "\n"
+      "Git grep options go before PATTERN. Paths go after --. Explicit paths "
+      "override the default root and extension filters. Results include line "
+      "numbers by default, so -n is unnecessary.\n"
+      "\n"
       "PATTERN/N selects a result using forgiving legacy rules: 0 and 1 "
-      "select the first result, and large values select the last. Use "
-      "--pattern and --select for strict, agent-friendly selection. Git grep "
-      "options may also be placed after --."
+      "select the first result, and large values select the last. --select "
+      "uses strict one-based selection."
     ),
   )
   parser.add_argument(
-    "--pattern", help="verbatim pattern; disables the /N shorthand")
+    "--pattern",
+    help="set the pattern explicitly; useful when it ends in /N")
   parser.add_argument(
     "--select", type=int, metavar="N",
     help="strictly select the one-based result N")
@@ -55,10 +70,14 @@ def _argument_parser():
   parser.add_argument(
     "-u", "--untracked", action="store_true",
     help="include untracked files while respecting .gitignore")
-  parser.add_argument("--root", metavar="PATH", help="search path prefix")
+  parser.add_argument(
+    "--root", metavar="PATH",
+    help=f"search path prefix (effective default: {root_default})")
   parser.add_argument(
     "--ext", action="append", metavar="EXT",
-    help="file extension to search; may be repeated")
+    help=(
+      "file extension to search; may be repeated "
+      f"(effective default: {extension_default})"))
   parser.add_argument(
     "--json", action="store_true", help="write JSON Lines results")
   output = parser.add_mutually_exclusive_group()
@@ -117,7 +136,10 @@ def main(arguments=None):
   main_arg = Path(sys.argv[0]).name
   pattern = options.pattern
   extensions = resolve_extensions(options.ext)
-  import_regexes = _import_regexes(extensions)
+  filtered_extensions = extensions
+  if options.pathspecs is not None:
+    filtered_extensions = (*extensions, ".py", ".ts", ".tsx", ".coffee")
+  import_regexes = _import_regexes(filtered_extensions)
   include_imports = (
     options.imports
     or main_arg == "gi"
@@ -140,15 +162,18 @@ def main(arguments=None):
     word_regexp = options.word
 
   test_indicators = ["[Tt]est"]
-  if {".coffee", ".ts", ".tsx"}.intersection(extensions):
+  if {".coffee", ".ts", ".tsx"}.intersection(filtered_extensions):
     test_indicators.append("[Ss]pec")
   config = Config(
     options.grep_args,
     test_indicators=test_indicators,
     test_mode=options.tests or "exclude",
   )
-  prefix = options.root or resolve_setting("GG_SEARCH_IN", "./")
-  pathspecs = config.format(prefix, extensions)
+  if options.pathspecs is None:
+    prefix = options.root or resolve_setting("GG_SEARCH_IN", "./")
+    pathspecs = config.format(prefix, extensions)
+  else:
+    pathspecs = (*config.mods, *options.pathspecs)
   custom_output = has_output_modifiers(config.flags)
   structured = (
     options.json
@@ -174,6 +199,8 @@ def main(arguments=None):
 
   completed = run_command(cmd)
   if completed.returncode != 0:
+    if completed.returncode == 128:
+      write_pathspec_hint("gg", options.grep_args)
     return completed.returncode
 
   if not structured:
