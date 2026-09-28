@@ -296,7 +296,7 @@ export const endpointPath = "api/status"
     self.assertTrue(last.stdout.startswith("b.py:"), last.stdout)
 
     strict = self._run(
-      FINDDEF, "--name", "target", "--select", "999")
+      FINDDEF, "--name", "target", "--show", "999")
     self.assertEqual(strict.returncode, 2)
     self.assertIn("outside 1..", strict.stderr)
 

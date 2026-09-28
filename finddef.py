@@ -34,22 +34,18 @@ def _argument_parser():
       "  finddef NAME\n"
       "  finddef -A 2 NAME\n"
       "  finddef NAME -- PATH ...\n"
-      "  finddef --name NAME --select N -- PATH ...\n"
+      "  finddef --name NAME --show N -- PATH ...\n"
       "\n"
       "Git grep options go before NAME. Paths go after --. Explicit paths "
-      "override the default root and extension filters. Results include line "
-      "numbers by default, so -n is unnecessary.\n"
-      "\n"
-      "NAME/N selects a result using forgiving legacy rules: 0 and 1 select "
-      "the first result, and large values select the last. --select uses "
-      "strict one-based selection."
+      "override the default root and extension filters.\n"
+      "Results include line numbers by default, so -n is unnecessary."
     ),
   )
   parser.add_argument(
     "--name", help="set the name explicitly; useful when it ends in /N")
   parser.add_argument(
-    "--select", type=int, metavar="N",
-    help="strictly select the one-based result N")
+    "--show", type=int, metavar="N",
+    help="print the Nth search result in context of surrounding text")
   parser.add_argument(
     "--assignments", action="store_true",
     help="search for assignments instead of classes and functions")
@@ -124,7 +120,7 @@ def main(arguments=None):
   patterns = _definition_patterns(name, assignments)
   structured = (
     options.json
-    or options.select is not None
+    or options.show is not None
     or options.result_idx is not None
   )
   if structured and has_output_modifiers(config.flags):
@@ -160,9 +156,9 @@ def main(arguments=None):
   if not results:
     return 1
 
-  if options.select is not None or options.result_idx is not None:
-    strict = options.select is not None
-    index = options.select if strict else options.result_idx
+  if options.show is not None or options.result_idx is not None:
+    strict = options.show is not None
+    index = options.show if strict else options.result_idx
     try:
       result = select_result(results, index, clamp=not strict)
     except IndexError:
