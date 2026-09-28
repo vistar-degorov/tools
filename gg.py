@@ -30,8 +30,7 @@ def _argument_parser():
   extension_default = resolve_setting("GG_SEARCH_EXT", ".py")
   parser = argparse.ArgumentParser(
     allow_abbrev=False,
-    usage=(
-      "%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] PATTERN[/N] [-- PATH ...]"),
+    usage="%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] PATTERN[/N] [-- PATH ...]",
     description="Search source code using git grep.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=(
@@ -42,20 +41,15 @@ def _argument_parser():
       "  gg --pattern 'route/123' -- PATH ...\n"
       "\n"
       "Git grep options go before PATTERN. Paths go after --. Explicit paths "
-      "override the default root and extension filters. Results include line "
-      "numbers by default, so -n is unnecessary.\n"
-      "\n"
-      "PATTERN/N selects a result using forgiving legacy rules: 0 and 1 "
-      "select the first result, and large values select the last. --select "
-      "uses strict one-based selection."
+      "override the default root and extension filters.\n"
+      "Results include line numbers by default, so -n is unnecessary."
     ),
   )
   parser.add_argument(
-    "--pattern",
-    help="set the pattern explicitly; useful when it ends in /N")
+    "--pattern", help="set the pattern explicitly; useful when it ends in /N")
   parser.add_argument(
-    "--select", type=int, metavar="N",
-    help="strictly select the one-based result N")
+    "--show", type=int, metavar="N",
+    help="print the Nth search result in context of surrounding text")
   parser.add_argument(
     "--tests", choices=("exclude", "include", "only"), default=None,
     help="control whether test files are searched (default: exclude)")
@@ -177,7 +171,7 @@ def main(arguments=None):
   custom_output = has_output_modifiers(config.flags)
   structured = (
     options.json
-    or options.select is not None
+    or options.show is not None
     or options.result_idx is not None
   )
   if custom_output and structured:
@@ -225,9 +219,9 @@ def main(arguments=None):
   if not results:
     return 1
 
-  if options.select is not None or options.result_idx is not None:
-    strict = options.select is not None
-    index = options.select if strict else options.result_idx
+  if options.show is not None or options.result_idx is not None:
+    strict = options.show is not None
+    index = options.show if strict else options.result_idx
     try:
       result = select_result(results, index, clamp=not strict)
     except IndexError:

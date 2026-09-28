@@ -102,12 +102,12 @@ def parse_search_arguments(
     value, result_idx = split_result_idx(remaining[-1])
     grep_args = remaining[:-1]
 
-  if options.select is not None and result_idx is not None:
-    parser.error(f"use either {value_label}/N or --select, not both")
+  if options.show is not None and result_idx is not None:
+    parser.error(f"use either {value_label}/N or --show, not both")
   if options.json and options.open_result:
     parser.error("--json cannot be combined with --open")
-  if options.open_result and options.select is None and result_idx is None:
-    parser.error(f"--open requires --select or {value_label}/N")
+  if options.open_result and options.show is None and result_idx is None:
+    parser.error(f"--open requires --show or {value_label}/N")
   if value == "":
     parser.error(f"{value_label.lower()} cannot be empty")
   if pathspecs is not None and options.root is not None:
