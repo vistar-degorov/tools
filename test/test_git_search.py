@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import pty
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -34,6 +35,7 @@ def target_extra():
 
 VALUE = 1
 route = "route/123"
+AlphaMarker = object()
 """)
     self._write("b.py", """\
 class Target:
@@ -41,6 +43,8 @@ class Target:
 
 def target():
   return "second"
+
+BetaMarker = object()
 """)
     self._write("tests/test_app.py", """\
 def target():
@@ -286,6 +290,7 @@ export const endpointPath = "api/status"
     self.assertIn("effective default: nested/", help_text)
     self.assertIn("effective default: .ts .tsx", help_text)
     self.assertIn("line numbers by default", help_text)
+    self.assertIn("same as -e; may be repeated", help_text)
 
   def test_explicit_path_options_are_not_silently_ignored(self):
     for option in (("--root", "nested/"), ("--ext", "py")):
@@ -345,7 +350,7 @@ export const endpointPath = "api/status"
 
     strict = self._run(GG, "--show", "1", "target", "a.py", "/2")
     self.assertEqual(strict.returncode, 2)
-    self.assertIn("either PATTERN/N or --show", strict.stderr)
+    self.assertIn("either /N or --show N", strict.stderr)
 
   def test_non_tty_selection_does_not_launch_editor(self):
     result = self._run(FINDDEF, "target/1")

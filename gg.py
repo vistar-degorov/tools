@@ -30,13 +30,14 @@ def _argument_parser():
   parser = argparse.ArgumentParser(
     allow_abbrev=False,
     usage=(
-      "%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] PATTERN[/N] "
+      "%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] [PATTERN[/N]] "
       "[REV_OR_PATH ...] [/N]"),
     description="Search source code using git grep.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=(
       "Examples:\n"
       "  gg PATTERN\n"
+      "  gg -e PATTERN --pattern PATTERN\n"
       "  gg -A 2 PATTERN\n"
       "  gg PATTERN PATH ...\n"
       "  gg PATTERN -- PATH ...\n"
@@ -50,7 +51,8 @@ def _argument_parser():
     ),
   )
   parser.add_argument(
-    "--pattern", help="set the pattern explicitly; useful when it ends in /N")
+    "--pattern", metavar="PATTERN",
+    help="same as -e; may be repeated")
   parser.add_argument(
     "--show", type=int, metavar="N",
     help="print the Nth search result in context of surrounding text")
@@ -101,7 +103,8 @@ def _argument_parser():
 
 def _parse_arguments(arguments=None):
   return parse_search_arguments(
-    _argument_parser(), "pattern", "PATTERN", arguments)
+    _argument_parser(), "pattern", "PATTERN", arguments,
+    pattern_option="--pattern")
 
 
 def _import_regexes(extensions):
@@ -132,7 +135,8 @@ def _is_import_result(result):
 def main(arguments=None):
   options = _parse_arguments(arguments)
   main_arg = Path(sys.argv[0]).name
-  pattern = options.pattern
+  patterns = options.command_patterns
+  pattern_texts = options.pattern_texts
   extensions = resolve_extensions(options.ext)
   filtered_extensions = extensions
   if options.scope_arguments is not None:
@@ -141,20 +145,28 @@ def main(arguments=None):
   include_imports = (
     options.imports
     or main_arg == "gi"
-    or not _has_no_import(pattern, import_regexes)
+    or any(
+      not _has_no_import(pattern, import_regexes)
+      for pattern in pattern_texts
+    )
   )
 
   quoted_search = main_arg in ("gq", "gqq")
   if main_arg == "gq":
-    pattern = f"'{pattern}'"
+    patterns = tuple(f"'{pattern}'" for pattern in patterns)
   elif main_arg == "gqq":
-    pattern = f'"{pattern}"'
+    patterns = tuple(f'"{pattern}"' for pattern in patterns)
 
   if options.word is None:
     word_regexp = (
-      not quoted_search
-      and re.match(r"\w", pattern) is not None
-      and re.search(r"\w$", pattern) is not None
+      options.patterns_complete
+      and bool(pattern_texts)
+      and not quoted_search
+      and all(
+        re.match(r"\w", pattern) is not None
+        and re.search(r"\w$", pattern) is not None
+        for pattern in pattern_texts
+      )
     )
   else:
     word_regexp = options.word
@@ -184,7 +196,7 @@ def main(arguments=None):
       "selection or --json")
 
   cmd = build_command(
-    (pattern,),
+    patterns,
     config.flags,
     scope_arguments,
     structured=structured,
