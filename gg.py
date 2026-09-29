@@ -51,8 +51,8 @@ def _argument_parser():
     ),
   )
   parser.add_argument(
-    "--pattern", metavar="PATTERN",
-    help="same as -e; may be repeated")
+    "-e", "--pattern", metavar="PATTERN",
+    help="add a search pattern; repeat to match alternatives")
   parser.add_argument(
     "--show", type=int, metavar="N",
     help="print the Nth search result in context of surrounding text")
@@ -104,7 +104,7 @@ def _argument_parser():
 def _parse_arguments(arguments=None):
   return parse_search_arguments(
     _argument_parser(), "pattern", "PATTERN", arguments,
-    pattern_option="--pattern")
+    pattern_options=("-e", "--pattern"))
 
 
 def _import_regexes(extensions):

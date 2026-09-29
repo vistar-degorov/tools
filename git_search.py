@@ -140,6 +140,12 @@ def _replace_option(arguments, old_option, new_option):
       replaced.append(new_option)
     elif argument.startswith(f"{old_option}="):
       replaced.extend((new_option, argument.partition("=")[2]))
+    elif (
+      len(old_option) == 2
+      and argument.startswith(old_option)
+      and len(argument) > 2
+    ):
+      replaced.extend((new_option, argument[2:]))
     else:
       replaced.append(argument)
   return replaced
@@ -157,11 +163,11 @@ def parse_search_arguments(
   value_label,
   arguments=None,
   *,
-  pattern_option=None,
+  pattern_options=(),
 ):
   arguments = list(sys.argv[1:] if arguments is None else arguments)
-  if pattern_option is not None:
-    arguments = _replace_option(arguments, pattern_option, "-e")
+  for pattern_option in pattern_options:
+    arguments = _replace_option(arguments, pattern_option, "--regexp")
   if "--" in arguments:
     separator = arguments.index("--")
     wrapper_arguments = arguments[:separator]
@@ -178,6 +184,8 @@ def parse_search_arguments(
     has_pattern_source,
     patterns_complete,
   ) = _split_leading_git_options(remaining, parser)
+  if pattern_options:
+    grep_args = _replace_option(grep_args, "--regexp", "-e")
   if path_arguments is None:
     operands, trailing_result_idx = _pop_trailing_result_idx(operands)
   else:
@@ -185,7 +193,7 @@ def parse_search_arguments(
       path_arguments)
 
   value = getattr(options, value_attribute)
-  if pattern_option is not None and has_pattern_source:
+  if pattern_options and has_pattern_source:
     command_patterns = ()
     pattern_texts = grep_patterns
     result_idx = None
