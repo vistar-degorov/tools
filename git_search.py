@@ -74,6 +74,41 @@ def split_result_idx(query):
   return query, None
 
 
+_GIT_GREP_OPTIONS_WITH_VALUE = {
+  "-A", "--after-context",
+  "-B", "--before-context",
+  "-C", "--context",
+  "-e", "--regexp",
+  "-f", "--file",
+  "-m", "--max-count",
+  "--max-depth",
+  "--threads",
+}
+
+
+def _split_leading_git_options(arguments, parser):
+  index = 0
+  while index < len(arguments):
+    argument = arguments[index]
+    if argument in ("+debug", "+print", "+t", "+to", "(", ")"):
+      index += 1
+      continue
+    if not argument.startswith("-"):
+      break
+    index += 1
+    if argument in _GIT_GREP_OPTIONS_WITH_VALUE:
+      if index == len(arguments):
+        parser.error(f"{argument} requires an argument")
+      index += 1
+  return arguments[:index], arguments[index:]
+
+
+def _pop_trailing_result_idx(arguments):
+  if arguments and (match := re.fullmatch(r"/(\d+)", arguments[-1])):
+    return arguments[:-1], int(match.group(1))
+  return arguments, None
+
+
 def parse_search_arguments(
   parser,
   value_attribute,
@@ -84,23 +119,40 @@ def parse_search_arguments(
   if "--" in arguments:
     separator = arguments.index("--")
     wrapper_arguments = arguments[:separator]
-    pathspecs = arguments[separator + 1:]
+    path_arguments = arguments[separator + 1:]
   else:
     wrapper_arguments = arguments
-    pathspecs = None
+    path_arguments = None
 
   options, remaining = parser.parse_known_args(wrapper_arguments)
+  if path_arguments is None:
+    remaining, trailing_result_idx = _pop_trailing_result_idx(remaining)
+  else:
+    path_arguments, trailing_result_idx = _pop_trailing_result_idx(
+      path_arguments)
+
+  grep_args, operands = _split_leading_git_options(remaining, parser)
   value = getattr(options, value_attribute)
   if value is not None:
     result_idx = None
-    grep_args = remaining
+    scope_arguments = operands
   else:
-    if not remaining or remaining[-1] in (
-      "+debug", "+print", "+t", "+to",
-    ):
+    if not operands:
       parser.error(f"{value_label} is required")
-    value, result_idx = split_result_idx(remaining[-1])
-    grep_args = remaining[:-1]
+    value, result_idx = split_result_idx(operands[0])
+    scope_arguments = operands[1:]
+
+  if any(argument.startswith("-") for argument in scope_arguments):
+    parser.error(f"git grep options must precede {value_label}")
+  if result_idx is not None and trailing_result_idx is not None:
+    parser.error("result number specified more than once")
+  if trailing_result_idx is not None:
+    result_idx = trailing_result_idx
+
+  if path_arguments is not None:
+    scope_arguments = [*scope_arguments, "--", *path_arguments]
+  elif not scope_arguments:
+    scope_arguments = None
 
   if options.show is not None and result_idx is not None:
     parser.error(f"use either {value_label}/N or --show, not both")
@@ -110,15 +162,15 @@ def parse_search_arguments(
     parser.error(f"--open requires --show or {value_label}/N")
   if value == "":
     parser.error(f"{value_label.lower()} cannot be empty")
-  if pathspecs is not None and options.root is not None:
-    parser.error("--root cannot be combined with paths after --")
-  if pathspecs is not None and options.ext is not None:
-    parser.error("--ext cannot be combined with paths after --")
+  if scope_arguments is not None and options.root is not None:
+    parser.error("--root cannot be combined with revisions or paths")
+  if scope_arguments is not None and options.ext is not None:
+    parser.error("--ext cannot be combined with revisions or paths")
 
   setattr(options, value_attribute, value)
   options.result_idx = result_idx
   options.grep_args = grep_args
-  options.pathspecs = pathspecs
+  options.scope_arguments = scope_arguments
   options.parser = parser
   return options
 
@@ -149,7 +201,7 @@ def resolve_extensions(values):
 def build_command(
   patterns,
   grep_args,
-  pathspecs,
+  scope_arguments,
   *,
   structured=False,
   untracked=False,
@@ -167,18 +219,12 @@ def build_command(
   cmd.extend(grep_args)
   for pattern in patterns:
     cmd.extend(("-e", pattern))
-  cmd.extend(("--", *pathspecs))
+  cmd.extend(scope_arguments)
   return tuple(cmd)
 
 
 def run_command(cmd):
   return subprocess.run(cmd, stdout=subprocess.PIPE)
-
-
-def write_pathspec_hint(command_name, grep_args):
-  if any(not argument.startswith(("-", "+")) for argument in grep_args):
-    sys.stderr.write(
-      f"{command_name}: if any arguments are paths, put them after `--`\n")
 
 
 def parse_null_results(output):

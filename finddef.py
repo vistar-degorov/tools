@@ -17,7 +17,6 @@ from git_search import (
   select_result,
   write_context,
   write_json_results,
-  write_pathspec_hint,
 )
 
 
@@ -26,18 +25,23 @@ def _argument_parser():
   extension_default = resolve_setting("GG_SEARCH_EXT", ".py")
   parser = argparse.ArgumentParser(
     allow_abbrev=False,
-    usage="%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] NAME[/N] [-- PATH ...]",
+    usage=(
+      "%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] NAME[/N] "
+      "[REV_OR_PATH ...] [/N]"),
     description="Find Python definitions using git grep.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=(
       "Examples:\n"
       "  finddef NAME\n"
       "  finddef -A 2 NAME\n"
+      "  finddef NAME PATH ...\n"
       "  finddef NAME -- PATH ...\n"
-      "  finddef --name NAME --show N -- PATH ...\n"
+      "  finddef NAME PATH ... /N\n"
       "\n"
-      "Git grep options go before NAME. Paths go after --. Explicit paths "
-      "override the default root and extension filters.\n"
+      "Git grep options go before NAME. Remaining positional arguments are "
+      "passed to git grep as revisions or paths; -- before paths is "
+      "optional. Explicit operands override the default root and extension "
+      "filters.\n"
       "Results include line numbers by default, so -n is unnecessary."
     ),
   )
@@ -112,11 +116,11 @@ def main(arguments=None):
 
   config = Config(options.grep_args, test_mode=options.tests or "exclude")
   extensions = resolve_extensions(options.ext)
-  if options.pathspecs is None:
+  if options.scope_arguments is None:
     prefix = options.root or resolve_setting("GG_SEARCH_IN", "./")
-    pathspecs = config.format(prefix, extensions)
+    scope_arguments = ("--", *config.format(prefix, extensions))
   else:
-    pathspecs = (*config.mods, *options.pathspecs)
+    scope_arguments = (*options.scope_arguments, *config.mods)
   patterns = _definition_patterns(name, assignments)
   structured = (
     options.json
@@ -131,7 +135,7 @@ def main(arguments=None):
   cmd = build_command(
     patterns,
     config.flags,
-    pathspecs,
+    scope_arguments,
     structured=structured,
     untracked=options.untracked,
   )
@@ -141,8 +145,6 @@ def main(arguments=None):
 
   completed = run_command(cmd)
   if completed.returncode != 0:
-    if completed.returncode == 128:
-      write_pathspec_hint("finddef", options.grep_args)
     return completed.returncode
   if not structured:
     sys.stdout.buffer.write(completed.stdout)
