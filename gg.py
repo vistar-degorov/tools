@@ -20,7 +20,6 @@ from git_search import (
   select_result,
   write_context,
   write_json_results,
-  write_pathspec_hint,
   write_result,
 )
 
@@ -30,18 +29,23 @@ def _argument_parser():
   extension_default = resolve_setting("GG_SEARCH_EXT", ".py")
   parser = argparse.ArgumentParser(
     allow_abbrev=False,
-    usage="%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] PATTERN[/N] [-- PATH ...]",
+    usage=(
+      "%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] PATTERN[/N] "
+      "[REV_OR_PATH ...] [/N]"),
     description="Search source code using git grep.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=(
       "Examples:\n"
       "  gg PATTERN\n"
       "  gg -A 2 PATTERN\n"
+      "  gg PATTERN PATH ...\n"
       "  gg PATTERN -- PATH ...\n"
-      "  gg --pattern 'route/123' -- PATH ...\n"
+      "  gg PATTERN PATH ... /N\n"
       "\n"
-      "Git grep options go before PATTERN. Paths go after --. Explicit paths "
-      "override the default root and extension filters.\n"
+      "Git grep options go before PATTERN. Remaining positional arguments "
+      "are passed to git grep as revisions or paths; -- before paths is "
+      "optional. Explicit operands override the default root and extension "
+      "filters.\n"
       "Results include line numbers by default, so -n is unnecessary."
     ),
   )
@@ -131,7 +135,7 @@ def main(arguments=None):
   pattern = options.pattern
   extensions = resolve_extensions(options.ext)
   filtered_extensions = extensions
-  if options.pathspecs is not None:
+  if options.scope_arguments is not None:
     filtered_extensions = (*extensions, ".py", ".ts", ".tsx", ".coffee")
   import_regexes = _import_regexes(filtered_extensions)
   include_imports = (
@@ -163,11 +167,11 @@ def main(arguments=None):
     test_indicators=test_indicators,
     test_mode=options.tests or "exclude",
   )
-  if options.pathspecs is None:
+  if options.scope_arguments is None:
     prefix = options.root or resolve_setting("GG_SEARCH_IN", "./")
-    pathspecs = config.format(prefix, extensions)
+    scope_arguments = ("--", *config.format(prefix, extensions))
   else:
-    pathspecs = (*config.mods, *options.pathspecs)
+    scope_arguments = (*options.scope_arguments, *config.mods)
   custom_output = has_output_modifiers(config.flags)
   structured = (
     options.json
@@ -182,7 +186,7 @@ def main(arguments=None):
   cmd = build_command(
     (pattern,),
     config.flags,
-    pathspecs,
+    scope_arguments,
     structured=structured,
     untracked=options.untracked,
     word_regexp=word_regexp,
@@ -193,8 +197,6 @@ def main(arguments=None):
 
   completed = run_command(cmd)
   if completed.returncode != 0:
-    if completed.returncode == 128:
-      write_pathspec_hint("gg", options.grep_args)
     return completed.returncode
 
   if not structured:

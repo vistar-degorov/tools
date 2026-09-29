@@ -64,6 +64,14 @@ export const endpointPath = "api/status"
     self._write(".gitignore", "ignored.py\n")
     subprocess.run(
       ("git", "add", "."), cwd=self.repository, check=True)
+    subprocess.run(
+      (
+        "git", "-c", "user.name=Test", "-c", "user.email=test@example.com",
+        "commit", "--quiet", "-m", "initial",
+      ),
+      cwd=self.repository,
+      check=True,
+    )
 
     self._write("untracked.py", "class Untracked:\n  pass\n")
     self._write("ignored.py", "class Ignored:\n  pass\n")
@@ -179,7 +187,7 @@ export const endpointPath = "api/status"
       self._run(GG, "--tests", "only", "TEST_ONLY").returncode, 0)
 
   def test_separated_git_grep_option_argument(self):
-    result = self._run(GG, "-A", "1", "target")
+    result = self._run(GG, "-A", "1", "target", "a.py")
     self.assertEqual(result.returncode, 0)
     self.assertIn("target", result.stdout)
 
@@ -235,21 +243,37 @@ export const endpointPath = "api/status"
         self.assertIn("backend/routes/api.ts:", result.stdout)
 
   def test_explicit_paths_still_exclude_tests_by_default(self):
-    self.assertEqual(
-      self._run(GG, "TEST_ONLY", "--", "tests").returncode, 1)
-    self.assertEqual(
-      self._run(GG, "+t", "TEST_ONLY", "--", "tests").returncode, 0)
+    for separator in ((), ("--",)):
+      with self.subTest(separator=separator):
+        self.assertEqual(
+          self._run(GG, "TEST_ONLY", *separator, "tests").returncode, 1)
+        included = self._run(
+          GG, "+t", "--stdout", "TEST_ONLY", *separator, "tests", "/1")
+        self.assertEqual(included.returncode, 0, included.stderr)
+        self.assertTrue(
+          included.stdout.startswith("tests/test_app.py:"), included.stdout)
 
-  def test_finddef_accepts_paths_after_separator(self):
+  def test_finddef_accepts_paths_with_optional_separator(self):
     self.environment["GG_SEARCH_IN_DEFAULT"] = "nested/"
-    result = self._run(FINDDEF, "target", "--", "b.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertIn("b.py:", result.stdout)
+    for separator in ((), ("--",)):
+      with self.subTest(separator=separator):
+        result = self._run(FINDDEF, "target", *separator, "b.py")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("b.py:", result.stdout)
 
-  def test_misplaced_paths_get_an_actionable_hint(self):
-    result = self._run(GG, "-n", "target", "a.py")
-    self.assertEqual(result.returncode, 128)
-    self.assertIn("if any arguments are paths", result.stderr)
+  def test_git_options_must_precede_the_search_term(self):
+    result = self._run(GG, "target", "-i", "a.py")
+    self.assertEqual(result.returncode, 2)
+    self.assertIn("git grep options must precede PATTERN", result.stderr)
+
+  def test_revision_and_path_arguments_are_left_for_git(self):
+    result = self._run(GG, "target", "HEAD", "b.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("HEAD:b.py:", result.stdout)
+    self.assertEqual(
+      self._run(GG, "TEST_ONLY", "HEAD", "tests").returncode, 1)
+    self.assertEqual(
+      self._run(GG, "+t", "TEST_ONLY", "HEAD", "tests").returncode, 0)
 
   def test_help_explains_paths_and_effective_defaults(self):
     self.environment["GG_SEARCH_IN_DEFAULT"] = "nested/"
@@ -257,8 +281,8 @@ export const endpointPath = "api/status"
     result = self._run(GG, "--help")
     self.assertEqual(result.returncode, 0)
     help_text = " ".join(result.stdout.split())
-    self.assertIn("[-- PATH ...]", help_text)
-    self.assertIn("Paths go after --", help_text)
+    self.assertIn("[REV_OR_PATH ...] [/N]", help_text)
+    self.assertIn("-- before paths is optional", help_text)
     self.assertIn("effective default: nested/", help_text)
     self.assertIn("effective default: .ts .tsx", help_text)
     self.assertIn("line numbers by default", help_text)
@@ -299,6 +323,29 @@ export const endpointPath = "api/status"
       FINDDEF, "--name", "target", "--show", "999")
     self.assertEqual(strict.returncode, 2)
     self.assertIn("outside 1..", strict.stderr)
+
+  def test_trailing_result_selection_after_paths(self):
+    absolute_path = str(self.repository)
+    attached = self._run(
+      GG, "--stdout", "target/1", absolute_path)
+    trailing = self._run(
+      GG, "--stdout", "target", absolute_path, "/1")
+    separated = self._run(
+      GG, "--stdout", "target", "--", absolute_path, "/1")
+    self.assertEqual(attached.returncode, 0, attached.stderr)
+    self.assertEqual(trailing.returncode, 0, trailing.stderr)
+    self.assertEqual(separated.returncode, 0, separated.stderr)
+    self.assertEqual(attached.stdout, trailing.stdout)
+    self.assertEqual(attached.stdout, separated.stdout)
+
+  def test_duplicate_result_selection_is_rejected(self):
+    attached = self._run(GG, "target/1", "a.py", "/2")
+    self.assertEqual(attached.returncode, 2)
+    self.assertIn("specified more than once", attached.stderr)
+
+    strict = self._run(GG, "--show", "1", "target", "a.py", "/2")
+    self.assertEqual(strict.returncode, 2)
+    self.assertIn("either PATTERN/N or --show", strict.stderr)
 
   def test_non_tty_selection_does_not_launch_editor(self):
     result = self._run(FINDDEF, "target/1")
