@@ -290,7 +290,8 @@ export const endpointPath = "api/status"
     self.assertIn("effective default: nested/", help_text)
     self.assertIn("effective default: .ts .tsx", help_text)
     self.assertIn("line numbers by default", help_text)
-    self.assertIn("same as -e; may be repeated", help_text)
+    self.assertIn(
+      "add a search pattern; repeat to match alternatives", help_text)
 
   def test_explicit_path_options_are_not_silently_ignored(self):
     for option in (("--root", "nested/"), ("--ext", "py")):
