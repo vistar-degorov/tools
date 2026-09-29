@@ -155,7 +155,7 @@ def parse_search_arguments(
     scope_arguments = None
 
   if options.show is not None and result_idx is not None:
-    parser.error(f"use either {value_label}/N or --show, not both")
+    parser.error(f"use either /N or --show N, not both")
   if options.json and options.open_result:
     parser.error("--json cannot be combined with --open")
   if options.open_result and options.show is None and result_idx is None:
