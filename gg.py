@@ -64,7 +64,7 @@ def _argument_parser():
     "-T", "--tests-only", dest="tests", action="store_const",
     const="only", help="search only test files")
   parser.add_argument(
-    "--imports", action="store_true", help="include import statements")
+    "--imports", action="store_true", help="include import statements in search results")
   parser.add_argument(
     "-u", "--untracked", action="store_true",
     help="include untracked files while respecting .gitignore")
