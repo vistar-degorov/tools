@@ -17,7 +17,7 @@ def _parse_result(line):
   if match := re.match(r"^(.*?):(\d+):(.*)$", line):
     path, line_number, text = match.groups()
     return SearchResult(path, int(line_number), 0, text)
-  return SearchResult(line, 1, 0, "")
+  return SearchResult(line, None, None, "")
 
 
 if __name__ == "__main__":

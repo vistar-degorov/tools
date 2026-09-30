@@ -10,6 +10,7 @@ from git_search import (
   has_output_modifiers,
   open_search_result,
   parse_search_arguments,
+  parse_null_paths,
   parse_null_results,
   resolve_extensions,
   resolve_setting,
@@ -122,12 +123,16 @@ def main(arguments=None):
   else:
     scope_arguments = (*options.scope_arguments, *config.mods)
   patterns = _definition_patterns(name, assignments)
+  selecting_result = (
+    options.show is not None or options.result_idx is not None)
   structured = (
     options.json
-    or options.show is not None
-    or options.result_idx is not None
+    or selecting_result
   )
-  if structured and has_output_modifiers(config.flags):
+  selecting_filename = selecting_result and config.only_filenames
+  if structured and has_output_modifiers(config.flags) and not (
+    selecting_filename and not options.json
+  ):
     options.parser.error(
       "output-formatting git grep options cannot be combined with "
       "selection or --json")
@@ -151,7 +156,10 @@ def main(arguments=None):
     return 0
 
   try:
-    results = list(parse_null_results(completed.stdout))
+    if selecting_filename:
+      results = list(parse_null_paths(completed.stdout))
+    else:
+      results = list(parse_null_results(completed.stdout))
   except ValueError as error:
     sys.stderr.write(f"finddef: {error}\n")
     return 2

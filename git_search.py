@@ -12,8 +12,8 @@ import sys
 @dataclass(frozen=True)
 class SearchResult:
   path: str
-  line: int
-  column: int
+  line: int | None
+  column: int | None
   text: str
 
 
@@ -55,7 +55,9 @@ class Config:
       elif flag == "+to":
         self.set_test_mode("only", test_indicators)
       else:
-        if flag.startswith("-") and not flag.startswith("--"):
+        if flag in ("--files-with-matches", "--name-only"):
+          self.only_filenames = True
+        elif flag.startswith("-") and not flag.startswith("--"):
           self.hide_filenames = self.hide_filenames or "h" in flag
           self.only_filenames = self.only_filenames or "l" in flag
         yield flag
@@ -319,6 +321,12 @@ def parse_null_results(output):
     offset = text_end + 1
 
 
+def parse_null_paths(output):
+  for path in output.split(b"\0"):
+    if path:
+      yield SearchResult(os.fsdecode(path), None, None, "")
+
+
 def select_result(results, index, *, clamp):
   if not results:
     return None
@@ -345,6 +353,14 @@ def write_result(result):
 
 
 def write_context(result, context=12):
+  if result.line is None:
+    try:
+      sys.stdout.buffer.write(Path(result.path).read_bytes())
+    except OSError as error:
+      sys.stderr.write(f"Error reading {result.path}: {error}\n")
+      return 2
+    return 0
+
   try:
     lines = Path(result.path).read_text(errors="replace").splitlines()
   except OSError as error:
@@ -368,7 +384,9 @@ def open_search_result(tool, result):
   if not command:
     return write_context(result)
   executable = Path(command[0]).name
-  if executable in ("vim", "nvim"):
+  if result.line is None:
+    command.append(result.path)
+  elif executable in ("vim", "nvim"):
     command.extend((result.path, f"+{result.line}"))
   else:
     command.append(f"{result.path}:{result.line}")

@@ -330,6 +330,18 @@ export const endpointPath = "api/status"
     self.assertEqual(strict.returncode, 2)
     self.assertIn("outside 1..", strict.stderr)
 
+  def test_filename_only_results_can_be_selected(self):
+    opened = self._run_tty(
+      GG, "--tool", "echo", "-l", "AlphaMarker/1")
+    self.assertEqual(opened.returncode, 0, opened.stderr)
+    self.assertEqual(opened.stdout.strip(), "a.py")
+
+    self.environment.pop("GG_TOOL_DEFAULT")
+    displayed = self._run_tty(GG, "-l", "AlphaMarker/1")
+    self.assertEqual(displayed.returncode, 0, displayed.stderr)
+    self.assertIn("AlphaMarker = object()", displayed.stdout)
+    self.assertNotIn("a.py:", displayed.stdout)
+
   def test_trailing_result_selection_after_paths(self):
     absolute_path = str(self.repository)
     attached = self._run(
