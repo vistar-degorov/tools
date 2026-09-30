@@ -3,11 +3,11 @@
 import re
 import sys
 
+from git_search_args import resolve_setting
 from git_search import (
   SearchResult,
   open_search_result,
   remove_color_codes,
-  resolve_setting,
   select_result,
 )
 

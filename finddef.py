@@ -4,16 +4,18 @@ import argparse
 import shlex
 import sys
 
-from git_search import (
+from git_search_args import (
   Config,
-  build_command,
   has_output_modifiers,
-  open_search_result,
   parse_search_arguments,
-  parse_null_paths,
-  parse_null_results,
   resolve_extensions,
   resolve_setting,
+)
+from git_search import (
+  build_command,
+  open_search_result,
+  parse_null_paths,
+  parse_null_results,
   run_command,
   select_result,
   write_context,
