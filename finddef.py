@@ -59,10 +59,11 @@ def _argument_parser():
   parser.add_argument(
     "--tests", choices=("exclude", "include", "only"), default=None,
     help="control whether test files are searched (default: exclude)")
-  parser.add_argument(
+  test_shortcuts = parser.add_mutually_exclusive_group()
+  test_shortcuts.add_argument(
     "-t", "--include-tests", dest="tests", action="store_const",
     const="include", help="include test files")
-  parser.add_argument(
+  test_shortcuts.add_argument(
     "-T", "--tests-only", dest="tests", action="store_const",
     const="only", help="search only test files")
   parser.add_argument(
