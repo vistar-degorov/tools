@@ -190,6 +190,13 @@ export const endpointPath = "api/status"
     self.assertEqual(
       self._run(GG, "--tests", "only", "TEST_ONLY").returncode, 0)
 
+  def test_test_shortcuts_are_mutually_exclusive(self):
+    for script in (GG, FINDDEF):
+      with self.subTest(script=script.name):
+        result = self._run(script, "-t", "-T", "target")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("not allowed with argument", result.stderr)
+
   def test_separated_git_grep_option_argument(self):
     result = self._run(GG, "-A", "1", "target", "a.py")
     self.assertEqual(result.returncode, 0)
