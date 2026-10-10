@@ -124,6 +124,16 @@ def _has_no_import(text, import_regexes):
   return all(regex.search(text) is None for regex in import_regexes)
 
 
+def _matched_line_text(text, config):
+  if config.only_filenames:
+    return None
+  if config.hide_filenames:
+    return text
+  if match := re.match(r"^(?:.*?:)?\d+:(.*)$", text):
+    return match.group(1)
+  return None
+
+
 def _is_import_result(result):
   extension = Path(result.path).suffix.lower()
   if extension == ".py":
@@ -226,7 +236,11 @@ def main(arguments=None):
     wrote_result = False
     for line in completed.stdout.splitlines():
       text = remove_color_codes(line.decode("utf-8", "replace"))
-      if _has_no_import(text, import_regexes):
+      matched_text = _matched_line_text(text, config)
+      if (
+        matched_text is None
+        or _has_no_import(matched_text, import_regexes)
+      ):
         sys.stdout.buffer.write(line + b"\n")
         wrote_result = True
     return 0 if wrote_result else 1
