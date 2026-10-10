@@ -56,6 +56,9 @@ TEST_ONLY = True
 def scoped():
   return True
 """)
+    self._write("import directory/plain.py", """\
+PATH_MARKER = True
+""")
     self._write("frontend/index.tsx", """\
 export const featureToggle = true
 """)
@@ -189,6 +192,11 @@ export const endpointPath = "api/status"
     self.assertEqual(self._run(GG, "+t", "TEST_ONLY").returncode, 0)
     self.assertEqual(
       self._run(GG, "--tests", "only", "TEST_ONLY").returncode, 0)
+
+  def test_import_filter_only_checks_matched_text(self):
+    result = self._run(GG, "PATH_MARKER")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("import directory/plain.py:", result.stdout)
 
   def test_test_shortcuts_are_mutually_exclusive(self):
     for script in (GG, FINDDEF):
