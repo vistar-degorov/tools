@@ -26,16 +26,6 @@ class ContextBlock:
   path: str
   lines: tuple[SearchResult, ...]
 
-  def __post_init__(self):
-    if not self.lines:
-      raise ValueError("context block is empty")
-    if any(line.path != self.path for line in self.lines):
-      raise ValueError("context block contains multiple paths")
-    if any(line.line is None for line in self.lines):
-      raise ValueError("context block contains a record without a line")
-    if not self.matches:
-      raise ValueError("context block contains no matches")
-
   @property
   def matches(self):
     return tuple(line for line in self.lines if line.is_match)
@@ -97,95 +87,66 @@ def _output_error(offset, message):
     f"unexpected git grep output at byte {offset}: {message}")
 
 
-def _find_delimiter(data, delimiter, offset, description):
-  position = data.find(delimiter, offset)
-  if position < 0:
-    raise _output_error(offset, f"missing {description}")
-  return position
+def _parse_number(value, offset, description):
+  if value.isdigit():
+    return int(value)
+  raise _output_error(offset, f"invalid {description}")
 
 
-def _parse_number(value, offset, description, *, allow_zero=False):
-  if not value.isdigit():
-    raise _output_error(offset, f"invalid {description}")
-  number = int(value)
-  if number == 0 and not allow_zero:
-    raise _output_error(offset, f"invalid {description}")
-  return number
-
-
-def _context_separator_end(data, offset):
-  line_end = data.find(b"\n", offset)
-  if line_end < 0:
-    return None
-  candidate = re.sub(
-    rb"\x1b\[[0-9;]*m", b"", data[offset:line_end])
-  if candidate == b"--":
-    return line_end + 1
-  return None
-
-
-def _parse_line_record(data, offset, *, context):
-  if context and (separator_end := _context_separator_end(data, offset)):
-    return None, separator_end
-
-  path_end = _find_delimiter(data, b"\0", offset, "path delimiter")
-  if path_end == offset:
-    raise _output_error(offset, "empty path")
-  line_start = path_end + 1
-  line_end = _find_delimiter(
-    data, b"\0", line_start, "line-number delimiter")
-  line_number = _parse_number(
-    data[line_start:line_end], line_start, "line number")
-
-  text_end = _find_delimiter(
-    data, b"\n", line_end + 1, "record terminator")
-  column_end = data.find(b"\0", line_end + 1, text_end)
-  if column_end < 0:
-    if not context:
-      raise _output_error(line_end + 1, "missing column")
-    column = None
-    text_start = line_end + 1
-  else:
-    column_start = line_end + 1
-    column = _parse_number(
-      data[column_start:column_end], column_start, "column")
-    text_start = column_end + 1
-
-  return SearchResult(
-    path=os.fsdecode(data[offset:path_end]),
-    line=line_number,
-    column=column,
-    text=data[text_start:text_end].decode("utf-8", "replace"),
-  ), text_end + 1
-
-
-def _parse_match_results(data):
+def _parse_line_records(data, with_context):
+  record_rx = re.compile(br"([^\0]+)\0([^\0]+)\0([^\n]*)\n")
+  ctx_separator_rx = re.compile(br"(\x1b\[[0-9;]*m)?--(\x1b\[[0-9;]*m)?\n")
   offset = 0
-  while offset < len(data):
-    result, offset = _parse_line_record(data, offset, context=False)
-    yield result
+
+  while True:
+    if with_context and (separator := ctx_separator_rx.match(data, offset)):
+      yield None, offset
+      offset = separator.end()
+      continue
+
+    if (record := record_rx.match(data, offset)) is None:
+      if offset < len(data):
+        raise _output_error(offset, "invalid line record")
+      break
+
+    path, line_number, rest = record.group(1, 2, 3)
+    line_number = _parse_number(line_number, record.start(2), "line number")
+
+    column_end = rest.find(b"\0")
+    if column_end < 0:
+      if not with_context:
+        raise _output_error(record.start(3), "missing column")
+      column = None
+    else:
+      column = _parse_number(rest[:column_end], record.start(3), "column")
+      rest = rest[column_end + 1:]
+
+    yield SearchResult(
+      path=os.fsdecode(path),
+      line=line_number,
+      column=column,
+      text=rest.decode("utf-8", "replace"),
+    ), offset
+    offset = record.end()
 
 
 def _make_context_block(lines):
-  try:
-    return ContextBlock(lines[0].path, tuple(lines))
-  except (IndexError, ValueError) as error:
-    raise ValueError(f"unexpected git grep context output: {error}") from error
+  if not any(line.is_match for line in lines):
+    raise ValueError("context contains no matches")
+  return ContextBlock(lines[0].path, tuple(lines))
 
 
 def _parse_context_blocks(data):
-  offset = 0
   lines = []
   separator_offset = None
-  while offset < len(data):
-    record_offset = offset
-    result, offset = _parse_line_record(data, offset, context=True)
+
+  for result, offset in _parse_line_records(data, with_context=True):
     if result is None:
       if not lines:
-        raise _output_error(record_offset, "empty context block")
+        raise _output_error(offset, "empty context block")
       yield _make_context_block(lines)
       lines = []
-      separator_offset = record_offset
+      separator_offset = offset
     else:
       if lines and result.path != lines[0].path:
         yield _make_context_block(lines)
@@ -200,33 +161,31 @@ def _parse_context_blocks(data):
 
 
 def _parse_path_results(data):
+  record_rx = re.compile(br"([^\0]+)\0")
   offset = 0
-  while offset < len(data):
-    path_end = _find_delimiter(data, b"\0", offset, "path delimiter")
-    if path_end == offset:
-      raise _output_error(offset, "empty path")
-    yield PathResult(os.fsdecode(data[offset:path_end]))
-    offset = path_end + 1
+  while (record := record_rx.match(data, offset)) is not None:
+    yield PathResult(os.fsdecode(record.group(1)))
+    offset = record.end()
+  if offset < len(data):
+    raise _output_error(offset, "invalid path record")
 
 
 def _parse_count_results(data):
+  record_rx = re.compile(br"([^\0]+)\0([^\n]*)\n")
   offset = 0
-  while offset < len(data):
-    path_end = _find_delimiter(data, b"\0", offset, "path delimiter")
-    if path_end == offset:
-      raise _output_error(offset, "empty path")
-    count_start = path_end + 1
-    count_end = _find_delimiter(
-      data, b"\n", count_start, "count terminator")
-    count = _parse_number(
-      data[count_start:count_end], count_start, "count", allow_zero=True)
-    yield CountResult(os.fsdecode(data[offset:path_end]), count)
-    offset = count_end + 1
+  while (record := record_rx.match(data, offset)) is not None:
+    path, count = record.group(1, 2)
+    count = _parse_number(count, record.start(2), "count")
+    yield CountResult(os.fsdecode(path), count)
+    offset = record.end()
+  if offset < len(data):
+    raise _output_error(offset, "invalid count record")
 
 
 def parse_structured_records(data, mode):
   if mode is StructuredOutputMode.MATCHES:
-    yield from _parse_match_results(data)
+    for result, _ in _parse_line_records(data, with_context=False):
+      yield result
   elif mode is StructuredOutputMode.CONTEXT:
     yield from _parse_context_blocks(data)
   elif mode is StructuredOutputMode.PATHS:
