@@ -10,7 +10,7 @@ import unittest
 
 from git_search import remove_color_codes
 from git_search import StructuredOutputMode
-from gg import _make_output_plan
+from gg import _make_output_plan, _prepare_output
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -386,6 +386,40 @@ export const endpointPath = "api/status"
     self.assertIs(plan.mode, StructuredOutputMode.MATCHES)
     self.assertFalse(plan.heading)
     self.assertEqual(plan.color, "never")
+
+  def test_output_preparation_removes_presentation_options(self):
+    plan, arguments = _prepare_output((
+      "-hinA2",
+      "--column",
+      "--heading",
+      "--color=always",
+      "-z",
+      "-c",
+    ))
+    self.assertIs(plan.mode, StructuredOutputMode.COUNTS)
+    self.assertEqual(arguments, ("-iA2", "-c"))
+
+  def test_output_preparation_preserves_git_options_and_values(self):
+    _, arguments = _prepare_output((
+      "-e", "--column",
+      "-f", "-h",
+      "--max-depth", "3",
+      "--no-count",
+    ))
+    self.assertEqual(arguments, (
+      "-e", "--column",
+      "-f", "-h",
+      "--max-depth", "3",
+      "--no-count",
+    ))
+
+  def test_output_preparation_preserves_invalid_assignments(self):
+    _, arguments = _prepare_output((
+      "--column=value", "--color=value", "--no-color=value",
+    ))
+    self.assertEqual(arguments, (
+      "--column=value", "--color=value", "--no-color=value",
+    ))
 
   def test_explicit_path_options_are_not_silently_ignored(self):
     for option in (("--root", "nested/"), ("--ext", "py")):

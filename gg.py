@@ -78,8 +78,42 @@ _SHORT_SETTINGS = {
   "z": ("null_terminate_filenames", True),
 }
 
+_PRESENTATION_LONG_OPTIONS = {
+  "--line-number", "--column", "--heading", "--break", "--null", "--color",
+}
 
-def _make_output_plan(arguments):
+_PRESENTATION_SHORT_OPTIONS = frozenset("hHnz")
+_COLOR_VALUES = {"always", "auto", "never"}
+
+
+def _prepare_short_option(argument, settings):
+  short_options = argument[1:]
+  if not short_options or short_options.isdigit():
+    if short_options.isdigit():
+      settings.before_context = True
+      settings.after_context = True
+    return argument
+
+  git_options = []
+  for index, short_option in enumerate(short_options):
+    if short_option in "efmO":
+      git_options.extend(short_options[index:])
+      break
+    if context_settings := _CONTEXT_SETTINGS.get("-" + short_option):
+      for setting in context_settings:
+        setattr(settings, setting, True)
+      git_options.extend(short_options[index:])
+      break
+    if update := _SHORT_SETTINGS.get(short_option):
+      setting, setting_value = update
+      setattr(settings, setting, setting_value)
+    if short_option not in _PRESENTATION_SHORT_OPTIONS:
+      git_options.append(short_option)
+
+  return "-" + "".join(git_options) if git_options else None
+
+
+def _prepare_output(arguments):
   settings = SimpleNamespace(
     show_filename=True,
     line_numbers=None, # can be implicit
@@ -96,11 +130,13 @@ def _make_output_plan(arguments):
     show_function=False,
     function_context=False,
   )
+  git_arguments = []
   arguments = iter(arguments)
 
   for argument in arguments:
+    option_value = None
     if argument in GIT_GREP_OPTIONS_WITH_VALUE:
-      next(arguments, None)
+      option_value = next(arguments, None)
 
     option, assignment, value = argument.partition("=")
     enabled = True
@@ -120,21 +156,19 @@ def _make_output_plan(arguments):
         else "never"
       )
     elif argument.startswith("-") and not argument.startswith("--"):
-      short_options = argument[1:]
-      if short_options.isdigit():
-        settings.before_context = True
-        settings.after_context = True
-      else:
-        for short_option in short_options:
-          if short_option in "efmO":
-            break
-          if context_settings := _CONTEXT_SETTINGS.get("-" + short_option):
-            for setting in context_settings:
-              setattr(settings, setting, True)
-            break
-          if update := _SHORT_SETTINGS.get(short_option):
-            setting, setting_value = update
-            setattr(settings, setting, setting_value)
+      argument = _prepare_short_option(argument, settings)
+
+    valid_presentation_option = (
+      option in _PRESENTATION_LONG_OPTIONS
+      and (
+        not assignment
+        or option == "--color" and enabled and value in _COLOR_VALUES
+      )
+    )
+    if argument is not None and not valid_presentation_option:
+      git_arguments.append(argument)
+      if option_value is not None:
+        git_arguments.append(option_value)
 
   if settings.files_with_matches or settings.files_without_match:
     mode = StructuredOutputMode.PATHS
@@ -154,7 +188,7 @@ def _make_output_plan(arguments):
   elif settings.line_numbers is None:
     settings.line_numbers = settings.show_filename
 
-  return OutputPlan(
+  plan = OutputPlan(
     mode=mode,
     show_filename=settings.show_filename,
     show_line_number=settings.line_numbers,
@@ -164,6 +198,11 @@ def _make_output_plan(arguments):
     null_terminate_filenames=settings.null_terminate_filenames,
     color=settings.color,
   )
+  return plan, tuple(git_arguments)
+
+
+def _make_output_plan(arguments):
+  return _prepare_output(arguments)[0]
 
 
 def _argument_parser():
