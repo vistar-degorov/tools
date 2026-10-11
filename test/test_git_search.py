@@ -376,6 +376,17 @@ export const endpointPath = "api/status"
     self.assertTrue(plan.show_filename)
     self.assertFalse(plan.show_column_number)
 
+  def test_output_plan_honors_negated_options(self):
+    plan = _make_output_plan((
+      "--count", "--no-count",
+      "--context=2", "--no-context",
+      "--heading", "--no-heading",
+      "--color", "--no-color",
+    ))
+    self.assertIs(plan.mode, StructuredOutputMode.MATCHES)
+    self.assertFalse(plan.heading)
+    self.assertEqual(plan.color, "never")
+
   def test_explicit_path_options_are_not_silently_ignored(self):
     for option in (("--root", "nested/"), ("--ext", "py")):
       with self.subTest(option=option[0]):
