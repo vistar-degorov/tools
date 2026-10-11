@@ -17,7 +17,7 @@ class StructuredOutputTest(unittest.TestCase):
   def test_match_records(self):
     data = (
       b"module_a.py\0" b"2\0" b"4\0" b"first value\n"
-      b"module_b.py\0" b"7\0" b"3\0"
+      b"nested\nmodule_b.py\0" b"7\0" b"3\0"
       b"colored \x1b[1;31mvalue\x1b[m\n"
     )
     self.assertEqual(
@@ -25,7 +25,8 @@ class StructuredOutputTest(unittest.TestCase):
       [
         SearchResult("module_a.py", 2, 4, "first value"),
         SearchResult(
-          "module_b.py", 7, 3, "colored \x1b[1;31mvalue\x1b[m"),
+          "nested\nmodule_b.py", 7, 3,
+          "colored \x1b[1;31mvalue\x1b[m"),
       ],
     )
 
@@ -70,10 +71,18 @@ class StructuredOutputTest(unittest.TestCase):
     )
 
   def test_count_records(self):
-    data = b"module_a.py\0" b"0\n" b"module_b.py\0" b"12\n"
+    data = (
+      b"module_a.py\0" b"0\n"
+      b"module_b.py\0" b"12\n"
+      b"nested\nmodule_c.py\0" b"3\n"
+    )
     self.assertEqual(
       self._parse(data, StructuredOutputMode.COUNTS),
-      [CountResult("module_a.py", 0), CountResult("module_b.py", 12)],
+      [
+        CountResult("module_a.py", 0),
+        CountResult("module_b.py", 12),
+        CountResult("nested\nmodule_c.py", 3),
+      ],
     )
 
   def test_malformed_output_is_rejected(self):
