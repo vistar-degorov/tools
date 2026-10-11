@@ -334,6 +334,7 @@ def _is_import_result(result):
 
 def main(arguments=None):
   options = _parse_arguments(arguments)
+  output_plan, structured_grep_args = _prepare_output(options.grep_args)
   main_arg = Path(sys.argv[0]).name
   patterns = options.command_patterns
   pattern_texts = options.pattern_texts
@@ -374,8 +375,12 @@ def main(arguments=None):
   test_indicators = ["[Tt]est"]
   if {".coffee", ".ts", ".tsx"}.intersection(filtered_extensions):
     test_indicators.append("[Ss]pec")
+  selecting_result = options.show is not None or options.result_idx is not None
+  structured = options.json or selecting_result
+
+  grep_args = structured_grep_args if structured else options.grep_args
   config = Config(
-    options.grep_args,
+    grep_args,
     test_indicators=test_indicators,
     test_mode=options.tests or "exclude",
   )
@@ -384,14 +389,9 @@ def main(arguments=None):
     scope_arguments = ("--", *config.format(prefix, extensions))
   else:
     scope_arguments = (*options.scope_arguments, *config.mods)
-  custom_output = has_output_modifiers(config.flags)
-  selecting_result = (
-    options.show is not None or options.result_idx is not None)
-  structured = (
-    options.json
-    or selecting_result
-  )
-  selecting_filename = selecting_result and config.only_filenames
+  custom_output = has_output_modifiers(options.grep_args)
+  selecting_filename = (
+    selecting_result and output_plan.mode is StructuredOutputMode.PATHS)
   if custom_output and structured and not (
     selecting_filename and not options.json
   ):
