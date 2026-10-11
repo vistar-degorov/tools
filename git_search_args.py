@@ -63,7 +63,7 @@ def split_result_idx(query):
   return query, None
 
 
-_GIT_GREP_OPTIONS_WITH_VALUE = {
+GIT_GREP_OPTIONS_WITH_VALUE = {
   "-A", "--after-context",
   "-B", "--before-context",
   "-C", "--context",
@@ -88,7 +88,7 @@ def _split_leading_git_options(arguments, parser):
     if not argument.startswith("-"):
       break
     index += 1
-    if argument in _GIT_GREP_OPTIONS_WITH_VALUE:
+    if argument in GIT_GREP_OPTIONS_WITH_VALUE:
       if index == len(arguments):
         parser.error(f"{argument} requires an argument")
       if argument in ("-e", "--regexp"):

@@ -9,6 +9,8 @@ import tempfile
 import unittest
 
 from git_search import remove_color_codes
+from git_search import StructuredOutputMode
+from gg import _make_output_plan
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -307,6 +309,72 @@ export const endpointPath = "api/status"
     self.assertIn("line numbers by default", help_text)
     self.assertIn(
       "add a search pattern; repeat to match alternatives", help_text)
+
+  def test_short_help_is_only_special_without_other_arguments(self):
+    help_result = self._run(GG, "-h")
+    self.assertEqual(help_result.returncode, 0)
+    self.assertIn("usage:", help_result.stdout)
+
+    hidden = self._run(GG, "-h", "AlphaMarker")
+    self.assertEqual(hidden.returncode, 0, hidden.stderr)
+    self.assertEqual(hidden.stdout.strip(), "AlphaMarker = object()")
+
+    missing_pattern = self._run(GG, "-n", "-h")
+    self.assertEqual(missing_pattern.returncode, 2)
+    self.assertIn("PATTERN is required", missing_pattern.stderr)
+
+  def test_output_plan_classifies_git_output_modes(self):
+    context_options = (
+      ("-A", "2"),
+      ("-B3",),
+      ("-2",),
+      ("--show-function",),
+      ("-W",),
+    )
+    for arguments in context_options:
+      with self.subTest(arguments=arguments):
+        self.assertIs(
+          _make_output_plan(arguments).mode,
+          StructuredOutputMode.CONTEXT,
+        )
+
+    self.assertIs(
+      _make_output_plan(("-c", "-A", "2")).mode,
+      StructuredOutputMode.COUNTS,
+    )
+    self.assertIs(
+      _make_output_plan(("-c", "-l")).mode,
+      StructuredOutputMode.PATHS,
+    )
+
+  def test_output_plan_tracks_visible_fields(self):
+    default = _make_output_plan(())
+    self.assertTrue(default.show_filename)
+    self.assertTrue(default.show_line_number)
+    self.assertFalse(default.show_column_number)
+
+    hidden = _make_output_plan(("-h",))
+    self.assertFalse(hidden.show_filename)
+    self.assertFalse(hidden.show_line_number)
+
+    numbered = _make_output_plan(("-h", "-n", "--column"))
+    self.assertFalse(numbered.show_filename)
+    self.assertTrue(numbered.show_line_number)
+    self.assertTrue(numbered.show_column_number)
+
+    count = _make_output_plan(("-h", "-n", "--column", "-c"))
+    self.assertFalse(count.show_filename)
+    self.assertFalse(count.show_line_number)
+    self.assertFalse(count.show_column_number)
+
+    paths = _make_output_plan(("-h", "-l"))
+    self.assertTrue(paths.show_filename)
+    self.assertFalse(paths.show_line_number)
+
+  def test_output_plan_skips_pattern_option_values(self):
+    plan = _make_output_plan(("-e", "-h", "-f", "--column"))
+    self.assertTrue(plan.show_filename)
+    self.assertFalse(plan.show_column_number)
 
   def test_explicit_path_options_are_not_silently_ignored(self):
     for option in (("--root", "nested/"), ("--ext", "py")):
