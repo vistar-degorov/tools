@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,48 @@ class SearchResult:
   line: int | None
   column: int | None
   text: str
+
+  @property
+  def is_match(self):
+    return self.line is not None and self.column is not None
+
+
+@dataclass(frozen=True)
+class ContextBlock:
+  path: str
+  lines: tuple[SearchResult, ...]
+
+  def __post_init__(self):
+    if not self.lines:
+      raise ValueError("context block is empty")
+    if any(line.path != self.path for line in self.lines):
+      raise ValueError("context block contains multiple paths")
+    if any(line.line is None for line in self.lines):
+      raise ValueError("context block contains a record without a line")
+    if not self.matches:
+      raise ValueError("context block contains no matches")
+
+  @property
+  def matches(self):
+    return tuple(line for line in self.lines if line.is_match)
+
+
+@dataclass(frozen=True)
+class PathResult:
+  path: str
+
+
+@dataclass(frozen=True)
+class CountResult:
+  path: str
+  count: int
+
+
+class StructuredOutputMode(Enum):
+  MATCHES = "matches"
+  CONTEXT = "context"
+  PATHS = "paths"
+  COUNTS = "counts"
 
 
 def remove_color_codes(text):
@@ -49,30 +92,158 @@ def run_command(cmd):
   return subprocess.run(cmd, stdout=subprocess.PIPE)
 
 
-def parse_null_results(output):
+def _output_error(offset, message):
+  return ValueError(
+    f"unexpected git grep output at byte {offset}: {message}")
+
+
+def _find_delimiter(data, delimiter, offset, description):
+  position = data.find(delimiter, offset)
+  if position < 0:
+    raise _output_error(offset, f"missing {description}")
+  return position
+
+
+def _parse_number(value, offset, description, *, allow_zero=False):
+  if not value.isdigit():
+    raise _output_error(offset, f"invalid {description}")
+  number = int(value)
+  if number == 0 and not allow_zero:
+    raise _output_error(offset, f"invalid {description}")
+  return number
+
+
+def _context_separator_end(data, offset):
+  line_end = data.find(b"\n", offset)
+  if line_end < 0:
+    return None
+  candidate = re.sub(
+    rb"\x1b\[[0-9;]*m", b"", data[offset:line_end])
+  if candidate == b"--":
+    return line_end + 1
+  return None
+
+
+def _parse_line_record(data, offset, *, context):
+  if context and (separator_end := _context_separator_end(data, offset)):
+    return None, separator_end
+
+  path_end = _find_delimiter(data, b"\0", offset, "path delimiter")
+  if path_end == offset:
+    raise _output_error(offset, "empty path")
+  line_start = path_end + 1
+  line_end = _find_delimiter(
+    data, b"\0", line_start, "line-number delimiter")
+  line_number = _parse_number(
+    data[line_start:line_end], line_start, "line number")
+
+  text_end = _find_delimiter(
+    data, b"\n", line_end + 1, "record terminator")
+  column_end = data.find(b"\0", line_end + 1, text_end)
+  if column_end < 0:
+    if not context:
+      raise _output_error(line_end + 1, "missing column")
+    column = None
+    text_start = line_end + 1
+  else:
+    column_start = line_end + 1
+    column = _parse_number(
+      data[column_start:column_end], column_start, "column")
+    text_start = column_end + 1
+
+  return SearchResult(
+    path=os.fsdecode(data[offset:path_end]),
+    line=line_number,
+    column=column,
+    text=data[text_start:text_end].decode("utf-8", "replace"),
+  ), text_end + 1
+
+
+def _parse_match_results(data):
   offset = 0
-  output_length = len(output)
-  while offset < output_length:
-    path_end = output.find(b"\0", offset)
-    line_end = output.find(b"\0", path_end + 1)
-    column_end = output.find(b"\0", line_end + 1)
-    text_end = output.find(b"\n", column_end + 1)
-    if min(path_end, line_end, column_end, text_end) < 0:
-      raise ValueError("unexpected git grep output")
-
-    yield SearchResult(
-      path=os.fsdecode(output[offset:path_end]),
-      line=int(output[path_end + 1:line_end]),
-      column=int(output[line_end + 1:column_end]),
-      text=output[column_end + 1:text_end].decode("utf-8", "replace"),
-    )
-    offset = text_end + 1
+  while offset < len(data):
+    result, offset = _parse_line_record(data, offset, context=False)
+    yield result
 
 
-def parse_null_paths(output):
-  for path in output.split(b"\0"):
-    if path:
-      yield SearchResult(os.fsdecode(path), None, None, "")
+def _make_context_block(lines):
+  try:
+    return ContextBlock(lines[0].path, tuple(lines))
+  except (IndexError, ValueError) as error:
+    raise ValueError(f"unexpected git grep context output: {error}") from error
+
+
+def _parse_context_blocks(data):
+  offset = 0
+  lines = []
+  separator_offset = None
+  while offset < len(data):
+    record_offset = offset
+    result, offset = _parse_line_record(data, offset, context=True)
+    if result is None:
+      if not lines:
+        raise _output_error(record_offset, "empty context block")
+      yield _make_context_block(lines)
+      lines = []
+      separator_offset = record_offset
+    else:
+      if lines and result.path != lines[0].path:
+        yield _make_context_block(lines)
+        lines = []
+      lines.append(result)
+      separator_offset = None
+
+  if lines:
+    yield _make_context_block(lines)
+  elif separator_offset is not None:
+    raise _output_error(separator_offset, "empty context block")
+
+
+def _parse_path_results(data):
+  offset = 0
+  while offset < len(data):
+    path_end = _find_delimiter(data, b"\0", offset, "path delimiter")
+    if path_end == offset:
+      raise _output_error(offset, "empty path")
+    yield PathResult(os.fsdecode(data[offset:path_end]))
+    offset = path_end + 1
+
+
+def _parse_count_results(data):
+  offset = 0
+  while offset < len(data):
+    path_end = _find_delimiter(data, b"\0", offset, "path delimiter")
+    if path_end == offset:
+      raise _output_error(offset, "empty path")
+    count_start = path_end + 1
+    count_end = _find_delimiter(
+      data, b"\n", count_start, "count terminator")
+    count = _parse_number(
+      data[count_start:count_end], count_start, "count", allow_zero=True)
+    yield CountResult(os.fsdecode(data[offset:path_end]), count)
+    offset = count_end + 1
+
+
+def parse_structured_records(data, mode):
+  if mode is StructuredOutputMode.MATCHES:
+    yield from _parse_match_results(data)
+  elif mode is StructuredOutputMode.CONTEXT:
+    yield from _parse_context_blocks(data)
+  elif mode is StructuredOutputMode.PATHS:
+    yield from _parse_path_results(data)
+  elif mode is StructuredOutputMode.COUNTS:
+    yield from _parse_count_results(data)
+  else:
+    raise ValueError(f"unknown structured output mode: {mode!r}")
+
+
+def parse_null_results(data):
+  yield from parse_structured_records(data, StructuredOutputMode.MATCHES)
+
+
+def parse_null_paths(data):
+  for result in parse_structured_records(data, StructuredOutputMode.PATHS):
+    yield SearchResult(result.path, None, None, "")
 
 
 def select_result(results, index, *, clamp):
