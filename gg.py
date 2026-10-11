@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shlex
 import sys
+from types import SimpleNamespace
 
 from git_search_args import (
   Config,
@@ -42,171 +43,126 @@ class OutputPlan:
   color: str | None
 
 
+_CONTEXT_SETTINGS = {
+  "-A": ("after_context",),
+  "--after-context": ("after_context",),
+  "-B": ("before_context",),
+  "--before-context": ("before_context",),
+  "-C": ("before_context", "after_context"),
+  "--context": ("before_context", "after_context"),
+}
+
+_LONG_BOOLEAN_SETTINGS = {
+  "--files-with-matches": "files_with_matches",
+  "--name-only": "files_with_matches",
+  "--files-without-match": "files_without_match",
+  "--count": "count",
+  "--show-function": "show_function",
+  "--function-context": "function_context",
+  "--line-number": "line_numbers",
+  "--column": "show_column_number",
+  "--heading": "heading",
+  "--break": "break_between_files",
+  "--null": "null_terminate_filenames",
+}
+
+_SHORT_SETTINGS = {
+  "h": ("show_filename", False),
+  "H": ("show_filename", True),
+  "n": ("line_numbers", True),
+  "c": ("count", True),
+  "l": ("files_with_matches", True),
+  "L": ("files_without_match", True),
+  "p": ("show_function", True),
+  "W": ("function_context", True),
+  "z": ("null_terminate_filenames", True),
+}
+
+
 def _make_output_plan(arguments):
-  show_filename = True
-  line_numbers = None
-  show_column_number = False
-  heading = False
-  break_between_files = False
-  null_terminate_filenames = False
-  color = None
-  count = False
-  files_with_matches = False
-  files_without_match = False
-  before_context = False
-  after_context = False
-  show_function = False
-  function_context = False
-  index = 0
+  settings = SimpleNamespace(
+    show_filename=True,
+    line_numbers=None, # can be implicit
+    show_column_number=False,
+    heading=False,
+    break_between_files=False,
+    null_terminate_filenames=False,
+    color=None,
+    count=False,
+    files_with_matches=False,
+    files_without_match=False,
+    before_context=False,
+    after_context=False,
+    show_function=False,
+    function_context=False,
+  )
+  arguments = iter(arguments)
 
-  while index < len(arguments):
-    argument = arguments[index]
-
-    if argument in ("-A", "--after-context"):
-      after_context = True
-      index += 2
-      continue
-    if argument in ("-B", "--before-context"):
-      before_context = True
-      index += 2
-      continue
-    if argument in ("-C", "--context"):
-      before_context = after_context = True
-      index += 2
-      continue
+  for argument in arguments:
     if argument in GIT_GREP_OPTIONS_WITH_VALUE:
-      index += 2
-      continue
+      next(arguments, None)
 
-    option, separator, _ = argument.partition("=")
-    if separator and option in (
-      "--after-context", "--before-context", "--context",
-    ):
-      if option != "--before-context":
-        after_context = True
-      if option != "--after-context":
-        before_context = True
-    elif argument == "--no-after-context":
-      after_context = False
-    elif argument == "--no-before-context":
-      before_context = False
-    elif argument == "--no-context":
-      before_context = after_context = False
-    elif argument in ("--files-with-matches", "--name-only"):
-      files_with_matches = True
-    elif argument in (
-      "--no-files-with-matches", "--no-name-only",
-    ):
-      files_with_matches = False
-    elif argument == "--files-without-match":
-      files_without_match = True
-    elif argument == "--no-files-without-match":
-      files_without_match = False
-    elif argument == "--count":
-      count = True
-    elif argument == "--no-count":
-      count = False
-    elif argument == "--show-function":
-      show_function = True
-    elif argument == "--no-show-function":
-      show_function = False
-    elif argument == "--function-context":
-      function_context = True
-    elif argument == "--no-function-context":
-      function_context = False
-    elif argument == "--line-number":
-      line_numbers = True
-    elif argument == "--no-line-number":
-      line_numbers = False
-    elif argument == "--column":
-      show_column_number = True
-    elif argument == "--no-column":
-      show_column_number = False
-    elif argument == "--heading":
-      heading = True
-    elif argument == "--no-heading":
-      heading = False
-    elif argument == "--break":
-      break_between_files = True
-    elif argument == "--no-break":
-      break_between_files = False
-    elif argument == "--null":
-      null_terminate_filenames = True
-    elif argument == "--no-null":
-      null_terminate_filenames = False
-    elif argument == "--color":
-      color = "always"
-    elif argument == "--no-color":
-      color = "never"
-    elif separator and option == "--color":
-      color = argument.partition("=")[2]
+    option, assignment, value = argument.partition("=")
+    enabled = True
+    if option.startswith("--no-"):
+      option = f"--{option.removeprefix('--no-')}"
+      enabled = False
+
+    if context_settings := _CONTEXT_SETTINGS.get(option):
+      for setting in context_settings:
+        setattr(settings, setting, enabled)
+    elif setting := _LONG_BOOLEAN_SETTINGS.get(option):
+      setattr(settings, setting, enabled)
+    elif option == "--color":
+      settings.color = (
+        value if enabled and assignment
+        else "always" if enabled
+        else "never"
+      )
     elif argument.startswith("-") and not argument.startswith("--"):
       short_options = argument[1:]
       if short_options.isdigit():
-        before_context = after_context = True
+        settings.before_context = True
+        settings.after_context = True
       else:
         for short_option in short_options:
           if short_option in "efmO":
             break
-          if short_option == "A":
-            after_context = True
+          if context_settings := _CONTEXT_SETTINGS.get("-" + short_option):
+            for setting in context_settings:
+              setattr(settings, setting, True)
             break
-          if short_option == "B":
-            before_context = True
-            break
-          if short_option == "C":
-            before_context = after_context = True
-            break
-          if short_option == "h":
-            show_filename = False
-          elif short_option == "H":
-            show_filename = True
-          elif short_option == "n":
-            line_numbers = True
-          elif short_option == "c":
-            count = True
-          elif short_option == "l":
-            files_with_matches = True
-          elif short_option == "L":
-            files_without_match = True
-          elif short_option == "p":
-            show_function = True
-          elif short_option == "W":
-            function_context = True
-          elif short_option == "z":
-            null_terminate_filenames = True
+          if update := _SHORT_SETTINGS.get(short_option):
+            setting, setting_value = update
+            setattr(settings, setting, setting_value)
 
-    index += 1
-
-  if files_with_matches or files_without_match:
+  if settings.files_with_matches or settings.files_without_match:
     mode = StructuredOutputMode.PATHS
-  elif count:
+    settings.show_filename = True
+  elif settings.count:
     mode = StructuredOutputMode.COUNTS
-  elif before_context or after_context or show_function or function_context:
+  elif any((
+    settings.before_context, settings.after_context,
+    settings.show_function, settings.function_context)):
     mode = StructuredOutputMode.CONTEXT
   else:
     mode = StructuredOutputMode.MATCHES
 
-  if mode is StructuredOutputMode.PATHS:
-    show_filename = True
-    show_line_number = False
-    show_column_number = False
-  elif mode is StructuredOutputMode.COUNTS:
-    show_line_number = False
-    show_column_number = False
-  else:
-    show_line_number = (
-      show_filename if line_numbers is None else line_numbers)
+  if mode in (StructuredOutputMode.PATHS, StructuredOutputMode.COUNTS):
+    settings.line_numbers = False
+    settings.show_column_number = False
+  elif settings.line_numbers is None:
+    settings.line_numbers = settings.show_filename
 
   return OutputPlan(
     mode=mode,
-    show_filename=show_filename,
-    show_line_number=show_line_number,
-    show_column_number=show_column_number,
-    heading=heading,
-    break_between_files=break_between_files,
-    null_terminate_filenames=null_terminate_filenames,
-    color=color,
+    show_filename=settings.show_filename,
+    show_line_number=settings.line_numbers,
+    show_column_number=settings.show_column_number,
+    heading=settings.heading,
+    break_between_files=settings.break_between_files,
+    null_terminate_filenames=settings.null_terminate_filenames,
+    color=settings.color,
   )
 
 
