@@ -86,53 +86,36 @@ _PRESENTATION_SHORT_OPTIONS = frozenset("hHnz")
 _COLOR_VALUES = {"always", "auto", "never"}
 
 
-def _prepare_short_option(argument, settings):
+def _filter_short_option(argument, settings):
   short_options = argument[1:]
-  if not short_options or short_options.isdigit():
-    if short_options.isdigit():
-      settings.before_context = True
-      settings.after_context = True
+  if not short_options:
+    return argument
+  elif short_options.isdigit():
+    settings.before_context = True
+    settings.after_context = True
     return argument
 
-  git_options = []
+  git_options = ""
   for index, short_option in enumerate(short_options):
     if short_option in "efmO":
-      git_options.extend(short_options[index:])
+      git_options += short_options[index:]
       break
     if context_settings := _CONTEXT_SETTINGS.get("-" + short_option):
       for setting in context_settings:
         setattr(settings, setting, True)
-      git_options.extend(short_options[index:])
+      git_options += short_options[index:]
       break
     if update := _SHORT_SETTINGS.get(short_option):
       setting, setting_value = update
       setattr(settings, setting, setting_value)
     if short_option not in _PRESENTATION_SHORT_OPTIONS:
-      git_options.append(short_option)
+      git_options += short_option
 
-  return "-" + "".join(git_options) if git_options else None
+  return "-" + git_options if git_options else None
 
 
-def _prepare_output(arguments):
-  settings = SimpleNamespace(
-    show_filename=True,
-    line_numbers=None, # can be implicit
-    show_column_number=False,
-    heading=False,
-    break_between_files=False,
-    null_terminate_filenames=False,
-    color=None,
-    count=False,
-    files_with_matches=False,
-    files_without_match=False,
-    before_context=False,
-    after_context=False,
-    show_function=False,
-    function_context=False,
-  )
-  git_arguments = []
+def _filter_arguments(arguments, settings):
   arguments = iter(arguments)
-
   for argument in arguments:
     option_value = None
     if argument in GIT_GREP_OPTIONS_WITH_VALUE:
@@ -156,7 +139,7 @@ def _prepare_output(arguments):
         else "never"
       )
     elif argument.startswith("-") and not argument.startswith("--"):
-      argument = _prepare_short_option(argument, settings)
+      argument = _filter_short_option(argument, settings)
 
     valid_presentation_option = (
       option in _PRESENTATION_LONG_OPTIONS
@@ -166,9 +149,29 @@ def _prepare_output(arguments):
       )
     )
     if argument is not None and not valid_presentation_option:
-      git_arguments.append(argument)
+      yield argument
       if option_value is not None:
-        git_arguments.append(option_value)
+        yield option_value
+
+
+def _prepare_output(arguments):
+  settings = SimpleNamespace(
+    show_filename=True,
+    line_numbers=None, # can be implicit
+    show_column_number=False,
+    heading=False,
+    break_between_files=False,
+    null_terminate_filenames=False,
+    color=None,
+    count=False,
+    files_with_matches=False,
+    files_without_match=False,
+    before_context=False,
+    after_context=False,
+    show_function=False,
+    function_context=False,
+  )
+  arguments = tuple(_filter_arguments(arguments, settings))
 
   if settings.files_with_matches or settings.files_without_match:
     mode = StructuredOutputMode.PATHS
@@ -188,7 +191,7 @@ def _prepare_output(arguments):
   elif settings.line_numbers is None:
     settings.line_numbers = settings.show_filename
 
-  plan = OutputPlan(
+  return OutputPlan(
     mode=mode,
     show_filename=settings.show_filename,
     show_line_number=settings.line_numbers,
@@ -197,8 +200,7 @@ def _prepare_output(arguments):
     break_between_files=settings.break_between_files,
     null_terminate_filenames=settings.null_terminate_filenames,
     color=settings.color,
-  )
-  return plan, tuple(git_arguments)
+  ), arguments
 
 
 def _make_output_plan(arguments):
