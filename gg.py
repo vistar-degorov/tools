@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 import re
 import shlex
@@ -8,12 +9,14 @@ import sys
 
 from git_search_args import (
   Config,
+  GIT_GREP_OPTIONS_WITH_VALUE,
   has_output_modifiers,
   parse_search_arguments,
   resolve_extensions,
   resolve_setting,
 )
 from git_search import (
+  StructuredOutputMode,
   build_command,
   open_search_result,
   parse_null_paths,
@@ -27,10 +30,191 @@ from git_search import (
 )
 
 
+@dataclass(frozen=True)
+class OutputPlan:
+  mode: StructuredOutputMode
+  show_filename: bool
+  show_line_number: bool
+  show_column_number: bool
+  heading: bool
+  break_between_files: bool
+  null_terminate_filenames: bool
+  color: str | None
+
+
+def _make_output_plan(arguments):
+  show_filename = True
+  line_numbers = None
+  show_column_number = False
+  heading = False
+  break_between_files = False
+  null_terminate_filenames = False
+  color = None
+  count = False
+  files_with_matches = False
+  files_without_match = False
+  before_context = False
+  after_context = False
+  show_function = False
+  function_context = False
+  index = 0
+
+  while index < len(arguments):
+    argument = arguments[index]
+
+    if argument in ("-A", "--after-context"):
+      after_context = True
+      index += 2
+      continue
+    if argument in ("-B", "--before-context"):
+      before_context = True
+      index += 2
+      continue
+    if argument in ("-C", "--context"):
+      before_context = after_context = True
+      index += 2
+      continue
+    if argument in GIT_GREP_OPTIONS_WITH_VALUE:
+      index += 2
+      continue
+
+    option, separator, _ = argument.partition("=")
+    if separator and option in (
+      "--after-context", "--before-context", "--context",
+    ):
+      if option != "--before-context":
+        after_context = True
+      if option != "--after-context":
+        before_context = True
+    elif argument == "--no-after-context":
+      after_context = False
+    elif argument == "--no-before-context":
+      before_context = False
+    elif argument == "--no-context":
+      before_context = after_context = False
+    elif argument in ("--files-with-matches", "--name-only"):
+      files_with_matches = True
+    elif argument in (
+      "--no-files-with-matches", "--no-name-only",
+    ):
+      files_with_matches = False
+    elif argument == "--files-without-match":
+      files_without_match = True
+    elif argument == "--no-files-without-match":
+      files_without_match = False
+    elif argument == "--count":
+      count = True
+    elif argument == "--no-count":
+      count = False
+    elif argument == "--show-function":
+      show_function = True
+    elif argument == "--no-show-function":
+      show_function = False
+    elif argument == "--function-context":
+      function_context = True
+    elif argument == "--no-function-context":
+      function_context = False
+    elif argument == "--line-number":
+      line_numbers = True
+    elif argument == "--no-line-number":
+      line_numbers = False
+    elif argument == "--column":
+      show_column_number = True
+    elif argument == "--no-column":
+      show_column_number = False
+    elif argument == "--heading":
+      heading = True
+    elif argument == "--no-heading":
+      heading = False
+    elif argument == "--break":
+      break_between_files = True
+    elif argument == "--no-break":
+      break_between_files = False
+    elif argument == "--null":
+      null_terminate_filenames = True
+    elif argument == "--no-null":
+      null_terminate_filenames = False
+    elif argument == "--color":
+      color = "always"
+    elif argument == "--no-color":
+      color = "never"
+    elif separator and option == "--color":
+      color = argument.partition("=")[2]
+    elif argument.startswith("-") and not argument.startswith("--"):
+      short_options = argument[1:]
+      if short_options.isdigit():
+        before_context = after_context = True
+      else:
+        for short_option in short_options:
+          if short_option in "efmO":
+            break
+          if short_option == "A":
+            after_context = True
+            break
+          if short_option == "B":
+            before_context = True
+            break
+          if short_option == "C":
+            before_context = after_context = True
+            break
+          if short_option == "h":
+            show_filename = False
+          elif short_option == "H":
+            show_filename = True
+          elif short_option == "n":
+            line_numbers = True
+          elif short_option == "c":
+            count = True
+          elif short_option == "l":
+            files_with_matches = True
+          elif short_option == "L":
+            files_without_match = True
+          elif short_option == "p":
+            show_function = True
+          elif short_option == "W":
+            function_context = True
+          elif short_option == "z":
+            null_terminate_filenames = True
+
+    index += 1
+
+  if files_with_matches or files_without_match:
+    mode = StructuredOutputMode.PATHS
+  elif count:
+    mode = StructuredOutputMode.COUNTS
+  elif before_context or after_context or show_function or function_context:
+    mode = StructuredOutputMode.CONTEXT
+  else:
+    mode = StructuredOutputMode.MATCHES
+
+  if mode is StructuredOutputMode.PATHS:
+    show_filename = True
+    show_line_number = False
+    show_column_number = False
+  elif mode is StructuredOutputMode.COUNTS:
+    show_line_number = False
+    show_column_number = False
+  else:
+    show_line_number = (
+      show_filename if line_numbers is None else line_numbers)
+
+  return OutputPlan(
+    mode=mode,
+    show_filename=show_filename,
+    show_line_number=show_line_number,
+    show_column_number=show_column_number,
+    heading=heading,
+    break_between_files=break_between_files,
+    null_terminate_filenames=null_terminate_filenames,
+    color=color,
+  )
+
+
 def _argument_parser():
   root_default = resolve_setting("GG_SEARCH_IN", "./")
   extension_default = resolve_setting("GG_SEARCH_EXT", ".py")
   parser = argparse.ArgumentParser(
+    add_help=False,
     allow_abbrev=False,
     usage=(
       "%(prog)s [OPTIONS] [GIT_GREP_OPTIONS] [PATTERN[/N]] "
@@ -53,6 +237,8 @@ def _argument_parser():
       "Results include line numbers by default, so -n is unnecessary."
     ),
   )
+  parser.add_argument(
+    "--help", action="help", help="show this help message and exit")
   parser.add_argument(
     "-e", "--pattern", metavar="PATTERN",
     help="add a search pattern; repeat to match alternatives")
@@ -106,6 +292,9 @@ def _argument_parser():
 
 
 def _parse_arguments(arguments=None):
+  arguments = list(sys.argv[1:] if arguments is None else arguments)
+  if arguments == ["-h"]:
+    arguments = ["--help"]
   return parse_search_arguments(
     _argument_parser(), "pattern", "PATTERN", arguments,
     pattern_options=("-e", "--pattern"))
