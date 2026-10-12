@@ -121,7 +121,7 @@ def _filter_arguments(arguments, settings):
     if argument in GIT_GREP_OPTIONS_WITH_VALUE:
       option_value = next(arguments, None)
 
-    option, assignment, value = argument.partition("=")
+    option, assignment, assigned_value = argument.partition("=")
     enabled = True
     if option.startswith("--no-"):
       option = f"--{option.removeprefix('--no-')}"
@@ -134,7 +134,7 @@ def _filter_arguments(arguments, settings):
       setattr(settings, setting, enabled)
     elif option == "--color":
       settings.color = (
-        value if enabled and assignment
+        assigned_value if enabled and assignment
         else "always" if enabled
         else "never"
       )
@@ -145,7 +145,7 @@ def _filter_arguments(arguments, settings):
       option in _PRESENTATION_LONG_OPTIONS
       and (
         not assignment
-        or option == "--color" and enabled and value in _COLOR_VALUES
+        or option == "--color" and enabled and assigned_value in _COLOR_VALUES
       )
     )
     if argument is not None and not valid_presentation_option:
