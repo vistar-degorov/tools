@@ -1,4 +1,5 @@
 from io import BytesIO
+import os
 import unittest
 
 from git_search import (
@@ -16,6 +17,22 @@ from git_search import (
 class StructuredOutputTest(unittest.TestCase):
   def _parse(self, data, mode):
     return list(parse_structured_records(data, mode))
+
+  def _render(self, records, mode, **overrides):
+    settings = {
+      "show_filename": True,
+      "show_line_number": True,
+      "show_column_number": False,
+      "heading": False,
+      "break_between_files": False,
+      "null_terminate_filenames": False,
+      "color": None,
+    }
+    settings.update(overrides)
+    stream = BytesIO()
+    write_structured_records(
+      records, OutputPlan(mode=mode, **settings), stream)
+    return stream.getvalue()
 
   def test_match_records(self):
     data = (
@@ -133,19 +150,178 @@ class StructuredOutputTest(unittest.TestCase):
     )
     for mode, records, expected in cases:
       with self.subTest(mode=mode):
-        plan = OutputPlan(
-          mode=mode,
-          show_filename=True,
-          show_line_number=True,
-          show_column_number=False,
-          heading=False,
-          break_between_files=False,
-          null_terminate_filenames=False,
-          color=None,
+        self.assertEqual(self._render(records, mode), expected)
+
+  def test_match_fields_follow_the_output_plan(self):
+    result = SearchResult("nested/source.py", 12, 4, "matched value")
+    cases = (
+      ({}, b"nested/source.py:12:matched value\n"),
+      (
+        {"show_column_number": True},
+        b"nested/source.py:12:4:matched value\n",
+      ),
+      (
+        {"show_filename": False},
+        b"12:matched value\n",
+      ),
+      (
+        {
+          "show_filename": False,
+          "show_line_number": False,
+          "show_column_number": True,
+        },
+        b"4:matched value\n",
+      ),
+      (
+        {
+          "show_filename": False,
+          "show_line_number": False,
+        },
+        b"matched value\n",
+      ),
+      (
+        {
+          "show_column_number": True,
+          "null_terminate_filenames": True,
+        },
+        b"nested/source.py\0" b"12\0" b"4\0" b"matched value\n",
+      ),
+    )
+    for settings, expected in cases:
+      with self.subTest(settings=settings):
+        self.assertEqual(
+          self._render([result], StructuredOutputMode.MATCHES, **settings),
+          expected,
         )
-        stream = BytesIO()
-        write_structured_records(records, plan, stream)
-        self.assertEqual(stream.getvalue(), expected)
+
+  def test_match_headings_and_file_breaks(self):
+    records = (
+      SearchResult("first.py", 2, 1, "first match"),
+      SearchResult("first.py", 4, 2, "second match"),
+      SearchResult("second.py", 6, 3, "third match"),
+    )
+    self.assertEqual(
+      self._render(
+        records,
+        StructuredOutputMode.MATCHES,
+        show_column_number=True,
+        heading=True,
+        break_between_files=True,
+      ),
+      (
+        b"first.py\n"
+        b"2:1:first match\n"
+        b"4:2:second match\n"
+        b"\n"
+        b"second.py\n"
+        b"6:3:third match\n"
+      ),
+    )
+
+  def test_heading_remains_newline_terminated_in_null_output(self):
+    result = SearchResult("source.py", 12, 4, "matched value")
+    self.assertEqual(
+      self._render(
+        [result],
+        StructuredOutputMode.MATCHES,
+        show_column_number=True,
+        heading=True,
+        null_terminate_filenames=True,
+      ),
+      b"source.py\n" b"12\0" b"4\0" b"matched value\n",
+    )
+
+  def test_context_blocks_use_context_and_block_separators(self):
+    blocks = (
+      ContextBlock("first.py", (
+        SearchResult("first.py", 2, None, "before"),
+        SearchResult("first.py", 3, 2, "first match"),
+      )),
+      ContextBlock("first.py", (
+        SearchResult("first.py", 8, 4, "second match"),
+      )),
+      ContextBlock("second.py", (
+        SearchResult("second.py", 5, 1, "third match"),
+        SearchResult("second.py", 6, None, "after"),
+      )),
+    )
+    self.assertEqual(
+      self._render(
+        blocks,
+        StructuredOutputMode.CONTEXT,
+        show_column_number=True,
+        heading=True,
+        break_between_files=True,
+      ),
+      (
+        b"first.py\n"
+        b"2-before\n"
+        b"3:2:first match\n"
+        b"--\n"
+        b"8:4:second match\n"
+        b"\n"
+        b"second.py\n"
+        b"5:1:third match\n"
+        b"6-after\n"
+      ),
+    )
+
+  def test_context_null_output_separates_every_visible_field(self):
+    block = ContextBlock("source.py", (
+      SearchResult("source.py", 2, None, "before"),
+      SearchResult("source.py", 3, 5, "matched value"),
+    ))
+    self.assertEqual(
+      self._render(
+        [block],
+        StructuredOutputMode.CONTEXT,
+        show_column_number=True,
+        null_terminate_filenames=True,
+      ),
+      (
+        b"source.py\0" b"2\0" b"before\n"
+        b"source.py\0" b"3\0" b"5\0" b"matched value\n"
+      ),
+    )
+
+  def test_path_and_count_terminators(self):
+    path = "nested\nsource.py"
+    self.assertEqual(
+      self._render(
+        [PathResult(path)],
+        StructuredOutputMode.PATHS,
+        null_terminate_filenames=True,
+      ),
+      b"nested\nsource.py\0",
+    )
+    self.assertEqual(
+      self._render(
+        [CountResult(path, 7)],
+        StructuredOutputMode.COUNTS,
+        null_terminate_filenames=True,
+      ),
+      b"nested\nsource.py\0" b"7\n",
+    )
+    self.assertEqual(
+      self._render(
+        [CountResult(path, 7)],
+        StructuredOutputMode.COUNTS,
+        show_filename=False,
+      ),
+      b"7\n",
+    )
+
+  def test_paths_use_the_filesystem_encoding(self):
+    encoded_path = b"source-\xff.py"
+    path = os.fsdecode(encoded_path)
+    self.assertEqual(
+      self._render(
+        [PathResult(path)],
+        StructuredOutputMode.PATHS,
+        null_terminate_filenames=True,
+      ),
+      encoded_path + b"\0",
+    )
 
 
 if __name__ == "__main__":
