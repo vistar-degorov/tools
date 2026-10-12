@@ -61,8 +61,19 @@ class OutputPlan:
   color: str | None
 
 
+_SEPARATOR_COLOR = b"\x1b[36m"
+_COLOR_RESET = b"\x1b[m"
+
+
 def remove_color_codes(text):
   return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
+def output_uses_color(plan, stream):
+  return (
+    plan.color == "always"
+    or plan.color in (None, "auto") and stream.isatty()
+  )
 
 
 def build_command(
@@ -71,6 +82,7 @@ def build_command(
   scope_arguments,
   *,
   structured=False,
+  structured_color=False,
   untracked=False,
   word_regexp=False,
 ):
@@ -78,7 +90,8 @@ def build_command(
   if untracked:
     cmd.extend(("--untracked", "--exclude-standard"))
   if structured:
-    cmd.extend(("--color=never", "-I", "-n", "--column", "-z"))
+    color = "always" if structured_color else "never"
+    cmd.extend((f"--color={color}", "-I", "-n", "--column", "-z"))
   else:
     cmd.append("--color=always" if sys.stdout.isatty() else "--color=never")
   if word_regexp:
@@ -208,10 +221,15 @@ def parse_structured_records(data, mode):
     raise ValueError(f"unknown structured output mode: {mode!r}")
 
 
-def _write_line_result(stream, result, plan, *, show_filename):
-  separator = b":" if result.is_match else b"-"
+def _colored_separator(separator, use_color):
+  return _SEPARATOR_COLOR + separator + _COLOR_RESET if use_color else separator
+
+
+def _write_line_result(stream, result, plan, *, show_filename, use_color):
   if plan.null_terminate_filenames:
     separator = b"\0"
+  else:
+    separator = _colored_separator(b":" if result.is_match else b"-", use_color)
 
   fields = []
   if show_filename:
@@ -224,7 +242,7 @@ def _write_line_result(stream, result, plan, *, show_filename):
   stream.write(separator.join(fields) + b"\n")
 
 
-def _write_match_results(records, plan, stream):
+def _write_match_results(records, plan, stream, use_color):
   previous_path = None
   show_heading = plan.heading and plan.show_filename
 
@@ -237,11 +255,12 @@ def _write_match_results(records, plan, stream):
     _write_line_result(
       stream, result, plan,
       show_filename=plan.show_filename and not show_heading,
+      use_color=use_color,
     )
     previous_path = result.path
 
 
-def _write_context_blocks(records, plan, stream):
+def _write_context_blocks(records, plan, stream, use_color):
   previous_path = None
   show_heading = plan.heading and plan.show_filename
 
@@ -250,25 +269,26 @@ def _write_context_blocks(records, plan, stream):
       if block.path != previous_path and plan.break_between_files:
         stream.write(b"\n")
       else:
-        stream.write(b"--\n")
+        stream.write(_colored_separator(b"--", use_color) + b"\n")
     if show_heading and block.path != previous_path:
       stream.write(os.fsencode(block.path) + b"\n")
     for result in block.lines:
       _write_line_result(
         stream, result, plan,
         show_filename=plan.show_filename and not show_heading,
+        use_color=use_color,
       )
     previous_path = block.path
 
 
-def _write_path_results(records, plan, stream):
+def _write_path_results(records, plan, stream, use_color):
   terminator = b"\0" if plan.null_terminate_filenames else b"\n"
   for result in records:
     stream.write(os.fsencode(result.path) + terminator)
 
 
-def _write_count_results(records, plan, stream):
-  separator = b"\0" if plan.null_terminate_filenames else b":"
+def _write_count_results(records, plan, stream, use_color):
+  separator = b"\0" if plan.null_terminate_filenames else _colored_separator(b":", use_color)
   for result in records:
     if plan.show_filename:
       stream.write(os.fsencode(result.path) + separator)
@@ -282,7 +302,7 @@ def write_structured_records(records, plan, stream):
     StructuredOutputMode.PATHS: _write_path_results,
     StructuredOutputMode.COUNTS: _write_count_results,
   }
-  writers[plan.mode](records, plan, stream)
+  writers[plan.mode](records, plan, stream, output_uses_color(plan, stream))
 
 
 def parse_null_results(data):
