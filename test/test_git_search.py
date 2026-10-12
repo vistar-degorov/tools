@@ -8,9 +8,8 @@ import subprocess
 import tempfile
 import unittest
 
-from git_search import remove_color_codes
-from git_search import StructuredOutputMode
-from gg import _make_output_plan, _prepare_output
+from git_search import remove_color_codes, SearchResult, StructuredOutputMode
+from gg import _is_import_result, _make_output_plan, _prepare_output
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -199,6 +198,11 @@ export const endpointPath = "api/status"
     result = self._run(GG, "PATH_MARKER")
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn("import directory/plain.py:", result.stdout)
+
+  def test_import_filter_ignores_color_codes(self):
+    result = SearchResult(
+      "module.py", 1, 1, "\x1b[1;31mimport\x1b[m dependency")
+    self.assertTrue(_is_import_result(result))
 
   def test_test_shortcuts_are_mutually_exclusive(self):
     for script in (GG, FINDDEF):

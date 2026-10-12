@@ -310,13 +310,14 @@ def _matched_line_text(text, config):
 
 def _is_import_result(result):
   extension = Path(result.path).suffix.lower()
+  text = remove_color_codes(result.text)
   if extension == ".py":
     return re.match(
-      r"\s*(?:import\b|from\b.*\bimport\b)", result.text) is not None
+      r"\s*(?:import\b|from\b.*\bimport\b)", text) is not None
   if extension in (".ts", ".tsx"):
-    return re.match(r"\s*import\b", result.text) is not None
+    return re.match(r"\s*import\b", text) is not None
   if extension == ".coffee":
-    return re.search(r"} *= *require\b", result.text) is not None
+    return re.search(r"} *= *require\b", text) is not None
   return False
 
 

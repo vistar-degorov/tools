@@ -9,16 +9,22 @@ from git_search import (
   PathResult,
   SearchResult,
   StructuredOutputMode,
+  build_command,
   parse_structured_records,
   write_structured_records,
 )
+
+
+class TerminalBytesIO(BytesIO):
+  def isatty(self):
+    return True
 
 
 class StructuredOutputTest(unittest.TestCase):
   def _parse(self, data, mode):
     return list(parse_structured_records(data, mode))
 
-  def _render(self, records, mode, **overrides):
+  def _render(self, records, mode, *, terminal=False, **overrides):
     settings = {
       "show_filename": True,
       "show_line_number": True,
@@ -29,7 +35,7 @@ class StructuredOutputTest(unittest.TestCase):
       "color": None,
     }
     settings.update(overrides)
-    stream = BytesIO()
+    stream = TerminalBytesIO() if terminal else BytesIO()
     write_structured_records(
       records, OutputPlan(mode=mode, **settings), stream)
     return stream.getvalue()
@@ -322,6 +328,71 @@ class StructuredOutputTest(unittest.TestCase):
       ),
       encoded_path + b"\0",
     )
+
+  def test_color_follows_the_plan_and_output_destination(self):
+    result = SearchResult(
+      "source.py", 3, 2, "\x1b[1;31mmatched\x1b[m value")
+    plain = b"source.py:3:\x1b[1;31mmatched\x1b[m value\n"
+    colored = (
+      b"source.py\x1b[36m:\x1b[m"
+      b"3\x1b[36m:\x1b[m"
+      b"\x1b[1;31mmatched\x1b[m value\n"
+    )
+    cases = (
+      ({"color": "always"}, False, colored),
+      ({"color": "never"}, True, plain),
+      ({"color": "auto"}, False, plain),
+      ({"color": "auto"}, True, colored),
+      ({"color": None}, False, plain),
+      ({"color": None}, True, colored),
+    )
+    for settings, terminal, expected in cases:
+      with self.subTest(settings=settings, terminal=terminal):
+        self.assertEqual(
+          self._render(
+            [result], StructuredOutputMode.MATCHES,
+            terminal=terminal, **settings),
+          expected,
+        )
+
+  def test_context_block_separator_is_colored(self):
+    blocks = (
+      ContextBlock("source.py", (
+        SearchResult("source.py", 2, 1, "first match"),
+      )),
+      ContextBlock("source.py", (
+        SearchResult("source.py", 5, 1, "second match"),
+      )),
+    )
+    self.assertEqual(
+      self._render(
+        blocks, StructuredOutputMode.CONTEXT,
+        show_filename=False, color="always"),
+      (
+        b"2\x1b[36m:\x1b[mfirst match\n"
+        b"\x1b[36m--\x1b[m\n"
+        b"5\x1b[36m:\x1b[msecond match\n"
+      ),
+    )
+
+  def test_null_separators_are_not_colored(self):
+    result = SearchResult("source.py", 3, 2, "matched value")
+    self.assertEqual(
+      self._render(
+        [result], StructuredOutputMode.MATCHES,
+        show_column_number=True,
+        null_terminate_filenames=True,
+        color="always",
+      ),
+      b"source.py\0" b"3\0" b"2\0" b"matched value\n",
+    )
+
+  def test_structured_command_can_preserve_match_color(self):
+    command = build_command(
+      ("needle",), (), ("--", "*.py"),
+      structured=True, structured_color=True)
+    self.assertIn("--color=always", command)
+    self.assertNotIn("--color=never", command)
 
 
 if __name__ == "__main__":
