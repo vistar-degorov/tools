@@ -59,6 +59,7 @@ class OutputPlan:
   break_between_files: bool
   null_terminate_filenames: bool
   color: str | None
+  quiet: bool = False
 
 
 _SEPARATOR_COLOR = b"\x1b[36m"
@@ -91,7 +92,8 @@ def build_command(
     cmd.extend(("--untracked", "--exclude-standard"))
   if structured:
     color = "always" if structured_color else "never"
-    cmd.extend((f"--color={color}", "-I", "-n", "--column", "-z"))
+    cmd.extend((
+      f"--color={color}", "-I", "-H", "-n", "--column", "-z"))
   else:
     cmd.append("--color=always" if sys.stdout.isatty() else "--color=never")
   if word_regexp:
