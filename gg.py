@@ -17,17 +17,18 @@ from git_search_args import (
 )
 from git_search import (
   OutputPlan,
+  SearchResult,
   StructuredOutputMode,
   build_command,
   open_search_result,
-  parse_null_paths,
-  parse_null_results,
+  output_uses_color,
+  parse_structured_records,
   remove_color_codes,
   run_command,
   select_result,
   write_context,
   write_json_results,
-  write_result,
+  write_structured_records,
 )
 
 
@@ -52,6 +53,7 @@ _LONG_BOOLEAN_SETTINGS = {
   "--heading": "heading",
   "--break": "break_between_files",
   "--null": "null_terminate_filenames",
+  "--quiet": "quiet",
 }
 
 _SHORT_SETTINGS = {
@@ -64,6 +66,7 @@ _SHORT_SETTINGS = {
   "p": ("show_function", True),
   "W": ("function_context", True),
   "z": ("null_terminate_filenames", True),
+  "q": ("quiet", True),
 }
 
 _PRESENTATION_LONG_OPTIONS = {
@@ -158,6 +161,7 @@ def _prepare_output(arguments):
     after_context=False,
     show_function=False,
     function_context=False,
+    quiet=False,
   )
   arguments = tuple(_filter_arguments(arguments, settings))
 
@@ -188,6 +192,7 @@ def _prepare_output(arguments):
     break_between_files=settings.break_between_files,
     null_terminate_filenames=settings.null_terminate_filenames,
     color=settings.color,
+    quiet=settings.quiet,
   ), arguments
 
 
@@ -298,16 +303,6 @@ def _has_no_import(text, import_regexes):
   return all(regex.search(text) is None for regex in import_regexes)
 
 
-def _matched_line_text(text, config):
-  if config.only_filenames:
-    return None
-  if config.hide_filenames:
-    return text
-  if match := re.match(r"^(?:.*?:)?\d+:(.*)$", text):
-    return match.group(1)
-  return None
-
-
 def _is_import_result(result):
   extension = Path(result.path).suffix.lower()
   text = remove_color_codes(result.text)
@@ -319,6 +314,17 @@ def _is_import_result(result):
   if extension == ".coffee":
     return re.search(r"} *= *require\b", text) is not None
   return False
+
+
+def _filter_import_results(results, mode):
+  if mode is StructuredOutputMode.MATCHES:
+    return [result for result in results if not _is_import_result(result)]
+  if mode is StructuredOutputMode.CONTEXT:
+    return [
+      block for block in results
+      if not all(_is_import_result(result) for result in block.matches)
+    ]
+  return results
 
 
 def main(arguments=None):
@@ -365,11 +371,10 @@ def main(arguments=None):
   if {".coffee", ".ts", ".tsx"}.intersection(filtered_extensions):
     test_indicators.append("[Ss]pec")
   selecting_result = options.show is not None or options.result_idx is not None
-  structured = options.json or selecting_result
+  machine_output = options.json or selecting_result
 
-  grep_args = structured_grep_args if structured else options.grep_args
   config = Config(
-    grep_args,
+    structured_grep_args,
     test_indicators=test_indicators,
     test_mode=options.tests or "exclude",
   )
@@ -381,7 +386,7 @@ def main(arguments=None):
   custom_output = has_output_modifiers(options.grep_args)
   selecting_filename = (
     selecting_result and output_plan.mode is StructuredOutputMode.PATHS)
-  if custom_output and structured and not (
+  if custom_output and machine_output and not (
     selecting_filename and not options.json
   ):
     options.parser.error(
@@ -392,7 +397,9 @@ def main(arguments=None):
     patterns,
     config.flags,
     scope_arguments,
-    structured=structured,
+    structured=True,
+    structured_color=(
+      not machine_output and output_uses_color(output_plan, sys.stdout)),
     untracked=options.untracked,
     word_regexp=word_regexp,
   )
@@ -403,35 +410,22 @@ def main(arguments=None):
   completed = run_command(cmd)
   if completed.returncode != 0:
     return completed.returncode
-
-  if not structured:
-    if include_imports:
-      sys.stdout.buffer.write(completed.stdout)
-      return 0
-    wrote_result = False
-    for line in completed.stdout.splitlines():
-      text = remove_color_codes(line.decode("utf-8", "replace"))
-      matched_text = _matched_line_text(text, config)
-      if (
-        matched_text is None
-        or _has_no_import(matched_text, import_regexes)
-      ):
-        sys.stdout.buffer.write(line + b"\n")
-        wrote_result = True
-    return 0 if wrote_result else 1
+  if output_plan.quiet:
+    return 0
 
   try:
-    if selecting_filename:
-      results = list(parse_null_paths(completed.stdout))
-    else:
-      results = list(parse_null_results(completed.stdout))
+    results = list(parse_structured_records(
+      completed.stdout, output_plan.mode))
   except ValueError as error:
     sys.stderr.write(f"gg: {error}\n")
     return 2
   if not include_imports:
-    results = [result for result in results if not _is_import_result(result)]
+    results = _filter_import_results(results, output_plan.mode)
   if not results:
     return 1
+
+  if selecting_filename:
+    results = [SearchResult(result.path, None, None, "") for result in results]
 
   if options.show is not None or options.result_idx is not None:
     strict = options.show is not None
@@ -458,8 +452,7 @@ def main(arguments=None):
   if options.json:
     write_json_results(results)
   else:
-    for result in results:
-      write_result(result)
+    write_structured_records(results, output_plan, sys.stdout.buffer)
   return 0
 
 

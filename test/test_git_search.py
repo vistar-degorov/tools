@@ -47,6 +47,7 @@ def target():
 
 BetaMarker = object()
 """)
+    self._write("dependencies.py", "import decimal\n")
     self._write("tests/test_app.py", """\
 def target():
   return "test"
@@ -203,6 +204,55 @@ export const endpointPath = "api/status"
     result = SearchResult(
       "module.py", 1, 1, "\x1b[1;31mimport\x1b[m dependency")
     self.assertTrue(_is_import_result(result))
+
+  def test_context_filter_removes_only_import_only_blocks(self):
+    separate = self._run(GG, "-A", "1", "os", "a.py")
+    self.assertEqual(separate.returncode, 0, separate.stderr)
+    self.assertNotIn("import os", separate.stdout)
+    self.assertIn("os.getcwd", separate.stdout)
+
+    merged = self._run(GG, "-C", "2", "os", "a.py")
+    self.assertEqual(merged.returncode, 0, merged.stderr)
+    self.assertIn("import os", merged.stdout)
+    self.assertIn("os.getcwd", merged.stdout)
+
+  def test_aggregate_modes_are_not_import_filtered(self):
+    self.assertEqual(self._run(GG, "decimal").returncode, 1)
+
+    paths = self._run(GG, "-l", "decimal")
+    self.assertEqual(paths.returncode, 0, paths.stderr)
+    self.assertEqual(paths.stdout, "dependencies.py\n")
+
+    counts = self._run(GG, "-c", "decimal")
+    self.assertEqual(counts.returncode, 0, counts.stderr)
+    self.assertEqual(counts.stdout, "dependencies.py:1\n")
+
+    hidden_count = self._run(GG, "-h", "-c", "decimal")
+    self.assertEqual(hidden_count.returncode, 0, hidden_count.stderr)
+    self.assertEqual(hidden_count.stdout, "1\n")
+
+  def test_structured_renderer_honors_visible_fields(self):
+    result = self._run(GG, "-h", "-n", "--column", "target", "a.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(result.stdout, "3:5:def target():\n")
+
+    null_result = self._run(GG, "-z", "target", "a.py")
+    self.assertEqual(null_result.returncode, 0, null_result.stderr)
+    self.assertEqual(null_result.stdout, "a.py\x003\x00def target():\n")
+
+  def test_explicit_color_and_quiet_output(self):
+    colored = self._run(GG, "--color=always", "target", "a.py")
+    self.assertEqual(colored.returncode, 0, colored.stderr)
+    self.assertIn("\x1b[", colored.stdout)
+
+    uncolored = self._run_tty(GG, "--color=never", "target", "a.py")
+    self.assertEqual(uncolored.returncode, 0, uncolored.stderr)
+    self.assertNotIn("\x1b[", uncolored.stdout)
+
+    quiet = self._run(GG, "-q", "target", "a.py")
+    self.assertEqual(quiet.returncode, 0, quiet.stderr)
+    self.assertEqual(quiet.stdout, "")
+    self.assertEqual(self._run(GG, "-q", "missing_name").returncode, 1)
 
   def test_test_shortcuts_are_mutually_exclusive(self):
     for script in (GG, FINDDEF):
@@ -386,10 +436,12 @@ export const endpointPath = "api/status"
       "--context=2", "--no-context",
       "--heading", "--no-heading",
       "--color", "--no-color",
+      "--quiet", "--no-quiet",
     ))
     self.assertIs(plan.mode, StructuredOutputMode.MATCHES)
     self.assertFalse(plan.heading)
     self.assertEqual(plan.color, "never")
+    self.assertFalse(plan.quiet)
 
   def test_output_preparation_removes_presentation_options(self):
     plan, arguments = _prepare_output((
