@@ -1,12 +1,15 @@
+from io import BytesIO
 import unittest
 
 from git_search import (
   ContextBlock,
   CountResult,
+  OutputPlan,
   PathResult,
   SearchResult,
   StructuredOutputMode,
   parse_structured_records,
+  write_structured_records,
 )
 
 
@@ -101,6 +104,48 @@ class StructuredOutputTest(unittest.TestCase):
       with self.subTest(data=data, mode=mode):
         with self.assertRaises(ValueError):
           self._parse(data, mode)
+
+  def test_structured_records_are_written_by_mode(self):
+    cases = (
+      (
+        StructuredOutputMode.MATCHES,
+        [SearchResult("source.py", 3, 2, "matched value")],
+        b"source.py:3:matched value\n",
+      ),
+      (
+        StructuredOutputMode.CONTEXT,
+        [ContextBlock("source.py", (
+          SearchResult("source.py", 2, None, "before"),
+          SearchResult("source.py", 3, 2, "matched value"),
+        ))],
+        b"source.py-2-before\nsource.py:3:matched value\n",
+      ),
+      (
+        StructuredOutputMode.PATHS,
+        [PathResult("source.py")],
+        b"source.py\n",
+      ),
+      (
+        StructuredOutputMode.COUNTS,
+        [CountResult("source.py", 4)],
+        b"source.py:4\n",
+      ),
+    )
+    for mode, records, expected in cases:
+      with self.subTest(mode=mode):
+        plan = OutputPlan(
+          mode=mode,
+          show_filename=True,
+          show_line_number=True,
+          show_column_number=False,
+          heading=False,
+          break_between_files=False,
+          null_terminate_filenames=False,
+          color=None,
+        )
+        stream = BytesIO()
+        write_structured_records(records, plan, stream)
+        self.assertEqual(stream.getvalue(), expected)
 
 
 if __name__ == "__main__":

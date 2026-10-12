@@ -49,6 +49,18 @@ class StructuredOutputMode(Enum):
   COUNTS = "counts"
 
 
+@dataclass(frozen=True)
+class OutputPlan:
+  mode: StructuredOutputMode
+  show_filename: bool
+  show_line_number: bool
+  show_column_number: bool
+  heading: bool
+  break_between_files: bool
+  null_terminate_filenames: bool
+  color: str | None
+
+
 def remove_color_codes(text):
   return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
@@ -194,6 +206,83 @@ def parse_structured_records(data, mode):
     yield from _parse_count_results(data)
   else:
     raise ValueError(f"unknown structured output mode: {mode!r}")
+
+
+def _write_line_result(stream, result, plan, *, show_filename):
+  separator = b":" if result.is_match else b"-"
+  if plan.null_terminate_filenames:
+    separator = b"\0"
+
+  fields = []
+  if show_filename:
+    fields.append(os.fsencode(result.path))
+  if plan.show_line_number:
+    fields.append(str(result.line).encode())
+  if plan.show_column_number and result.column is not None:
+    fields.append(str(result.column).encode())
+  fields.append(result.text.encode("utf-8", "replace"))
+  stream.write(separator.join(fields) + b"\n")
+
+
+def _write_match_results(records, plan, stream):
+  previous_path = None
+  show_heading = plan.heading and plan.show_filename
+
+  for result in records:
+    changed_file = previous_path is not None and result.path != previous_path
+    if changed_file and plan.break_between_files:
+      stream.write(b"\n")
+    if show_heading and result.path != previous_path:
+      stream.write(os.fsencode(result.path) + b"\n")
+    _write_line_result(
+      stream, result, plan,
+      show_filename=plan.show_filename and not show_heading,
+    )
+    previous_path = result.path
+
+
+def _write_context_blocks(records, plan, stream):
+  previous_path = None
+  show_heading = plan.heading and plan.show_filename
+
+  for block in records:
+    if previous_path is not None:
+      if block.path != previous_path and plan.break_between_files:
+        stream.write(b"\n")
+      else:
+        stream.write(b"--\n")
+    if show_heading and block.path != previous_path:
+      stream.write(os.fsencode(block.path) + b"\n")
+    for result in block.lines:
+      _write_line_result(
+        stream, result, plan,
+        show_filename=plan.show_filename and not show_heading,
+      )
+    previous_path = block.path
+
+
+def _write_path_results(records, plan, stream):
+  terminator = b"\0" if plan.null_terminate_filenames else b"\n"
+  for result in records:
+    stream.write(os.fsencode(result.path) + terminator)
+
+
+def _write_count_results(records, plan, stream):
+  separator = b"\0" if plan.null_terminate_filenames else b":"
+  for result in records:
+    if plan.show_filename:
+      stream.write(os.fsencode(result.path) + separator)
+    stream.write(str(result.count).encode() + b"\n")
+
+
+def write_structured_records(records, plan, stream):
+  writers = {
+    StructuredOutputMode.MATCHES: _write_match_results,
+    StructuredOutputMode.CONTEXT: _write_context_blocks,
+    StructuredOutputMode.PATHS: _write_path_results,
+    StructuredOutputMode.COUNTS: _write_count_results,
+  }
+  writers[plan.mode](records, plan, stream)
 
 
 def parse_null_results(data):

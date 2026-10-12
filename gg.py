@@ -1,7 +1,6 @@
 #! /usr/bin/python
 
 import argparse
-from dataclasses import dataclass
 from pathlib import Path
 import re
 import shlex
@@ -17,6 +16,7 @@ from git_search_args import (
   resolve_setting,
 )
 from git_search import (
+  OutputPlan,
   StructuredOutputMode,
   build_command,
   open_search_result,
@@ -29,18 +29,6 @@ from git_search import (
   write_json_results,
   write_result,
 )
-
-
-@dataclass(frozen=True)
-class OutputPlan:
-  mode: StructuredOutputMode
-  show_filename: bool
-  show_line_number: bool
-  show_column_number: bool
-  heading: bool
-  break_between_files: bool
-  null_terminate_filenames: bool
-  color: str | None
 
 
 _CONTEXT_SETTINGS = {
