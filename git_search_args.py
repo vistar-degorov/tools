@@ -2,6 +2,9 @@ from itertools import product
 import os
 import re
 import sys
+from types import SimpleNamespace
+
+from git_search import OutputPlan, StructuredOutputMode
 
 
 class Config:
@@ -73,6 +76,163 @@ GIT_GREP_OPTIONS_WITH_VALUE = {
   "--max-depth",
   "--threads",
 }
+
+
+_CONTEXT_SETTINGS = {
+  "-A": ("after_context",),
+  "--after-context": ("after_context",),
+  "-B": ("before_context",),
+  "--before-context": ("before_context",),
+  "-C": ("before_context", "after_context"),
+  "--context": ("before_context", "after_context"),
+}
+
+_LONG_BOOLEAN_SETTINGS = {
+  "--files-with-matches": "files_with_matches",
+  "--name-only": "files_with_matches",
+  "--files-without-match": "files_without_match",
+  "--count": "count",
+  "--show-function": "show_function",
+  "--function-context": "function_context",
+  "--line-number": "line_numbers",
+  "--column": "show_column_number",
+  "--heading": "heading",
+  "--break": "break_between_files",
+  "--null": "null_terminate_filenames",
+  "--quiet": "quiet",
+}
+
+_SHORT_SETTINGS = {
+  "h": ("show_filename", False),
+  "H": ("show_filename", True),
+  "n": ("line_numbers", True),
+  "c": ("count", True),
+  "l": ("files_with_matches", True),
+  "L": ("files_without_match", True),
+  "p": ("show_function", True),
+  "W": ("function_context", True),
+  "z": ("null_terminate_filenames", True),
+  "q": ("quiet", True),
+}
+
+_PRESENTATION_LONG_OPTIONS = {
+  "--line-number", "--column", "--heading", "--break", "--null", "--color",
+}
+
+_PRESENTATION_SHORT_OPTIONS = frozenset("hHnz")
+_COLOR_VALUES = {"always", "auto", "never"}
+
+
+def _filter_short_output_option(argument, settings):
+  short_options = argument[1:]
+  if not short_options:
+    return argument
+  elif short_options.isdigit():
+    settings.before_context = True
+    settings.after_context = True
+    return argument
+
+  git_options = ""
+  for index, short_option in enumerate(short_options):
+    if short_option in "efmO":
+      git_options += short_options[index:]
+      break
+    if context_settings := _CONTEXT_SETTINGS.get("-" + short_option):
+      for setting in context_settings:
+        setattr(settings, setting, True)
+      git_options += short_options[index:]
+      break
+    if update := _SHORT_SETTINGS.get(short_option):
+      setting, setting_value = update
+      setattr(settings, setting, setting_value)
+    if short_option not in _PRESENTATION_SHORT_OPTIONS:
+      git_options += short_option
+
+  return "-" + git_options if git_options else None
+
+
+def _filter_output_arguments(arguments, settings):
+  arguments = iter(arguments)
+  for argument in arguments:
+    option_value = None
+    if argument in GIT_GREP_OPTIONS_WITH_VALUE:
+      option_value = next(arguments, None)
+
+    option, assignment, assigned_value = argument.partition("=")
+    enabled = True
+    if option.startswith("--no-"):
+      option = f"--{option.removeprefix('--no-')}"
+      enabled = False
+
+    if context_settings := _CONTEXT_SETTINGS.get(option):
+      for setting in context_settings:
+        setattr(settings, setting, enabled)
+    elif setting := _LONG_BOOLEAN_SETTINGS.get(option):
+      setattr(settings, setting, enabled)
+    elif option == "--color":
+      settings.color = assigned_value if enabled and assignment else "always" if enabled else "never"
+    elif argument.startswith("-") and not argument.startswith("--"):
+      argument = _filter_short_output_option(argument, settings)
+
+    valid_presentation_option = option in _PRESENTATION_LONG_OPTIONS and (
+      not assignment or option == "--color" and enabled and assigned_value in _COLOR_VALUES)
+    if argument is not None and not valid_presentation_option:
+      yield argument
+      if option_value is not None:
+        yield option_value
+
+
+def prepare_output(arguments):
+  settings = SimpleNamespace(
+    show_filename=True,
+    line_numbers=None,
+    show_column_number=False,
+    heading=False,
+    break_between_files=False,
+    null_terminate_filenames=False,
+    color=None,
+    count=False,
+    files_with_matches=False,
+    files_without_match=False,
+    before_context=False,
+    after_context=False,
+    show_function=False,
+    function_context=False,
+    quiet=False,
+  )
+  arguments = tuple(_filter_output_arguments(arguments, settings))
+
+  if settings.files_with_matches or settings.files_without_match:
+    mode = StructuredOutputMode.PATHS
+    settings.show_filename = True
+  elif settings.count:
+    mode = StructuredOutputMode.COUNTS
+  elif any((settings.before_context, settings.after_context, settings.show_function, settings.function_context)):
+    mode = StructuredOutputMode.CONTEXT
+  else:
+    mode = StructuredOutputMode.MATCHES
+
+  if mode in (StructuredOutputMode.PATHS, StructuredOutputMode.COUNTS):
+    settings.line_numbers = False
+    settings.show_column_number = False
+  elif settings.line_numbers is None:
+    settings.line_numbers = settings.show_filename
+
+  return OutputPlan(
+    mode=mode,
+    show_filename=settings.show_filename,
+    show_line_number=settings.line_numbers,
+    show_column_number=settings.show_column_number,
+    heading=settings.heading,
+    break_between_files=settings.break_between_files,
+    null_terminate_filenames=settings.null_terminate_filenames,
+    color=settings.color,
+    quiet=settings.quiet,
+  ), arguments
+
+
+def make_output_plan(arguments):
+  return prepare_output(arguments)[0]
 
 
 def _split_leading_git_options(arguments, parser):
@@ -234,6 +394,25 @@ def parse_search_arguments(
   options.patterns_complete = patterns_complete
   options.parser = parser
   return options
+
+
+def add_common_search_arguments(parser):
+  root_default = resolve_setting("GG_SEARCH_IN", "./")
+  extension_default = resolve_setting("GG_SEARCH_EXT", ".py")
+  parser.add_argument("--show", type=int, metavar="N", help="print the Nth search result in context of surrounding text")
+  parser.add_argument("--tests", choices=("exclude", "include", "only"), default=None, help="control whether test files are searched (default: exclude)")
+  test_shortcuts = parser.add_mutually_exclusive_group()
+  test_shortcuts.add_argument("-t", "--include-tests", dest="tests", action="store_const", const="include", help="include test files")
+  test_shortcuts.add_argument("-T", "--tests-only", dest="tests", action="store_const", const="only", help="search only test files")
+  parser.add_argument("-u", "--untracked", action="store_true", help="include untracked files while respecting .gitignore")
+  parser.add_argument("--root", metavar="PATH", help=f"search path prefix (effective default: {root_default})")
+  parser.add_argument("--ext", action="append", metavar="EXT", help=f"file extension to search; may be repeated (effective default: {extension_default})")
+  parser.add_argument("--json", action="store_true", help="write JSON Lines results")
+  output = parser.add_mutually_exclusive_group()
+  output.add_argument("--stdout", action="store_true", help="print a selected result instead of opening an editor")
+  output.add_argument("--open", dest="open_result", action="store_true", help="open a selected result even when stdout is not a terminal")
+  parser.add_argument("--tool", help="editor command used with --open")
+  parser.add_argument("--debug", action="store_true", help="print the git grep command")
 
 
 def resolve_setting(name, fallback):

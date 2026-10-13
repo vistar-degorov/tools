@@ -9,7 +9,8 @@ import tempfile
 import unittest
 
 from git_search import remove_color_codes, SearchResult, StructuredOutputMode
-from gg import _is_import_result, _make_output_plan, _prepare_output
+from git_search_args import make_output_plan, prepare_output
+from gg import _is_import_result
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -388,50 +389,50 @@ export const endpointPath = "api/status"
     for arguments in context_options:
       with self.subTest(arguments=arguments):
         self.assertIs(
-          _make_output_plan(arguments).mode,
+          make_output_plan(arguments).mode,
           StructuredOutputMode.CONTEXT,
         )
 
     self.assertIs(
-      _make_output_plan(("-c", "-A", "2")).mode,
+      make_output_plan(("-c", "-A", "2")).mode,
       StructuredOutputMode.COUNTS,
     )
     self.assertIs(
-      _make_output_plan(("-c", "-l")).mode,
+      make_output_plan(("-c", "-l")).mode,
       StructuredOutputMode.PATHS,
     )
 
   def test_output_plan_tracks_visible_fields(self):
-    default = _make_output_plan(())
+    default = make_output_plan(())
     self.assertTrue(default.show_filename)
     self.assertTrue(default.show_line_number)
     self.assertFalse(default.show_column_number)
 
-    hidden = _make_output_plan(("-h",))
+    hidden = make_output_plan(("-h",))
     self.assertFalse(hidden.show_filename)
     self.assertFalse(hidden.show_line_number)
 
-    numbered = _make_output_plan(("-h", "-n", "--column"))
+    numbered = make_output_plan(("-h", "-n", "--column"))
     self.assertFalse(numbered.show_filename)
     self.assertTrue(numbered.show_line_number)
     self.assertTrue(numbered.show_column_number)
 
-    count = _make_output_plan(("-h", "-n", "--column", "-c"))
+    count = make_output_plan(("-h", "-n", "--column", "-c"))
     self.assertFalse(count.show_filename)
     self.assertFalse(count.show_line_number)
     self.assertFalse(count.show_column_number)
 
-    paths = _make_output_plan(("-h", "-l"))
+    paths = make_output_plan(("-h", "-l"))
     self.assertTrue(paths.show_filename)
     self.assertFalse(paths.show_line_number)
 
   def test_output_plan_skips_pattern_option_values(self):
-    plan = _make_output_plan(("-e", "-h", "-f", "--column"))
+    plan = make_output_plan(("-e", "-h", "-f", "--column"))
     self.assertTrue(plan.show_filename)
     self.assertFalse(plan.show_column_number)
 
   def test_output_plan_honors_negated_options(self):
-    plan = _make_output_plan((
+    plan = make_output_plan((
       "--count", "--no-count",
       "--context=2", "--no-context",
       "--heading", "--no-heading",
@@ -444,7 +445,7 @@ export const endpointPath = "api/status"
     self.assertFalse(plan.quiet)
 
   def test_output_preparation_removes_presentation_options(self):
-    plan, arguments = _prepare_output((
+    plan, arguments = prepare_output((
       "-hinA2",
       "--column",
       "--heading",
@@ -456,7 +457,7 @@ export const endpointPath = "api/status"
     self.assertEqual(arguments, ("-iA2", "-c"))
 
   def test_output_preparation_preserves_git_options_and_values(self):
-    _, arguments = _prepare_output((
+    _, arguments = prepare_output((
       "-e", "--column",
       "-f", "-h",
       "--max-depth", "3",
@@ -470,7 +471,7 @@ export const endpointPath = "api/status"
     ))
 
   def test_output_preparation_preserves_invalid_assignments(self):
-    _, arguments = _prepare_output((
+    _, arguments = prepare_output((
       "--column=value", "--color=value", "--no-color=value",
     ))
     self.assertEqual(arguments, (

@@ -6,6 +6,7 @@ import sys
 
 from git_search_args import (
   Config,
+  add_common_search_arguments,
   has_output_modifiers,
   parse_search_arguments,
   resolve_extensions,
@@ -24,8 +25,6 @@ from git_search import (
 
 
 def _argument_parser():
-  root_default = resolve_setting("GG_SEARCH_IN", "./")
-  extension_default = resolve_setting("GG_SEARCH_EXT", ".py")
   parser = argparse.ArgumentParser(
     allow_abbrev=False,
     usage=(
@@ -51,44 +50,9 @@ def _argument_parser():
   parser.add_argument(
     "--name", help="set the name explicitly; useful when it ends in /N")
   parser.add_argument(
-    "--show", type=int, metavar="N",
-    help="print the Nth search result in context of surrounding text")
-  parser.add_argument(
     "--assignments", action="store_true",
     help="search for assignments instead of classes and functions")
-  parser.add_argument(
-    "--tests", choices=("exclude", "include", "only"), default=None,
-    help="control whether test files are searched (default: exclude)")
-  test_shortcuts = parser.add_mutually_exclusive_group()
-  test_shortcuts.add_argument(
-    "-t", "--include-tests", dest="tests", action="store_const",
-    const="include", help="include test files")
-  test_shortcuts.add_argument(
-    "-T", "--tests-only", dest="tests", action="store_const",
-    const="only", help="search only test files")
-  parser.add_argument(
-    "-u", "--untracked", action="store_true",
-    help="include untracked files while respecting .gitignore")
-  parser.add_argument(
-    "--root", metavar="PATH",
-    help=f"search path prefix (effective default: {root_default})")
-  parser.add_argument(
-    "--ext", action="append", metavar="EXT",
-    help=(
-      "file extension to search; may be repeated "
-      f"(effective default: {extension_default})"))
-  parser.add_argument(
-    "--json", action="store_true", help="write JSON Lines results")
-  output = parser.add_mutually_exclusive_group()
-  output.add_argument(
-    "--stdout", action="store_true",
-    help="print a selected result instead of opening an editor")
-  output.add_argument(
-    "--open", dest="open_result", action="store_true",
-    help="open a selected result even when stdout is not a terminal")
-  parser.add_argument("--tool", help="editor command used with --open")
-  parser.add_argument(
-    "--debug", action="store_true", help="print the git grep command")
+  add_common_search_arguments(parser)
   return parser
 
 
