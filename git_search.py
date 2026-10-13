@@ -42,7 +42,7 @@ class CountResult:
   count: int
 
 
-class StructuredOutputMode(Enum):
+class GrepOutputMode(Enum):
   MATCHES = "matches"
   CONTEXT = "context"
   PATHS = "paths"
@@ -51,7 +51,7 @@ class StructuredOutputMode(Enum):
 
 @dataclass(frozen=True)
 class OutputPlan:
-  mode: StructuredOutputMode
+  mode: GrepOutputMode
   show_filename: bool
   show_line_number: bool
   show_column_number: bool
@@ -209,18 +209,18 @@ def _parse_count_results(data):
     raise _output_error(offset, "invalid count record")
 
 
-def parse_structured_records(data, mode):
-  if mode is StructuredOutputMode.MATCHES:
+def parse_grep_results(data, mode):
+  if mode is GrepOutputMode.MATCHES:
     for result, _ in _parse_line_records(data, with_context=False):
       yield result
-  elif mode is StructuredOutputMode.CONTEXT:
+  elif mode is GrepOutputMode.CONTEXT:
     yield from _parse_context_blocks(data)
-  elif mode is StructuredOutputMode.PATHS:
+  elif mode is GrepOutputMode.PATHS:
     yield from _parse_path_results(data)
-  elif mode is StructuredOutputMode.COUNTS:
+  elif mode is GrepOutputMode.COUNTS:
     yield from _parse_count_results(data)
   else:
-    raise ValueError(f"unknown structured output mode: {mode!r}")
+    raise ValueError(f"unknown grep output mode: {mode!r}")
 
 
 def _colored_separator(separator, use_color):
@@ -297,22 +297,22 @@ def _write_count_results(records, plan, stream, use_color):
     stream.write(str(result.count).encode() + b"\n")
 
 
-def write_structured_records(records, plan, stream):
+def write_records(records, plan, stream):
   writers = {
-    StructuredOutputMode.MATCHES: _write_match_results,
-    StructuredOutputMode.CONTEXT: _write_context_blocks,
-    StructuredOutputMode.PATHS: _write_path_results,
-    StructuredOutputMode.COUNTS: _write_count_results,
+    GrepOutputMode.MATCHES: _write_match_results,
+    GrepOutputMode.CONTEXT: _write_context_blocks,
+    GrepOutputMode.PATHS: _write_path_results,
+    GrepOutputMode.COUNTS: _write_count_results,
   }
   writers[plan.mode](records, plan, stream, output_uses_color(plan, stream))
 
 
 def parse_null_results(data):
-  yield from parse_structured_records(data, StructuredOutputMode.MATCHES)
+  yield from parse_grep_results(data, GrepOutputMode.MATCHES)
 
 
 def parse_null_paths(data):
-  for result in parse_structured_records(data, StructuredOutputMode.PATHS):
+  for result in parse_grep_results(data, GrepOutputMode.PATHS):
     yield SearchResult(result.path, None, None, "")
 
 

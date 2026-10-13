@@ -4,16 +4,16 @@ import sys
 
 from git_search import (
   SearchResult,
-  StructuredOutputMode,
+  GrepOutputMode,
   build_command,
   open_search_result,
   output_uses_color,
-  parse_structured_records,
+  parse_grep_results,
   run_command,
   select_result,
   write_context,
   write_json_results,
-  write_structured_records,
+  write_records,
 )
 from git_search_args import Config, has_output_modifiers, resolve_setting
 
@@ -54,7 +54,7 @@ def prepare_search_scope(options, grep_args, extensions, *, test_indicators=("[T
 
 def make_result_action(options, output_plan):
   selecting_result = options.show is not None or options.result_idx is not None
-  filename_only = selecting_result and output_plan.mode is StructuredOutputMode.PATHS
+  filename_only = selecting_result and output_plan.mode is GrepOutputMode.PATHS
   if (
     has_output_modifiers(options.grep_args)
     and (options.json or selecting_result)
@@ -76,7 +76,7 @@ def make_result_action(options, output_plan):
   )
 
 
-def build_structured_search_command(
+def build_search_command(
   patterns,
   grep_args,
   scope_arguments,
@@ -113,7 +113,7 @@ def execute_search(command, output_plan, *, program, debug=False):
     return 0, None
 
   try:
-    return 0, list(parse_structured_records(completed.stdout, output_plan.mode))
+    return 0, list(parse_grep_results(completed.stdout, output_plan.mode))
   except ValueError as error:
     sys.stderr.write(f"{program}: {error}\n")
     return 2, None
@@ -152,5 +152,5 @@ def present_results(results, output_plan, result_action, *, program):
   if result_action.json:
     write_json_results(results)
   else:
-    write_structured_records(results, output_plan, sys.stdout.buffer)
+    write_records(results, output_plan, sys.stdout.buffer)
   return 0
