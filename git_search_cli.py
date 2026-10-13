@@ -101,6 +101,25 @@ def build_search_command(
   )
 
 
+def build_2nd_pass_search_command(
+  patterns,
+  grep_args,
+  scope_arguments,
+  *,
+  untracked=False,
+  word_regexp=False,
+):
+  return build_command(
+    patterns,
+    (*grep_args, "-o"),
+    scope_arguments,
+    structured=True,
+    structured_color=False,
+    untracked=untracked,
+    word_regexp=word_regexp,
+  )
+
+
 def execute_search(command, output_plan, *, program, debug=False):
   if debug:
     print(shlex.join(command))

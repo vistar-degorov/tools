@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from dataclasses import dataclass
 from enum import Enum
 import json
@@ -60,6 +61,9 @@ class OutputPlan:
   null_terminate_filenames: bool
   color: str | None
   quiet: bool = False
+
+  def with_mode(self, mode: GrepOutputMode) -> "OutputPlan":
+    return OutputPlan(**dict(asdict(self), mode=mode))
 
 
 _SEPARATOR_COLOR = b"\x1b[36m"
