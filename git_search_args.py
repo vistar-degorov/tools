@@ -247,7 +247,7 @@ def _split_leading_git_options(arguments, parser):
   index = 0
   patterns = []
   has_pattern_source = False
-  patterns_complete = True
+  all_patterns_known = True
   while index < len(arguments):
     argument = arguments[index]
     if argument in ("+debug", "+print", "+t", "+to", "(", ")"):
@@ -264,7 +264,7 @@ def _split_leading_git_options(arguments, parser):
         has_pattern_source = True
       elif argument in ("-f", "--file"):
         has_pattern_source = True
-        patterns_complete = False
+        all_patterns_known = False
       index += 1
     elif argument.startswith("-e") and len(argument) > 2:
       patterns.append(argument[2:])
@@ -274,16 +274,16 @@ def _split_leading_git_options(arguments, parser):
       has_pattern_source = True
     elif argument.startswith("-f") and len(argument) > 2:
       has_pattern_source = True
-      patterns_complete = False
+      all_patterns_known = False
     elif argument.startswith("--file="):
       has_pattern_source = True
-      patterns_complete = False
+      all_patterns_known = False
   return (
     arguments[:index],
     arguments[index:],
     tuple(patterns),
     has_pattern_source,
-    patterns_complete,
+    all_patterns_known,
   )
 
 
@@ -335,7 +335,7 @@ def parse_search_arguments(
     operands,
     grep_patterns,
     has_pattern_source,
-    patterns_complete,
+    all_patterns_known,
   ) = _split_leading_git_options(remaining, parser)
   if pattern_options:
     grep_args = _replace_option(grep_args, "--regexp", "-e")
@@ -394,7 +394,7 @@ def parse_search_arguments(
   options.scope_arguments = scope_arguments
   options.command_patterns = command_patterns
   options.pattern_texts = pattern_texts
-  options.patterns_complete = patterns_complete
+  options.all_patterns_known = all_patterns_known
   options.parser = parser
   return options
 
