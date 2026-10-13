@@ -4,7 +4,7 @@ import re
 import sys
 from types import SimpleNamespace
 
-from git_search import OutputPlan, StructuredOutputMode
+from git_search import OutputPlan, GrepOutputMode
 
 
 class Config:
@@ -204,10 +204,10 @@ def prepare_output(arguments):
   arguments = tuple(_filter_output_arguments(arguments, settings))
 
   if settings.files_with_matches or settings.files_without_match:
-    mode = StructuredOutputMode.PATHS
+    mode = GrepOutputMode.PATHS
     settings.show_filename = True
   elif settings.count:
-    mode = StructuredOutputMode.COUNTS
+    mode = GrepOutputMode.COUNTS
   elif any(
     (
       settings.before_context,
@@ -216,11 +216,11 @@ def prepare_output(arguments):
       settings.function_context,
     )
   ):
-    mode = StructuredOutputMode.CONTEXT
+    mode = GrepOutputMode.CONTEXT
   else:
-    mode = StructuredOutputMode.MATCHES
+    mode = GrepOutputMode.MATCHES
 
-  if mode in (StructuredOutputMode.PATHS, StructuredOutputMode.COUNTS):
+  if mode in (GrepOutputMode.PATHS, GrepOutputMode.COUNTS):
     settings.line_numbers = False
     settings.show_column_number = False
   elif settings.line_numbers is None:

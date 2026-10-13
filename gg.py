@@ -12,11 +12,11 @@ from git_search_args import (
   resolve_extensions,
 )
 from git_search import (
-  StructuredOutputMode,
+  GrepOutputMode,
   remove_color_codes,
 )
 from git_search_cli import (
-  build_structured_search_command,
+  build_search_command,
   execute_search,
   make_result_action,
   prepare_search_scope,
@@ -104,9 +104,9 @@ def _is_import_result(result):
 
 
 def _filter_import_results(results, mode):
-  if mode is StructuredOutputMode.MATCHES:
+  if mode is GrepOutputMode.MATCHES:
     return [result for result in results if not _is_import_result(result)]
-  if mode is StructuredOutputMode.CONTEXT:
+  if mode is GrepOutputMode.CONTEXT:
     return [
       block for block in results
       if not all(_is_import_result(result) for result in block.matches)
@@ -116,7 +116,7 @@ def _filter_import_results(results, mode):
 
 def main(arguments=None):
   options = _parse_arguments(arguments)
-  output_plan, structured_grep_args = prepare_output(options.grep_args)
+  output_plan, grep_args = prepare_output(options.grep_args)
   main_arg = Path(sys.argv[0]).name
   patterns = options.command_patterns
   pattern_texts = options.pattern_texts
@@ -158,8 +158,8 @@ def main(arguments=None):
   if {".coffee", ".ts", ".tsx"}.intersection(filtered_extensions):
     test_indicators.append("[Ss]pec")
   result_action = make_result_action(options, output_plan)
-  scope = prepare_search_scope(options, structured_grep_args, extensions, test_indicators=test_indicators)
-  cmd = build_structured_search_command(
+  scope = prepare_search_scope(options, grep_args, extensions, test_indicators=test_indicators)
+  cmd = build_search_command(
     patterns, scope.grep_args, scope.arguments, output_plan, result_action,
     untracked=options.untracked,
     word_regexp=word_regexp,

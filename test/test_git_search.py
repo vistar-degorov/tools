@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 
-from git_search import remove_color_codes, SearchResult, StructuredOutputMode
+from git_search import remove_color_codes, SearchResult, GrepOutputMode
 from git_search_args import make_output_plan, prepare_output
 from gg import _is_import_result
 
@@ -390,16 +390,16 @@ export const endpointPath = "api/status"
       with self.subTest(arguments=arguments):
         self.assertIs(
           make_output_plan(arguments).mode,
-          StructuredOutputMode.CONTEXT,
+          GrepOutputMode.CONTEXT,
         )
 
     self.assertIs(
       make_output_plan(("-c", "-A", "2")).mode,
-      StructuredOutputMode.COUNTS,
+      GrepOutputMode.COUNTS,
     )
     self.assertIs(
       make_output_plan(("-c", "-l")).mode,
-      StructuredOutputMode.PATHS,
+      GrepOutputMode.PATHS,
     )
 
   def test_output_plan_tracks_visible_fields(self):
@@ -439,7 +439,7 @@ export const endpointPath = "api/status"
       "--color", "--no-color",
       "--quiet", "--no-quiet",
     ))
-    self.assertIs(plan.mode, StructuredOutputMode.MATCHES)
+    self.assertIs(plan.mode, GrepOutputMode.MATCHES)
     self.assertFalse(plan.heading)
     self.assertEqual(plan.color, "never")
     self.assertFalse(plan.quiet)
@@ -453,7 +453,7 @@ export const endpointPath = "api/status"
       "-z",
       "-c",
     ))
-    self.assertIs(plan.mode, StructuredOutputMode.COUNTS)
+    self.assertIs(plan.mode, GrepOutputMode.COUNTS)
     self.assertEqual(arguments, ("-iA2", "-c"))
 
   def test_output_preparation_preserves_git_options_and_values(self):

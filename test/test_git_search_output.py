@@ -8,10 +8,10 @@ from git_search import (
   OutputPlan,
   PathResult,
   SearchResult,
-  StructuredOutputMode,
+  GrepOutputMode,
   build_command,
-  parse_structured_records,
-  write_structured_records,
+  parse_grep_results,
+  write_records,
 )
 
 
@@ -22,7 +22,7 @@ class TerminalBytesIO(BytesIO):
 
 class StructuredOutputTest(unittest.TestCase):
   def _parse(self, data, mode):
-    return list(parse_structured_records(data, mode))
+    return list(parse_grep_results(data, mode))
 
   def _render(self, records, mode, *, terminal=False, **overrides):
     settings = {
@@ -36,8 +36,7 @@ class StructuredOutputTest(unittest.TestCase):
     }
     settings.update(overrides)
     stream = TerminalBytesIO() if terminal else BytesIO()
-    write_structured_records(
-      records, OutputPlan(mode=mode, **settings), stream)
+    write_records(records, OutputPlan(mode=mode, **settings), stream)
     return stream.getvalue()
 
   def test_match_records(self):
@@ -47,7 +46,7 @@ class StructuredOutputTest(unittest.TestCase):
       b"colored \x1b[1;31mvalue\x1b[m\n"
     )
     self.assertEqual(
-      self._parse(data, StructuredOutputMode.MATCHES),
+      self._parse(data, GrepOutputMode.MATCHES),
       [
         SearchResult("module_a.py", 2, 4, "first value"),
         SearchResult(
@@ -66,7 +65,7 @@ class StructuredOutputTest(unittest.TestCase):
       b"module_b.py\0" b"8\0" b"context\n"
       b"module_b.py\0" b"9\0" b"1\0" b"third match\n"
     )
-    blocks = self._parse(data, StructuredOutputMode.CONTEXT)
+    blocks = self._parse(data, GrepOutputMode.CONTEXT)
 
     self.assertEqual(len(blocks), 3)
     self.assertTrue(all(isinstance(block, ContextBlock) for block in blocks))
@@ -89,7 +88,7 @@ class StructuredOutputTest(unittest.TestCase):
   def test_path_records(self):
     data = b"nested dir/file:name.py\0line\nbreak.py\0"
     self.assertEqual(
-      self._parse(data, StructuredOutputMode.PATHS),
+      self._parse(data, GrepOutputMode.PATHS),
       [
         PathResult("nested dir/file:name.py"),
         PathResult("line\nbreak.py"),
@@ -103,7 +102,7 @@ class StructuredOutputTest(unittest.TestCase):
       b"nested\nmodule_c.py\0" b"3\n"
     )
     self.assertEqual(
-      self._parse(data, StructuredOutputMode.COUNTS),
+      self._parse(data, GrepOutputMode.COUNTS),
       [
         CountResult("module_a.py", 0),
         CountResult("module_b.py", 12),
@@ -113,15 +112,15 @@ class StructuredOutputTest(unittest.TestCase):
 
   def test_malformed_output_is_rejected(self):
     cases = (
-      (b"unterminated.py", StructuredOutputMode.PATHS),
-      (b"module.py\0many\n", StructuredOutputMode.COUNTS),
+      (b"unterminated.py", GrepOutputMode.PATHS),
+      (b"module.py\0many\n", GrepOutputMode.COUNTS),
       (b"module.py\0" b"3\0" b"missing column\n",
-       StructuredOutputMode.MATCHES),
+       GrepOutputMode.MATCHES),
       (b"module.py\0" b"3\0" b"context only\n",
-       StructuredOutputMode.CONTEXT),
-      (b"--\n", StructuredOutputMode.CONTEXT),
+       GrepOutputMode.CONTEXT),
+      (b"--\n", GrepOutputMode.CONTEXT),
       (b"3\0" b"2\0" b"text without filename\n",
-       StructuredOutputMode.MATCHES),
+       GrepOutputMode.MATCHES),
     )
     for data, mode in cases:
       with self.subTest(data=data, mode=mode):
@@ -131,12 +130,12 @@ class StructuredOutputTest(unittest.TestCase):
   def test_structured_records_are_written_by_mode(self):
     cases = (
       (
-        StructuredOutputMode.MATCHES,
+        GrepOutputMode.MATCHES,
         [SearchResult("source.py", 3, 2, "matched value")],
         b"source.py:3:matched value\n",
       ),
       (
-        StructuredOutputMode.CONTEXT,
+        GrepOutputMode.CONTEXT,
         [ContextBlock("source.py", (
           SearchResult("source.py", 2, None, "before"),
           SearchResult("source.py", 3, 2, "matched value"),
@@ -144,12 +143,12 @@ class StructuredOutputTest(unittest.TestCase):
         b"source.py-2-before\nsource.py:3:matched value\n",
       ),
       (
-        StructuredOutputMode.PATHS,
+        GrepOutputMode.PATHS,
         [PathResult("source.py")],
         b"source.py\n",
       ),
       (
-        StructuredOutputMode.COUNTS,
+        GrepOutputMode.COUNTS,
         [CountResult("source.py", 4)],
         b"source.py:4\n",
       ),
@@ -196,7 +195,7 @@ class StructuredOutputTest(unittest.TestCase):
     for settings, expected in cases:
       with self.subTest(settings=settings):
         self.assertEqual(
-          self._render([result], StructuredOutputMode.MATCHES, **settings),
+          self._render([result], GrepOutputMode.MATCHES, **settings),
           expected,
         )
 
@@ -209,7 +208,7 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       self._render(
         records,
-        StructuredOutputMode.MATCHES,
+        GrepOutputMode.MATCHES,
         show_column_number=True,
         heading=True,
         break_between_files=True,
@@ -229,7 +228,7 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       self._render(
         [result],
-        StructuredOutputMode.MATCHES,
+        GrepOutputMode.MATCHES,
         show_column_number=True,
         heading=True,
         null_terminate_filenames=True,
@@ -254,7 +253,7 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       self._render(
         blocks,
-        StructuredOutputMode.CONTEXT,
+        GrepOutputMode.CONTEXT,
         show_column_number=True,
         heading=True,
         break_between_files=True,
@@ -280,7 +279,7 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       self._render(
         [block],
-        StructuredOutputMode.CONTEXT,
+        GrepOutputMode.CONTEXT,
         show_column_number=True,
         null_terminate_filenames=True,
       ),
@@ -295,7 +294,7 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       self._render(
         [PathResult(path)],
-        StructuredOutputMode.PATHS,
+        GrepOutputMode.PATHS,
         null_terminate_filenames=True,
       ),
       b"nested\nsource.py\0",
@@ -303,7 +302,7 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       self._render(
         [CountResult(path, 7)],
-        StructuredOutputMode.COUNTS,
+        GrepOutputMode.COUNTS,
         null_terminate_filenames=True,
       ),
       b"nested\nsource.py\0" b"7\n",
@@ -311,7 +310,7 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       self._render(
         [CountResult(path, 7)],
-        StructuredOutputMode.COUNTS,
+        GrepOutputMode.COUNTS,
         show_filename=False,
       ),
       b"7\n",
@@ -323,7 +322,7 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       self._render(
         [PathResult(path)],
-        StructuredOutputMode.PATHS,
+        GrepOutputMode.PATHS,
         null_terminate_filenames=True,
       ),
       encoded_path + b"\0",
@@ -350,7 +349,7 @@ class StructuredOutputTest(unittest.TestCase):
       with self.subTest(settings=settings, terminal=terminal):
         self.assertEqual(
           self._render(
-            [result], StructuredOutputMode.MATCHES,
+            [result], GrepOutputMode.MATCHES,
             terminal=terminal, **settings),
           expected,
         )
@@ -366,7 +365,7 @@ class StructuredOutputTest(unittest.TestCase):
     )
     self.assertEqual(
       self._render(
-        blocks, StructuredOutputMode.CONTEXT,
+        blocks, GrepOutputMode.CONTEXT,
         show_filename=False, color="always"),
       (
         b"2\x1b[36m:\x1b[mfirst match\n"
@@ -379,7 +378,7 @@ class StructuredOutputTest(unittest.TestCase):
     result = SearchResult("source.py", 3, 2, "matched value")
     self.assertEqual(
       self._render(
-        [result], StructuredOutputMode.MATCHES,
+        [result], GrepOutputMode.MATCHES,
         show_column_number=True,
         null_terminate_filenames=True,
         color="always",
