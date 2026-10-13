@@ -142,7 +142,7 @@ def main(arguments=None):
 
   if options.word is None:
     word_regexp = (
-      options.patterns_complete
+      options.all_patterns_known
       and bool(pattern_texts)
       and not quoted_search
       and all(
