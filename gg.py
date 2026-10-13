@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import argparse
+from itertools import chain
 from pathlib import Path
 import re
 import sys
@@ -17,6 +18,7 @@ from git_search import (
 )
 from git_search_cli import (
   build_search_command,
+  build_2nd_pass_search_command,
   execute_search,
   make_result_action,
   prepare_search_scope,
@@ -132,10 +134,10 @@ def main(arguments=None):
   )
 
   quoted_search = main_arg in ("gq", "gqq")
-  if main_arg == "gq":
-    patterns = tuple(f"'{pattern}'" for pattern in patterns)
-  elif main_arg == "gqq":
-    patterns = tuple(f'"{pattern}"' for pattern in patterns)
+  # if main_arg == "gq":
+  #   patterns = tuple(f"'{pattern}'" for pattern in patterns)
+  # elif main_arg == "gqq":
+  #   patterns = tuple(f'"{pattern}"' for pattern in patterns)
 
   if options.word is None:
     word_regexp = (
@@ -156,14 +158,47 @@ def main(arguments=None):
     test_indicators.append("[Ss]pec")
   result_action = make_result_action(options, output_plan)
   scope = prepare_search_scope(options, grep_args, extensions, test_indicators=test_indicators)
+  debug_mode = options.debug or scope.debug
+
+  match_spans = ()
+  if not debug_mode and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
+    cmd = build_2nd_pass_search_command(
+      patterns, scope.grep_args, scope.arguments,
+      untracked=options.untracked,
+      word_regexp=word_regexp)
+    status, results = execute_search(cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=False)
+    if results is None:
+      return status
+    match_spans = [(result.column - 1, result.column + len(result.text) - 1) for result in results]
+
   cmd = build_search_command(
     patterns, scope.grep_args, scope.arguments, output_plan, result_action,
     untracked=options.untracked,
     word_regexp=word_regexp,
   )
-  status, results = execute_search(cmd, output_plan, program=main_arg, debug=options.debug or scope.debug)
+  status, results = execute_search(cmd, output_plan, program=main_arg, debug=debug_mode)
   if results is None:
     return status
+
+  if quoted_search:
+    matches = results
+    if output_plan.mode == GrepOutputMode.CONTEXT:
+      matches = chain.from_iterable((result.matches for result in results))
+
+    for match, (head, tail) in zip(matches, match_spans):
+      match_line = remove_color_codes(match.text)
+      if (head_char := match_line[head])
+
+
+      if tail - 1 > head and (char := match_line[head]) == match_line[tail - 1] and char in ("'", '"'):
+        quoted_results.append()
+      else:
+        match_frag = match_line[max(0, head - 1) : tail]
+        if (char := match_frag)
+
+      print(match_line[head:tail])
+      # print(match, head, tail)
+
   if not include_imports:
     results = _filter_import_results(results, output_plan.mode)
   return present_results(results, output_plan, result_action, program=main_arg)
