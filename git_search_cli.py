@@ -41,7 +41,9 @@ class ResultAction:
 
 
 def prepare_search_scope(options, grep_args, extensions, *, test_indicators=("[Tt]est",)):
-  config = Config(grep_args, test_indicators=test_indicators, test_mode=options.tests or "exclude")
+  config = Config(
+    grep_args, test_indicators=test_indicators, test_mode=options.tests or "exclude"
+  )
   if options.scope_arguments is None:
     prefix = options.root or resolve_setting("GG_SEARCH_IN", "./")
     arguments = ("--", *config.format(prefix, extensions))
@@ -53,8 +55,14 @@ def prepare_search_scope(options, grep_args, extensions, *, test_indicators=("[T
 def make_result_action(options, output_plan):
   selecting_result = options.show is not None or options.result_idx is not None
   filename_only = selecting_result and output_plan.mode is StructuredOutputMode.PATHS
-  if has_output_modifiers(options.grep_args) and (options.json or selecting_result) and not (filename_only and not options.json):
-    options.parser.error("output-formatting git grep options cannot be combined with selection or --json")
+  if (
+    has_output_modifiers(options.grep_args)
+    and (options.json or selecting_result)
+    and not (filename_only and not options.json)
+  ):
+    options.parser.error(
+      "output-formatting git grep options cannot be combined with selection or --json"
+    )
 
   strict = options.show is not None
   return ResultAction(
@@ -68,7 +76,17 @@ def make_result_action(options, output_plan):
   )
 
 
-def build_structured_search_command(patterns, grep_args, scope_arguments, output_plan, result_action, *, untracked=False, word_regexp=False, stream=None):
+def build_structured_search_command(
+  patterns,
+  grep_args,
+  scope_arguments,
+  output_plan,
+  result_action,
+  *,
+  untracked=False,
+  word_regexp=False,
+  stream=None,
+):
   if stream is None:
     stream = sys.stdout
   return build_command(
@@ -76,7 +94,8 @@ def build_structured_search_command(patterns, grep_args, scope_arguments, output
     grep_args,
     scope_arguments,
     structured=True,
-    structured_color=not result_action.machine_output and output_uses_color(output_plan, stream),
+    structured_color=not result_action.machine_output
+    and output_uses_color(output_plan, stream),
     untracked=untracked,
     word_regexp=word_regexp,
   )
@@ -111,14 +130,18 @@ def present_results(results, output_plan, result_action, *, program):
     try:
       result = select_result(results, result_action.index, clamp=not result_action.strict)
     except IndexError:
-      sys.stderr.write(f"{program}: result {result_action.index} is outside 1..{len(results)}\n")
+      sys.stderr.write(
+        f"{program}: result {result_action.index} is outside 1..{len(results)}\n"
+      )
       return 2
 
     if result_action.json:
       write_json_results((result,))
       return 0
 
-    should_open = result_action.open_result or (not result_action.strict and not result_action.stdout and sys.stdout.isatty())
+    should_open = result_action.open_result or (
+      not result_action.strict and not result_action.stdout and sys.stdout.isatty()
+    )
     if should_open:
       tool = result_action.tool
       if tool is None:

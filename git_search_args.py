@@ -26,14 +26,10 @@ class Config:
     elif mode == "only":
       self.mods = ()
       self.pats = tuple(
-        "{{PREFIX}}*{word}*{{EXTEN}}".format(word=word)
-        for word in test_indicators
+        "{{PREFIX}}*{word}*{{EXTEN}}".format(word=word) for word in test_indicators
       )
     else:
-      self.mods = tuple(
-        ":!:*{word}*".format(word=word)
-        for word in test_indicators
-      )
+      self.mods = tuple(":!:*{word}*".format(word=word) for word in test_indicators)
       self.pats = ("{PREFIX}*{EXTEN}",)
 
   def _filter_flags(self, flags, test_indicators):
@@ -54,8 +50,7 @@ class Config:
 
   def format(self, prefix, extensions):
     pats = (
-      pat.format(PREFIX=prefix, EXTEN=ext)
-      for pat, ext in product(self.pats, extensions)
+      pat.format(PREFIX=prefix, EXTEN=ext) for pat, ext in product(self.pats, extensions)
     )
     return (*self.mods, *pats)
 
@@ -170,12 +165,18 @@ def _filter_output_arguments(arguments, settings):
     elif setting := _LONG_BOOLEAN_SETTINGS.get(option):
       setattr(settings, setting, enabled)
     elif option == "--color":
-      settings.color = assigned_value if enabled and assignment else "always" if enabled else "never"
+      settings.color = (
+        assigned_value if enabled and assignment else "always" if enabled else "never"
+      )
     elif argument.startswith("-") and not argument.startswith("--"):
       argument = _filter_short_output_option(argument, settings)
 
     valid_presentation_option = option in _PRESENTATION_LONG_OPTIONS and (
-      not assignment or option == "--color" and enabled and assigned_value in _COLOR_VALUES)
+      not assignment
+      or option == "--color"
+      and enabled
+      and assigned_value in _COLOR_VALUES
+    )
     if argument is not None and not valid_presentation_option:
       yield argument
       if option_value is not None:
@@ -207,7 +208,14 @@ def prepare_output(arguments):
     settings.show_filename = True
   elif settings.count:
     mode = StructuredOutputMode.COUNTS
-  elif any((settings.before_context, settings.after_context, settings.show_function, settings.function_context)):
+  elif any(
+    (
+      settings.before_context,
+      settings.after_context,
+      settings.show_function,
+      settings.function_context,
+    )
+  ):
     mode = StructuredOutputMode.CONTEXT
   else:
     mode = StructuredOutputMode.MATCHES
@@ -289,11 +297,7 @@ def _replace_option(arguments, old_option, new_option):
       replaced.append(new_option)
     elif argument.startswith(f"{old_option}="):
       replaced.extend((new_option, argument.partition("=")[2]))
-    elif (
-      len(old_option) == 2
-      and argument.startswith(old_option)
-      and len(argument) > 2
-    ):
+    elif len(old_option) == 2 and argument.startswith(old_option) and len(argument) > 2:
       replaced.extend((new_option, argument[2:]))
     else:
       replaced.append(argument)
@@ -338,8 +342,7 @@ def parse_search_arguments(
   if path_arguments is None:
     operands, trailing_result_idx = _pop_trailing_result_idx(operands)
   else:
-    path_arguments, trailing_result_idx = _pop_trailing_result_idx(
-      path_arguments)
+    path_arguments, trailing_result_idx = _pop_trailing_result_idx(path_arguments)
 
   value = getattr(options, value_attribute)
   if pattern_options and has_pattern_source:
@@ -399,18 +402,28 @@ def parse_search_arguments(
 def add_common_search_arguments(parser):
   root_default = resolve_setting("GG_SEARCH_IN", "./")
   extension_default = resolve_setting("GG_SEARCH_EXT", ".py")
-  parser.add_argument("--show", type=int, metavar="N", help="print the Nth search result in context of surrounding text")
-  parser.add_argument("--tests", choices=("exclude", "include", "only"), default=None, help="control whether test files are searched (default: exclude)")
+  parser.add_argument("--show", type=int, metavar="N",
+    help="print the Nth search result in context of surrounding text")
+  parser.add_argument("--tests", choices=("exclude", "include", "only"), default=None,
+    help="control whether test files are searched (default: exclude)")
   test_shortcuts = parser.add_mutually_exclusive_group()
-  test_shortcuts.add_argument("-t", "--include-tests", dest="tests", action="store_const", const="include", help="include test files")
-  test_shortcuts.add_argument("-T", "--tests-only", dest="tests", action="store_const", const="only", help="search only test files")
-  parser.add_argument("-u", "--untracked", action="store_true", help="include untracked files while respecting .gitignore")
-  parser.add_argument("--root", metavar="PATH", help=f"search path prefix (effective default: {root_default})")
-  parser.add_argument("--ext", action="append", metavar="EXT", help=f"file extension to search; may be repeated (effective default: {extension_default})")
-  parser.add_argument("--json", action="store_true", help="write JSON Lines results")
+  test_shortcuts.add_argument("-t", "--include-tests",
+    dest="tests", action="store_const", const="include", help="include test files")
+  test_shortcuts.add_argument("-T", "--tests-only",
+    dest="tests", action="store_const", const="only", help="search only test files")
+  parser.add_argument("-u", "--untracked",
+    action="store_true", help="include untracked files while respecting .gitignore")
+  parser.add_argument("--root", metavar="PATH",
+    help=f"search path prefix (effective default: {root_default})")
+  parser.add_argument("--ext", action="append", metavar="EXT",
+    help=f"file extension to search; may be repeated (effective default: {extension_default})")
+  parser.add_argument("--json", action="store_true",
+    help="write JSON Lines results")
   output = parser.add_mutually_exclusive_group()
-  output.add_argument("--stdout", action="store_true", help="print a selected result instead of opening an editor")
-  output.add_argument("--open", dest="open_result", action="store_true", help="open a selected result even when stdout is not a terminal")
+  output.add_argument("--stdout", action="store_true",
+    help="print a selected result instead of opening an editor")
+  output.add_argument("--open", dest="open_result", action="store_true",
+    help="open a selected result even when stdout is not a terminal")
   parser.add_argument("--tool", help="editor command used with --open")
   parser.add_argument("--debug", action="store_true", help="print the git grep command")
 
