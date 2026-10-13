@@ -128,10 +128,7 @@ def main(arguments=None):
   include_imports = (
     options.imports
     or main_arg == "gi"
-    or any(
-      not _has_no_import(pattern, import_regexes)
-      for pattern in pattern_texts
-    )
+    or any(not _has_no_import(pattern, import_regexes) for pattern in pattern_texts)
   )
 
   quoted_search = main_arg in ("gq", "gqq")
@@ -164,12 +161,12 @@ def main(arguments=None):
     untracked=options.untracked,
     word_regexp=word_regexp,
   )
-  status, results = execute_search(cmd, output_plan, program="gg", debug=options.debug or scope.debug)
+  status, results = execute_search(cmd, output_plan, program=main_arg, debug=options.debug or scope.debug)
   if results is None:
     return status
   if not include_imports:
     results = _filter_import_results(results, output_plan.mode)
-  return present_results(results, output_plan, result_action, program="gg")
+  return present_results(results, output_plan, result_action, program=main_arg)
 
 
 if __name__ == "__main__":
