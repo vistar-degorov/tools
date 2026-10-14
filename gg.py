@@ -116,6 +116,45 @@ def _filter_import_results(results, mode):
   return results
 
 
+def _quoted_results(results, match_spans, with_context):
+  current_line = None
+  current_line_text = None
+  matches = iter(()) if with_context else iter(results)
+  blocks = iter(results)
+
+  for match_span in match_spans:
+    head = match_span.column - 1
+    tail = head + len(match_span.text)
+
+    if (match_span.path, match_span.line) != current_line:
+      try:
+        current_match = next(matches)
+      except StopIteration:
+        if with_context:
+          try:
+            current_block = next(blocks)
+            matches = iter(current_block.matches)
+          except StopIteration:
+            break
+          current_match = next(matches)
+        else:
+          break
+
+    current_line = (current_match.path, current_match.line)
+    current_line_text = remove_color_codes(current_match.text)
+
+    if current_line_text[head] not in '\'"':
+      head = max(0, head - 1)
+    if current_line_text[tail - 1] not in '\'"':
+      tail = min(tail + 1, len(current_line_text))
+    if tail - 1 > head and (char := current_line_text[head]) == current_line_text[tail - 1] and char in '\'"':
+      if with_context:
+        yield current_block
+        matches = iter(())
+      else:
+        yield current_match
+
+
 def main(arguments=None):
   options = _parse_arguments(arguments)
   output_plan, grep_args = prepare_output(options.grep_args)
@@ -134,10 +173,6 @@ def main(arguments=None):
   )
 
   quoted_search = main_arg in ("gq", "gqq")
-  # if main_arg == "gq":
-  #   patterns = tuple(f"'{pattern}'" for pattern in patterns)
-  # elif main_arg == "gqq":
-  #   patterns = tuple(f'"{pattern}"' for pattern in patterns)
 
   if options.word is None:
     word_regexp = (
@@ -160,16 +195,15 @@ def main(arguments=None):
   scope = prepare_search_scope(options, grep_args, extensions, test_indicators=test_indicators)
   debug_mode = options.debug or scope.debug
 
-  match_spans = ()
+  match_spans = []
   if not debug_mode and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
     cmd = build_2nd_pass_search_command(
       patterns, scope.grep_args, scope.arguments,
       untracked=options.untracked,
       word_regexp=word_regexp)
-    status, results = execute_search(cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=False)
-    if results is None:
+    status, match_spans = execute_search(cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=False)
+    if match_spans is None:
       return status
-    match_spans = [(result.column - 1, result.column + len(result.text) - 1) for result in results]
 
   cmd = build_search_command(
     patterns, scope.grep_args, scope.arguments, output_plan, result_action,
@@ -181,23 +215,8 @@ def main(arguments=None):
     return status
 
   if quoted_search:
-    matches = results
-    if output_plan.mode == GrepOutputMode.CONTEXT:
-      matches = chain.from_iterable((result.matches for result in results))
-
-    for match, (head, tail) in zip(matches, match_spans):
-      match_line = remove_color_codes(match.text)
-      if (head_char := match_line[head])
-
-
-      if tail - 1 > head and (char := match_line[head]) == match_line[tail - 1] and char in ("'", '"'):
-        quoted_results.append()
-      else:
-        match_frag = match_line[max(0, head - 1) : tail]
-        if (char := match_frag)
-
-      print(match_line[head:tail])
-      # print(match, head, tail)
+    results = list(_quoted_results(
+      results, match_spans, with_context=output_plan.mode == GrepOutputMode.CONTEXT))
 
   if not include_imports:
     results = _filter_import_results(results, output_plan.mode)
