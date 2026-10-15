@@ -101,7 +101,7 @@ def build_search_command(
   )
 
 
-def build_2nd_pass_search_command(
+def build_occurrence_search_command(
   patterns,
   grep_args,
   scope_arguments,

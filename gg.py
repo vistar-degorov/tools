@@ -17,7 +17,7 @@ from git_search import (
 )
 from git_search_cli import (
   build_search_command,
-  build_2nd_pass_search_command,
+  build_occurrence_search_command,
   execute_search,
   make_result_action,
   prepare_search_scope,
@@ -115,14 +115,14 @@ def _filter_import_results(results, mode):
   return results
 
 
-def _quoted_results(results, match_spans, with_context):
+def _quoted_results(results, occurrences, with_context):
   current_line = None
   matches = iter(()) if with_context else iter(results)
   blocks = iter(results)
 
-  for match_span in match_spans:
-    if (match_span.path, match_span.line) == current_line:
-      if current_line_is_matched:
+  for occurrence in occurrences:
+    if (occurrence.path, occurrence.line) == current_line:
+      if skip_to_next_match:
         # skip the remaining occurrences on the current line
         continue
 
@@ -131,7 +131,7 @@ def _quoted_results(results, match_spans, with_context):
       try:
         current_match = next(matches)
         current_line = (current_match.path, current_match.line)
-        if with_context and current_line_is_matched:
+        if with_context and skip_to_next_match:
           continue
 
       except StopIteration:
@@ -146,18 +146,18 @@ def _quoted_results(results, match_spans, with_context):
         else:
           break
 
-      current_line_is_matched = False
+      skip_to_next_match = False
       current_line_text = remove_color_codes(current_match.text)
 
-    head = match_span.column - 1
-    tail = head + len(match_span.text)
+    head = occurrence.column - 1
+    tail = head + len(occurrence.text)
 
     if current_line_text[head] not in '\'"':
       head = max(0, head - 1)
     if current_line_text[tail - 1] not in '\'"':
       tail = min(tail + 1, len(current_line_text))
     if tail - 1 > head and (char := current_line_text[head]) == current_line_text[tail - 1] and char in '\'"':
-      current_line_is_matched = True
+      skip_to_next_match = True
       yield current_block if with_context else current_match
 
 
@@ -201,14 +201,14 @@ def main(arguments=None):
   scope = prepare_search_scope(options, grep_args, extensions, test_indicators=test_indicators)
   debug_mode = options.debug or scope.debug
 
-  match_spans = []
+  occurrences = []
   if output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
-    cmd = build_2nd_pass_search_command(
+    cmd = build_occurrence_search_command(
       patterns, scope.grep_args, scope.arguments,
       untracked=options.untracked,
       word_regexp=word_regexp)
-    status, match_spans = execute_search(cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=debug_mode)
-    if match_spans is None:
+    status, occurrences = execute_search(cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=debug_mode)
+    if occurrences is None:
       return status
 
   cmd = build_search_command(
@@ -222,7 +222,7 @@ def main(arguments=None):
 
   if quoted_search:
     results = list(_quoted_results(
-      results, match_spans, with_context=output_plan.mode == GrepOutputMode.CONTEXT))
+      results, occurrences, with_context=output_plan.mode == GrepOutputMode.CONTEXT))
 
   if not include_imports:
     results = _filter_import_results(results, output_plan.mode)
