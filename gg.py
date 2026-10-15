@@ -115,9 +115,45 @@ def _filter_import_results(results, mode):
   return results
 
 
-def _quoted_results(results, occurrences, with_context):
+def _is_quoted(text, head, tail):
+  if text[head] not in '\'"':
+    head = max(0, head - 1)
+  if text[tail - 1] not in '\'"':
+    tail = min(tail + 1, len(text))
+  return tail - 1 > head and (char := text[head]) == text[tail - 1] and char in '\'"'
+
+
+def _quoted_results(results, occurrences):
   current_line = None
-  matches = iter(()) if with_context else iter(results)
+  matches = iter(results)
+
+  for occurrence in occurrences:
+    if (occurrence.path, occurrence.line) == current_line:
+      if skip_to_next_match:
+        # skip the remaining occurrences on the current line
+        continue
+
+    else:
+      # feed the next matched line
+      try:
+        current_match = next(matches)
+        current_line = (current_match.path, current_match.line)
+      except StopIteration:
+        break
+
+      skip_to_next_match = False
+      current_line_text = remove_color_codes(current_match.text)
+
+    head = occurrence.column - 1
+    tail = head + len(occurrence.text)
+    if _is_quoted(current_line_text, head, tail):
+      skip_to_next_match = True
+      yield current_match
+
+
+def _quoted_results_with_context(results, occurrences):
+  current_line = None
+  matches = iter(())
   blocks = iter(results)
 
   for occurrence in occurrences:
@@ -131,34 +167,26 @@ def _quoted_results(results, occurrences, with_context):
       try:
         current_match = next(matches)
         current_line = (current_match.path, current_match.line)
-        if with_context and skip_to_next_match:
+        if skip_to_next_match:
           continue
 
       except StopIteration:
-        if with_context:
-          try:
-            current_block = next(blocks)
-            matches = iter(current_block.matches)
-          except StopIteration:
-            break
-          current_match = next(matches)
-          current_line = (current_match.path, current_match.line)
-        else:
+        try:
+          current_block = next(blocks)
+          matches = iter(current_block.matches)
+        except StopIteration:
           break
+        current_match = next(matches)
+        current_line = (current_match.path, current_match.line)
 
       skip_to_next_match = False
       current_line_text = remove_color_codes(current_match.text)
 
     head = occurrence.column - 1
     tail = head + len(occurrence.text)
-
-    if current_line_text[head] not in '\'"':
-      head = max(0, head - 1)
-    if current_line_text[tail - 1] not in '\'"':
-      tail = min(tail + 1, len(current_line_text))
-    if tail - 1 > head and (char := current_line_text[head]) == current_line_text[tail - 1] and char in '\'"':
+    if _is_quoted(current_line_text, head, tail):
       skip_to_next_match = True
-      yield current_block if with_context else current_match
+      yield current_block
 
 
 def main(arguments=None):
@@ -221,8 +249,10 @@ def main(arguments=None):
     return status
 
   if quoted_search:
-    results = list(_quoted_results(
-      results, occurrences, with_context=output_plan.mode == GrepOutputMode.CONTEXT))
+    if output_plan.mode == GrepOutputMode.CONTEXT:
+      results = list(_quoted_results_with_context(results, occurrences))
+    else:
+      results = list(_quoted_results(results, occurrences))
 
   if not include_imports:
     results = _filter_import_results(results, output_plan.mode)
