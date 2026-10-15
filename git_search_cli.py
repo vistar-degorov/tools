@@ -15,7 +15,7 @@ from git_search import (
   write_json_results,
   write_records,
 )
-from git_search_args import Config, has_output_modifiers, resolve_setting, without_context_args
+from git_search_args import Config, has_output_modifiers, resolve_setting, without_context_options
 
 
 @dataclass(frozen=True)
@@ -111,7 +111,7 @@ def build_2nd_pass_search_command(
 ):
   return build_command(
     patterns,
-    (*without_context_args(grep_args), "-o"),
+    (*without_context_options(grep_args), "-o"),
     scope_arguments,
     structured=True,
     structured_color=False,

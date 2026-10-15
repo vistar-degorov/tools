@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from git_search import remove_color_codes, SearchResult, GrepOutputMode
-from git_search_args import make_output_plan, prepare_output
+from git_search_args import make_output_plan, prepare_output, without_context_options
 from gg import _is_import_result
 
 
@@ -400,6 +400,26 @@ export const endpointPath = "api/status"
     self.assertIs(
       make_output_plan(("-c", "-l")).mode,
       GrepOutputMode.PATHS,
+    )
+
+  def test_without_context_options(self):
+    arguments = (
+      "-iA2",
+      "-pWn",
+      "-C", "3",
+      "--before-context=4",
+      "--after-context", "5",
+      "-6",
+      "--show-function",
+      "--function-context",
+      "--no-context",
+      "--max-depth", "7",
+      "-e", "-W",
+      "--", "-B",
+    )
+    self.assertEqual(
+      tuple(without_context_options(arguments)),
+      ("-i", "-n", "--no-context", "--max-depth", "7", "-e", "-W", "--", "-B"),
     )
 
   def test_output_plan_tracks_visible_fields(self):

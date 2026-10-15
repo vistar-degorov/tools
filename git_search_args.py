@@ -118,6 +118,57 @@ _PRESENTATION_SHORT_OPTIONS = frozenset("hHnz")
 _COLOR_VALUES = {"always", "auto", "never"}
 
 
+def _without_short_context_options(argument):
+  short_options = argument[1:]
+  if not short_options:
+    return argument, False
+  if short_options.isdigit():
+    return None, False
+
+  remaining = ""
+  for index, short_option in enumerate(short_options):
+    if short_option in "efmO":
+      remaining += short_options[index:]
+      return "-" + remaining, short_option != "O" and index == len(short_options) - 1
+    if short_option in "ABC":
+      return ("-" + remaining if remaining else None), index == len(short_options) - 1
+    if short_option not in "pW":
+      remaining += short_option
+
+  return ("-" + remaining if remaining else None), False
+
+
+def without_context_options(arguments):
+  arguments = iter(arguments)
+  for argument in arguments:
+    if argument == "--":
+      yield argument
+      yield from arguments
+      return
+
+    if argument in GIT_GREP_OPTIONS_WITH_VALUE:
+      value = next(arguments, None)
+      if argument not in _CONTEXT_SETTINGS:
+        yield argument
+        if value is not None:
+          yield value
+      continue
+
+    option, assignment, _ = argument.partition("=")
+    if assignment and option in _CONTEXT_SETTINGS:
+      continue
+    if argument in ("--show-function", "--function-context"):
+      continue
+
+    if argument.startswith("-") and not argument.startswith("--"):
+      argument, skip_next = _without_short_context_options(argument)
+      if skip_next:
+        next(arguments, None)
+
+    if argument is not None:
+      yield argument
+
+
 def _filter_short_output_option(argument, settings):
   short_options = argument[1:]
   if not short_options:
