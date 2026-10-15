@@ -1,7 +1,6 @@
 #! /usr/bin/python
 
 import argparse
-from itertools import chain
 from pathlib import Path
 import re
 import sys
@@ -118,17 +117,23 @@ def _filter_import_results(results, mode):
 
 def _quoted_results(results, match_spans, with_context):
   current_line = None
-  current_line_text = None
   matches = iter(()) if with_context else iter(results)
   blocks = iter(results)
 
   for match_span in match_spans:
-    head = match_span.column - 1
-    tail = head + len(match_span.text)
+    if (match_span.path, match_span.line) == current_line:
+      if current_line_is_matched:
+        # skip the remaining occurrences on the current line
+        continue
 
-    if (match_span.path, match_span.line) != current_line:
+    else:
+      # feed the next matched line
       try:
         current_match = next(matches)
+        current_line = (current_match.path, current_match.line)
+        if with_context and current_line_is_matched:
+          continue
+
       except StopIteration:
         if with_context:
           try:
@@ -137,22 +142,23 @@ def _quoted_results(results, match_spans, with_context):
           except StopIteration:
             break
           current_match = next(matches)
+          current_line = (current_match.path, current_match.line)
         else:
           break
 
-    current_line = (current_match.path, current_match.line)
-    current_line_text = remove_color_codes(current_match.text)
+      current_line_is_matched = False
+      current_line_text = remove_color_codes(current_match.text)
+
+    head = match_span.column - 1
+    tail = head + len(match_span.text)
 
     if current_line_text[head] not in '\'"':
       head = max(0, head - 1)
     if current_line_text[tail - 1] not in '\'"':
       tail = min(tail + 1, len(current_line_text))
     if tail - 1 > head and (char := current_line_text[head]) == current_line_text[tail - 1] and char in '\'"':
-      if with_context:
-        yield current_block
-        matches = iter(())
-      else:
-        yield current_match
+      current_line_is_matched = True
+      yield current_block if with_context else current_match
 
 
 def main(arguments=None):
@@ -196,12 +202,12 @@ def main(arguments=None):
   debug_mode = options.debug or scope.debug
 
   match_spans = []
-  if not debug_mode and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
+  if output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
     cmd = build_2nd_pass_search_command(
       patterns, scope.grep_args, scope.arguments,
       untracked=options.untracked,
       word_regexp=word_regexp)
-    status, match_spans = execute_search(cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=False)
+    status, match_spans = execute_search(cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=debug_mode)
     if match_spans is None:
       return status
 
