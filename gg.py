@@ -243,7 +243,7 @@ def main(arguments=None):
       word_regexp=word_regexp)
     status, occurrences = execute_search(
       cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=debug_mode)
-    if occurrences is None:
+    if not debug_mode and occurrences is None:
       return status
 
   cmd = build_search_command(
