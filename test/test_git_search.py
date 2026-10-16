@@ -10,7 +10,7 @@ import unittest
 
 from git_search import remove_color_codes, SearchResult, GrepOutputMode
 from git_search_args import make_output_plan, prepare_output, without_context_options
-from gg import _is_import, _is_import_result
+from gg import _is_import
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -202,9 +202,10 @@ export const endpointPath = "api/status"
     self.assertIn("import directory/plain.py:", result.stdout)
 
   def test_import_filter_ignores_color_codes(self):
-    result = SearchResult(
+    match = SearchResult(
       "module.py", 1, 1, "\x1b[1;31mimport\x1b[m dependency")
-    self.assertTrue(_is_import_result(result))
+    occurrence = SearchResult("module.py", 1, 8, "dependency")
+    self.assertTrue(_is_import(match, (occurrence,)))
 
   def test_occurrence_import_filter_keeps_mixed_lines(self):
     match = SearchResult(
@@ -286,13 +287,15 @@ export const endpointPath = "api/status"
       with self.subTest(arguments=arguments):
         result = self._run(GG, "+print", *arguments)
         self.assertEqual(result.returncode, 0, result.stderr)
-        command = shlex.split(result.stdout)
-        patterns = [
-          command[index + 1]
-          for index, argument in enumerate(command[:-1])
-          if argument == "-e"
-        ]
-        self.assertEqual(patterns, ["AlphaMarker", "BetaMarker"])
+        commands = [shlex.split(line) for line in result.stdout.splitlines()]
+        self.assertEqual(len(commands), 2)
+        for command in commands:
+          patterns = [
+            command[index + 1]
+            for index, argument in enumerate(command[:-1])
+            if argument == "-e"
+          ]
+          self.assertEqual(patterns, ["AlphaMarker", "BetaMarker"])
 
     result = self._run(
       GG, "--pattern", "AlphaMarker", "-e", "BetaMarker")

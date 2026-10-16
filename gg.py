@@ -92,19 +92,6 @@ def _has_no_import(text, import_regexes):
   return all(regex.search(text) is None for regex in import_regexes)
 
 
-def _is_import_result(result):
-  extension = Path(result.path).suffix.lower()
-  text = remove_color_codes(result.text)
-  if extension == ".py":
-    return re.match(
-      r"\s*(?:import\b|from\b.*\bimport\b)", text) is not None
-  if extension in (".ts", ".tsx"):
-    return re.match(r"\s*import\b", text) is not None
-  if extension == ".coffee":
-    return re.search(r"} *= *require\b", text) is not None
-  return False
-
-
 def _is_import(match, occurrences):
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
@@ -125,17 +112,6 @@ def _is_import(match, occurrences):
     if find_import(statement) is None:
       return False
   return found_occurrence
-
-
-def _filter_import_results(results, mode):
-  if mode is GrepOutputMode.MATCHES:
-    return [result for result in results if not _is_import_result(result)]
-  if mode is GrepOutputMode.CONTEXT:
-    return [
-      block for block in results
-      if not all(_is_import_result(result) for result in block.matches)
-    ]
-  return results
 
 
 def _is_quoted(text, head, tail):
@@ -262,7 +238,11 @@ def main(arguments=None):
       results = list(_quoted_results(results, occurrences))
 
   if not include_imports:
-    results = _filter_import_results(results, output_plan.mode)
+    if output_plan.mode == GrepOutputMode.CONTEXT:
+      results = list(_non_import_results_with_context(results, occurrences))
+    elif output_plan.mode == GrepOutputMode.MATCHES:
+      results = list(_non_import_results(results, occurrences))
+
   return present_results(results, output_plan, result_action, program=main_arg)
 
 
