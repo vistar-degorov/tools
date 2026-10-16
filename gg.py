@@ -105,6 +105,28 @@ def _is_import_result(result):
   return False
 
 
+def _is_import(match, occurrences):
+  extension = Path(match.path).suffix.lower()
+  if extension == ".py":
+    find_import = re.compile(r"\s*(?:import\b|from\b.*\bimport\b)").match
+  elif extension in (".ts", ".tsx"):
+    find_import = re.compile(r"\s*import\b").match
+  elif extension == ".coffee":
+    find_import = re.compile(r"} *= *require\b").search
+  else:
+    return False
+
+  text = remove_color_codes(match.text)
+  found_occurrence = False
+  for occurrence in occurrences:
+    found_occurrence = True
+    head = occurrence.column - 1
+    statement = text[text.rfind(";", 0, head) + 1:]
+    if find_import(statement) is None:
+      return False
+  return found_occurrence
+
+
 def _filter_import_results(results, mode):
   if mode is GrepOutputMode.MATCHES:
     return [result for result in results if not _is_import_result(result)]
@@ -151,6 +173,24 @@ def _quoted_results_with_context(results, occurrences):
     for match in block.matches:
       line_occurrences = next(occurrence_lines, ())
       if not block_is_quoted and _has_quoted_occurrence(match, line_occurrences):
+        block_is_quoted = True
+    if block_is_quoted:
+      yield block
+
+
+def _non_import_results(results, occurrences):
+  for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
+    if not _is_import(match, line_occurrences):
+      yield match
+
+
+def _non_import_results_with_context(results, occurrences):
+  occurrence_lines = iter(_occurrences_by_line(occurrences))
+  for block in results:
+    block_is_quoted = False
+    for match in block.matches:
+      line_occurrences = next(occurrence_lines, ())
+      if not block_is_quoted and not _is_import(match, line_occurrences):
         block_is_quoted = True
     if block_is_quoted:
       yield block

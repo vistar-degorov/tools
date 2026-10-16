@@ -10,7 +10,7 @@ import unittest
 
 from git_search import remove_color_codes, SearchResult, GrepOutputMode
 from git_search_args import make_output_plan, prepare_output, without_context_options
-from gg import _is_import_result
+from gg import _is_import, _is_import_result
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -205,6 +205,14 @@ export const endpointPath = "api/status"
     result = SearchResult(
       "module.py", 1, 1, "\x1b[1;31mimport\x1b[m dependency")
     self.assertTrue(_is_import_result(result))
+
+  def test_occurrence_import_filter_keeps_mixed_lines(self):
+    match = SearchResult(
+      "module.py", 1, 1, "import package; package.run()")
+    imported = SearchResult("module.py", 1, 8, "package")
+    used = SearchResult("module.py", 1, 17, "package")
+    self.assertTrue(_is_import(match, (imported,)))
+    self.assertFalse(_is_import(match, (imported, used)))
 
   def test_context_filter_removes_only_import_only_blocks(self):
     separate = self._run(GG, "-A", "1", "os", "a.py")
