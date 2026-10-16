@@ -433,6 +433,26 @@ export const endpointPath = "api/status"
       ("-i", "-n", "--no-context", "--max-depth", "7", "-e", "-W", "--", "-B"),
     )
 
+  def test_context_removal_preserves_attached_pager(self):
+    self.assertEqual(
+      tuple(without_context_options(("-Opager",))),
+      ("-Opager",),
+    )
+
+  def test_context_flags_do_not_hide_following_presentation_flags(self):
+    plan, arguments = prepare_output(("-ph",))
+    self.assertFalse(plan.show_filename)
+    self.assertFalse(plan.show_line_number)
+    self.assertEqual(arguments, ("-p",))
+
+    plan, arguments = prepare_output(("-Wz",))
+    self.assertTrue(plan.null_terminate_filenames)
+    self.assertEqual(arguments, ("-W",))
+
+  def test_context_removal_preserves_invalid_assignments(self):
+    arguments = ("--show-function=value", "--function-context=value")
+    self.assertEqual(tuple(without_context_options(arguments)), arguments)
+
   def test_output_plan_tracks_visible_fields(self):
     default = make_output_plan(())
     self.assertTrue(default.show_filename)
