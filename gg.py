@@ -179,7 +179,6 @@ def main(arguments=None):
     word_regexp = (
       options.all_patterns_known
       and bool(pattern_texts)
-      and not quoted_search
       and all(
         re.match(r"\w", pattern) is not None
         and re.search(r"\w$", pattern) is not None
