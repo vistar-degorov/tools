@@ -130,30 +130,37 @@ _PRESENTATION_SHORT_OPTIONS = frozenset("hHnz")
 _COLOR_VALUES = {"always", "auto", "never"}
 
 
-def _without_short_context_options(argument):
+def _without_short_context_options(argument, later_arguments):
   short_options = argument[1:]
   if not short_options:
-    return argument, False
+    yield argument
   if short_options.isdigit():
-    return None, False
+    short_options = ""
 
   remaining = ""
   for index, short_option in enumerate(short_options):
     _opt = "-" + short_option
     value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(_opt, ())
 
-    if _opt in _CONTEXT_SETTINGS:
-      if index == len(short_options) - 1:
-        return ("-" + remaining if remaining else None), VS.SPACED in value_styles
-      elif VS.GLUED in value_styles:
-        return ("-" + remaining if remaining else None), False
+    if index + 1 == len(short_options) and VS.SPACED in value_styles:
+      if _opt in _CONTEXT_SETTINGS:
+        next(later_arguments, None)
+      else:
+        yield "-" + remaining + short_option
+        remaining = ""
+        for argument in later_arguments:
+          yield argument
+          break
 
     elif VS.GLUED in value_styles:
-      remaining += short_options[index:]
+      if _opt not in _CONTEXT_SETTINGS:
+        remaining += short_options[index:]
       break
-    else:
+    elif _opt not in _CONTEXT_SETTINGS:
       remaining += short_option
-  return ("-" + remaining if remaining else None), False
+
+  if remaining:
+    yield "-" + remaining
 
 
 def without_context_options(arguments):
@@ -183,12 +190,10 @@ def without_context_options(arguments):
       continue
 
     elif argument.startswith("-") and not argument.startswith("--"):
-      argument, skip_next = _without_short_context_options(argument)
-      if skip_next:
-        next(arguments, None)
+      yield from _without_short_context_options(argument, arguments)
+      continue
 
-    if argument is not None:
-      yield argument
+    yield argument
 
 
 def _filter_short_output_option(argument, settings):
