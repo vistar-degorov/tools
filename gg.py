@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import argparse
+from itertools import groupby
 from pathlib import Path
 import re
 import sys
@@ -120,73 +121,39 @@ def _is_quoted(text, head, tail):
     head = max(0, head - 1)
   if text[tail - 1] not in '\'"':
     tail = min(tail + 1, len(text))
-  return tail - 1 > head and (char := text[head]) == text[tail - 1] and char in '\'"'
+  return tail - head > 1 and (char := text[head]) == text[tail - 1] and char in '\'"'
+
+
+def _occurrences_by_line(occurrences):
+  for _, line_occurrences in groupby(occurrences, key=lambda occ: (occ.path, occ.line)):
+    yield tuple(line_occurrences)
+
+
+def _has_quoted_occurrence(match, occurrences):
+  text = remove_color_codes(match.text)
+  for occurrence in occurrences:
+    head = occurrence.column - 1
+    if _is_quoted(text, head, head + len(occurrence.text)):
+      return True
+  return False
 
 
 def _quoted_results(results, occurrences):
-  current_line = None
-  matches = iter(results)
-
-  for occurrence in occurrences:
-    if (occurrence.path, occurrence.line) == current_line:
-      if skip_to_next_match:
-        # skip the remaining occurrences on the current line
-        continue
-
-    else:
-      # feed the next matched line
-      try:
-        current_match = next(matches)
-        current_line = (current_match.path, current_match.line)
-      except StopIteration:
-        break
-
-      skip_to_next_match = False
-      current_line_text = remove_color_codes(current_match.text)
-
-    head = occurrence.column - 1
-    tail = head + len(occurrence.text)
-    if _is_quoted(current_line_text, head, tail):
-      skip_to_next_match = True
-      yield current_match
+  for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
+    if _has_quoted_occurrence(match, line_occurrences):
+      yield match
 
 
 def _quoted_results_with_context(results, occurrences):
-  current_line = None
-  matches = iter(())
-  blocks = iter(results)
-
-  for occurrence in occurrences:
-    if (occurrence.path, occurrence.line) == current_line:
-      if skip_to_next_match:
-        # skip the remaining occurrences on the current line
-        continue
-
-    else:
-      # feed the next matched line
-      try:
-        current_match = next(matches)
-        current_line = (current_match.path, current_match.line)
-        if skip_to_next_match:
-          continue
-
-      except StopIteration:
-        try:
-          current_block = next(blocks)
-          matches = iter(current_block.matches)
-        except StopIteration:
-          break
-        current_match = next(matches)
-        current_line = (current_match.path, current_match.line)
-
-      skip_to_next_match = False
-      current_line_text = remove_color_codes(current_match.text)
-
-    head = occurrence.column - 1
-    tail = head + len(occurrence.text)
-    if _is_quoted(current_line_text, head, tail):
-      skip_to_next_match = True
-      yield current_block
+  occurrence_lines = iter(_occurrences_by_line(occurrences))
+  for block in results:
+    block_is_quoted = False
+    for match in block.matches:
+      line_occurrences = next(occurrence_lines, ())
+      if not block_is_quoted and _has_quoted_occurrence(match, line_occurrences):
+        block_is_quoted = True
+    if block_is_quoted:
+      yield block
 
 
 def main(arguments=None):
@@ -235,7 +202,8 @@ def main(arguments=None):
       patterns, scope.grep_args, scope.arguments,
       untracked=options.untracked,
       word_regexp=word_regexp)
-    status, occurrences = execute_search(cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=debug_mode)
+    status, occurrences = execute_search(
+      cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=debug_mode)
     if occurrences is None:
       return status
 
