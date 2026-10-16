@@ -439,6 +439,12 @@ export const endpointPath = "api/status"
       ("-Opager",),
     )
 
+  def test_context_removal_preserves_spaced_value_for_clustered_option(self):
+    self.assertEqual(
+      tuple(without_context_options(("-ie", "needle"))),
+      ("-ie", "needle"),
+    )
+
   def test_context_flags_do_not_hide_following_presentation_flags(self):
     plan, arguments = prepare_output(("-ph",))
     self.assertFalse(plan.show_filename)
