@@ -1,3 +1,4 @@
+from enum import Enum
 from itertools import product
 import os
 import re
@@ -61,17 +62,24 @@ def split_result_idx(query):
   return query, None
 
 
-GIT_GREP_OPTIONS_WITH_VALUE = {
-  "-A", "--after-context",
-  "-B", "--before-context",
-  "-C", "--context",
-  "-e", "--regexp",
-  "-f", "--file",
-  "-m", "--max-count",
-  "--max-depth",
-  "--threads",
-}
+class OptionValueStyle(Enum):
+  ASSIGNMENT = "="
+  SPACED = " "
+  GLUED = ""
+VS = OptionValueStyle
 
+
+GIT_GREP_OPTIONS_WITH_VALUE = {
+  "-A": (VS.SPACED, VS.GLUED), "--after-context": (VS.ASSIGNMENT, VS.SPACED),
+  "-B": (VS.SPACED, VS.GLUED), "--before-context": (VS.ASSIGNMENT, VS.SPACED),
+  "-C": (VS.SPACED, VS.GLUED), "--context": (VS.ASSIGNMENT, VS.SPACED),
+  "-e": (VS.SPACED, VS.GLUED), "--regexp": (VS.ASSIGNMENT, VS.SPACED),
+  "-f": (VS.SPACED, VS.GLUED), "--file": (VS.ASSIGNMENT, VS.SPACED),
+  "-m": (VS.SPACED, VS.GLUED), "--max-count": (VS.ASSIGNMENT, VS.SPACED),
+  "--max-depth": (VS.ASSIGNMENT, VS.SPACED),
+  "--threads": (VS.ASSIGNMENT, VS.SPACED),
+  "-O": (VS.GLUED,),
+}
 
 _CONTEXT_SETTINGS = {
   "-A": ("after_context",),
@@ -80,6 +88,10 @@ _CONTEXT_SETTINGS = {
   "--before-context": ("before_context",),
   "-C": ("before_context", "after_context"),
   "--context": ("before_context", "after_context"),
+  "-p": ("show_function",),
+  "--show-function": ("show_function",),
+  "-W": ("function_context",),
+  "--function-context": ("function_context",),
 }
 
 _LONG_BOOLEAN_SETTINGS = {
@@ -127,14 +139,20 @@ def _without_short_context_options(argument):
 
   remaining = ""
   for index, short_option in enumerate(short_options):
-    if short_option in "efmO":
-      remaining += short_options[index:]
-      return "-" + remaining, short_option != "O" and index == len(short_options) - 1
-    if short_option in "ABC":
-      return ("-" + remaining if remaining else None), index == len(short_options) - 1
-    if short_option not in "pW":
-      remaining += short_option
+    _opt = "-" + short_option
+    value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(_opt, ())
 
+    if _opt in _CONTEXT_SETTINGS:
+      if index == len(short_options) - 1:
+        return ("-" + remaining if remaining else None), VS.SPACED in value_styles
+      elif VS.GLUED in value_styles:
+        return ("-" + remaining if remaining else None), False
+
+    elif VS.GLUED in value_styles:
+      remaining += short_options[index:]
+      break
+    else:
+      remaining += short_option
   return ("-" + remaining if remaining else None), False
 
 
@@ -146,7 +164,14 @@ def without_context_options(arguments):
       yield from arguments
       return
 
-    if argument in GIT_GREP_OPTIONS_WITH_VALUE:
+    option, assignment, _ = argument.partition("=")
+    value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(option, ())
+
+    if assignment:
+      if option in _CONTEXT_SETTINGS and VS.ASSIGNMENT in value_styles:
+        continue
+
+    elif VS.SPACED in value_styles:
       value = next(arguments, None)
       if argument not in _CONTEXT_SETTINGS:
         yield argument
@@ -154,13 +179,10 @@ def without_context_options(arguments):
           yield value
       continue
 
-    option, assignment, _ = argument.partition("=")
-    if assignment and option in _CONTEXT_SETTINGS:
-      continue
-    if argument in ("--show-function", "--function-context"):
+    elif argument in _CONTEXT_SETTINGS:
       continue
 
-    if argument.startswith("-") and not argument.startswith("--"):
+    elif argument.startswith("-") and not argument.startswith("--"):
       argument, skip_next = _without_short_context_options(argument)
       if skip_next:
         next(arguments, None)
