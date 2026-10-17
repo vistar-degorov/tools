@@ -321,14 +321,12 @@ def prepare_output(arguments):
     settings.show_filename = True
   elif settings.count:
     mode = GrepOutputMode.COUNTS
-  elif any(
-    (
-      settings.before_context,
-      settings.after_context,
-      settings.show_function,
-      settings.function_context,
-    )
-  ):
+  elif any((
+    settings.before_context,
+    settings.after_context,
+    settings.show_function,
+    settings.function_context,
+  )):
     mode = GrepOutputMode.CONTEXT
   else:
     mode = GrepOutputMode.MATCHES
