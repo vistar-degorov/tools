@@ -300,6 +300,30 @@ def without_context_options(arguments):
   return SkipContextOptions(arguments)
 
 
+class _HasOutputModifiers(OptionsIterator):
+  long_options = {
+    "--break", "--color", "--count", "--null", "--heading", "--name-only",
+    "--no-filename", "--files-with-matches", "--files-without-match",
+    *_CONTEXT_SETTINGS,
+  }
+  def __init__(self, arguments):
+    super().__init__(arguments)
+    self.has_output_modifiers = False
+
+  def consume(self, argument, key, value=None, value_style=None):
+    self.has_output_modifiers |= (key in self.long_options
+      or len(key) == 2 and key[1] in "ABCcLlhpW"
+      or key.startswith("-") and key[1:].isdigit())
+    self.append_option(argument, value, value_style)
+
+
+def has_output_modifiers(arguments):
+  for _ in (arguments := _HasOutputModifiers(arguments)):
+    if arguments.has_output_modifiers:
+      return True
+  return False
+
+
 def prepare_output(arguments):
   settings = SimpleNamespace(
     show_filename=True,
@@ -561,23 +585,3 @@ def resolve_extensions(values):
     extension if extension.startswith(".") else f".{extension}"
     for extension in extensions
   )
-
-
-def has_output_modifiers(arguments):
-  long_options = {
-    "--after-context", "--before-context", "--break", "--context",
-    "--color",
-    "--count", "--files-with-matches", "--files-without-match",
-    "--function-context", "--heading", "--name-only", "--no-filename",
-    "--null", "--show-function",
-  }
-  for argument in arguments:
-    if argument in long_options:
-      return True
-    if any(argument.startswith(f"{option}=") for option in long_options):
-      return True
-    if re.match(r"-[ABC]\d*$", argument):
-      return True
-    if re.match(r"-[cLlhpW]+$", argument):
-      return True
-  return False
