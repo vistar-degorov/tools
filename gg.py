@@ -218,8 +218,7 @@ def main(arguments=None):
   scope = prepare_search_scope(options, grep_args, extensions, test_indicators=test_indicators)
   debug_mode = options.debug or scope.debug
 
-  occurrences = []
-  if output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
+  if filter_predicate and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
     cmd = build_occurrence_search_command(
       patterns, scope.grep_args, scope.arguments,
       untracked=options.untracked,
