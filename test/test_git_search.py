@@ -15,7 +15,7 @@ from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_def
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
 GG = TOOLS_DIRECTORY / "gg.py"
-FINDDEF = TOOLS_DIRECTORY / "finddef.py"
+DEF = TOOLS_DIRECTORY / "def"
 OPEN_RESULT = TOOLS_DIRECTORY / "open_result.py"
 
 
@@ -150,7 +150,7 @@ export const endpointPath = "api/status"
     )
 
   def test_empty_invocation_prints_usage(self):
-    for script in (GG, FINDDEF):
+    for script in (GG, DEF):
       with self.subTest(script=script.name):
         result = self._run(script)
         self.assertEqual(result.returncode, 2)
@@ -328,7 +328,7 @@ export const endpointPath = "api/status"
     self.assertEqual(self._run(GG, "-q", "missing_name").returncode, 1)
 
   def test_test_shortcuts_are_mutually_exclusive(self):
-    for script in (GG, FINDDEF):
+    for script in (GG, DEF):
       with self.subTest(script=script.name):
         result = self._run(script, "-t", "-T", "target")
         self.assertEqual(result.returncode, 2)
@@ -426,11 +426,11 @@ export const endpointPath = "api/status"
         self.assertTrue(
           included.stdout.startswith("tests/test_app.py:"), included.stdout)
 
-  def test_finddef_accepts_paths_with_optional_separator(self):
+  def test_definition_search_accepts_paths_with_optional_separator(self):
     self.environment["GG_SEARCH_IN_DEFAULT"] = "nested/"
     for separator in ((), ("--",)):
       with self.subTest(separator=separator):
-        result = self._run(FINDDEF, "target", *separator, "b.py")
+        result = self._run(DEF, "target", *separator, "b.py")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("b.py:", result.stdout)
 
@@ -713,12 +713,12 @@ export const endpointPath = "api/status"
         self.assertIn("cannot be combined", result.stderr)
 
   def test_untracked_files_are_explicit(self):
-    self.assertEqual(self._run(FINDDEF, "Untracked").returncode, 1)
-    result = self._run(FINDDEF, "--untracked", "Untracked")
+    self.assertEqual(self._run(DEF, "Untracked").returncode, 1)
+    result = self._run(DEF, "--untracked", "Untracked")
     self.assertEqual(result.returncode, 0)
     self.assertIn("untracked.py", result.stdout)
     self.assertEqual(
-      self._run(FINDDEF, "--untracked", "Ignored").returncode, 1)
+      self._run(DEF, "--untracked", "Ignored").returncode, 1)
 
   def test_json_output(self):
     result = self._run(GG, "--json", "target")
@@ -729,16 +729,16 @@ export const endpointPath = "api/status"
       set(records[0]), {"path", "line", "column", "text"})
 
   def test_human_and_strict_selection(self):
-    first = self._run(FINDDEF, "target/0", "--stdout")
+    first = self._run(DEF, "target/0", "--stdout")
     self.assertEqual(first.returncode, 0)
     self.assertTrue(first.stdout.startswith("a.py:"), first.stdout)
 
-    last = self._run(FINDDEF, "target/999", "--stdout")
+    last = self._run(DEF, "target/999", "--stdout")
     self.assertEqual(last.returncode, 0)
     self.assertTrue(last.stdout.startswith("b.py:"), last.stdout)
 
     strict = self._run(
-      FINDDEF, "--name", "target", "--show", "999")
+      DEF, "--pattern", "target", "--show", "999")
     self.assertEqual(strict.returncode, 2)
     self.assertIn("outside 1..", strict.stderr)
 
@@ -778,7 +778,7 @@ export const endpointPath = "api/status"
     self.assertIn("either /N or --show N", strict.stderr)
 
   def test_non_tty_selection_does_not_launch_editor(self):
-    result = self._run(FINDDEF, "target/1")
+    result = self._run(DEF, "target/1")
     self.assertEqual(result.returncode, 0)
     self.assertTrue(result.stdout.startswith("a.py:"), result.stdout)
 
