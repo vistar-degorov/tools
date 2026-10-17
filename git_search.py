@@ -15,7 +15,7 @@ class SearchResult:
   path: str
   line: int | None
   column: int | None
-  text: str
+  text: bytes
 
   @property
   def is_match(self):
@@ -71,6 +71,8 @@ _COLOR_RESET = b"\x1b[m"
 
 
 def remove_color_codes(text):
+  if isinstance(text, bytes):
+    return re.sub(br"\x1b\[[0-9;]*m", b"", text)
   return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
@@ -156,7 +158,7 @@ def _parse_line_records(data, with_context):
       path=os.fsdecode(path),
       line=line_number,
       column=column,
-      text=rest.decode("utf-8", "replace"),
+      text=rest,
     ), offset
     offset = record.end()
 
@@ -244,7 +246,7 @@ def _write_line_result(stream, result, plan, *, show_filename, use_color):
     fields.append(str(result.line).encode())
   if plan.show_column_number and result.column is not None:
     fields.append(str(result.column).encode())
-  fields.append(result.text.encode("utf-8", "replace"))
+  fields.append(result.text)
   stream.write(separator.join(fields) + b"\n")
 
 
@@ -317,7 +319,7 @@ def parse_null_results(data):
 
 def parse_null_paths(data):
   for result in parse_grep_results(data, GrepOutputMode.PATHS):
-    yield SearchResult(result.path, None, None, "")
+    yield SearchResult(result.path, None, None, b"")
 
 
 def select_result(results, index, *, clamp):
@@ -337,12 +339,13 @@ def write_json_results(results):
       "path": result.path,
       "line": result.line,
       "column": result.column,
-      "text": result.text,
+      "text": result.text.decode("utf-8", "replace"),
     }))
 
 
 def write_result(result):
-  print(f"{result.path}:{result.line}:{result.text}")
+  text = result.text.decode("utf-8", "replace")
+  print(f"{result.path}:{result.line}:{text}")
 
 
 def write_context(result, context=12):

@@ -95,11 +95,11 @@ def _has_no_import(text, import_regexes):
 def _is_import(match, occurrences):
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
-    find_import = re.compile(r"\s*(?:import\b|from\b.*\bimport\b)").match
+    find_import = re.compile(br"\s*(?:import\b|from\b.*\bimport\b)").match
   elif extension in (".ts", ".tsx"):
-    find_import = re.compile(r"\s*import\b").match
+    find_import = re.compile(br"\s*import\b").match
   elif extension == ".coffee":
-    find_import = re.compile(r"} *= *require\b").search
+    find_import = re.compile(br"} *= *require\b").search
   else:
     return False
 
@@ -108,18 +108,18 @@ def _is_import(match, occurrences):
   for occurrence in occurrences:
     found_occurrence = True
     head = occurrence.column - 1
-    statement = text[text.rfind(";", 0, head) + 1:]
+    statement = text[text.rfind(b";", 0, head) + 1:]
     if find_import(statement) is None:
       return False
   return found_occurrence
 
 
 def _is_quoted(text, head, tail):
-  if text[head] not in '\'"':
+  if text[head] not in b'\'"':
     head = max(0, head - 1)
-  if text[tail - 1] not in '\'"':
+  if text[tail - 1] not in b'\'"':
     tail = min(tail + 1, len(text))
-  return tail - head > 1 and (char := text[head]) == text[tail - 1] and char in '\'"'
+  return tail - head > 1 and (char := text[head]) == text[tail - 1] and char in b'\'"'
 
 
 def _occurrences_by_line(occurrences):
