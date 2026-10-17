@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from git_search import remove_color_codes, SearchResult, GrepOutputMode
-from git_search_args import OptionsIterator, make_output_plan, prepare_output, without_context_options
+from git_search_args import has_output_modifiers, OptionsIterator, make_output_plan, prepare_output, without_context_options
 from gg import _is_import
 
 
@@ -455,6 +455,25 @@ export const endpointPath = "api/status"
         options = OptionsIterator(arguments)
         self.assertIs(iter(options), options)
         self.assertEqual(tuple(options), arguments)
+
+  def test_has_output_modifiers_recognizes_supported_forms(self):
+    cases = (
+      ("--count",),
+      ("--color=always",),
+      ("-A", "2"),
+      ("--before-context", "--max-count"),
+      ("--after-context", "25", "--totally-fake"),
+      ("-4",),
+      ("-c",),
+    )
+    for arguments in cases:
+      with self.subTest(arguments=arguments):
+        self.assertTrue(has_output_modifiers(arguments))
+
+  def test_has_output_modifiers_recognizes_flags_anywhere_in_cluster(self):
+    for arguments in (("-ci",), ("-ic",)):
+      with self.subTest(arguments=arguments):
+        self.assertTrue(has_output_modifiers(arguments))
 
   def test_context_removal_preserves_attached_pager(self):
     self.assertEqual(
