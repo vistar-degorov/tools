@@ -8,9 +8,9 @@ import subprocess
 import tempfile
 import unittest
 
-from git_search import remove_color_codes, SearchResult, GrepOutputMode
+from git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode
 from git_search_args import _split_leading_git_options, has_output_modifiers, OptionsIterator, make_output_plan, prepare_output, without_context_options
-from gg import _has_quoted_occurrence, _is_import
+from gg import _find_definitions, _find_definitions_with_context, _has_definition_occurrence, _has_quoted_occurrence, _is_import
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -219,6 +219,58 @@ export const endpointPath = "api/status"
     match = SearchResult("module.py", 1, 1, b'\xc3\xa9 "marker"')
     occurrence = SearchResult("module.py", 1, 5, b"marker")
     self.assertTrue(_has_quoted_occurrence(match, (occurrence,)))
+
+  def test_definition_filter_checks_the_occurrence_position(self):
+    match = SearchResult("module.py", 1, 1, b"def selected(argument): return selected")
+    name = SearchResult("module.py", 1, 5, b"selected")
+    argument = SearchResult("module.py", 1, 14, b"argument")
+    body = SearchResult("module.py", 1, 32, b"selected")
+    self.assertTrue(_has_definition_occurrence(match, (name,)))
+    self.assertFalse(_has_definition_occurrence(match, (argument, body)))
+
+  def test_definition_filter_handles_classes_async_functions_and_partial_matches(self):
+    cases = (
+      (b"class ServiceFactory(Base):", 14, b"Factory"),
+      (b"  async def load_resource():", 13, b"load"),
+    )
+    for text, column, occurrence_text in cases:
+      with self.subTest(text=text):
+        match = SearchResult("module.py", 1, 1, text)
+        occurrence = SearchResult("module.py", 1, column, occurrence_text)
+        self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+
+  def test_definition_filter_is_language_aware(self):
+    match = SearchResult("module.txt", 1, 1, b"def selected():")
+    occurrence = SearchResult("module.txt", 1, 5, b"selected")
+    self.assertFalse(_has_definition_occurrence(match, (occurrence,)))
+
+  def test_find_definitions_filters_match_results(self):
+    results = (
+      SearchResult("module.py", 1, 5, b"def selected():"),
+      SearchResult("module.py", 2, 3, b"selected()"),
+    )
+    occurrences = (
+      SearchResult("module.py", 1, 5, b"selected"),
+      SearchResult("module.py", 2, 1, b"selected"),
+    )
+    self.assertEqual(list(_find_definitions(results, occurrences)), [results[0]])
+
+  def test_find_definitions_with_context_consumes_every_match_line(self):
+    blocks = (
+      ContextBlock("module.py", (
+        SearchResult("module.py", 1, 5, b"def first():"),
+        SearchResult("module.py", 2, 3, b"first()"),
+      )),
+      ContextBlock("module.py", (
+        SearchResult("module.py", 8, 15, b"          def second():"),
+      )),
+    )
+    occurrences = (
+      SearchResult("module.py", 1, 5, b"first"),
+      SearchResult("module.py", 2, 1, b"first"),
+      SearchResult("module.py", 8, 15, b"second"),
+    )
+    self.assertEqual(list(_find_definitions_with_context(blocks, occurrences)), list(blocks))
 
   def test_context_filter_removes_only_import_only_blocks(self):
     separate = self._run(GG, "-A", "1", "os", "a.py")

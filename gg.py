@@ -26,6 +26,9 @@ from git_search_cli import (
 )
 
 
+_PYTHON_DEFINITION = re.compile(br"\s*(?:(?:async\s+)?def|class)\s+([^\s(:]+)")
+
+
 def _argument_parser():
   parser = argparse.ArgumentParser(
     add_help=False,
@@ -134,6 +137,41 @@ def _has_quoted_occurrence(match, occurrences):
     if _is_quoted(text, head, head + len(occurrence.text)):
       return True
   return False
+
+
+def _has_definition_occurrence(match, occurrences):
+  if Path(match.path).suffix.lower() not in (".py", ".pyi", ".pyw"):
+    return False
+
+  text = remove_color_codes(match.text)
+  definition = _PYTHON_DEFINITION.match(text)
+  if definition is None:
+    return False
+
+  definition_head, definition_tail = definition.span(1)
+  return any(
+    (occurrence_head := occurrence.column - 1) < definition_tail
+    and occurrence_head + len(occurrence.text) > definition_head
+    for occurrence in occurrences
+  )
+
+
+def _find_definitions(results, occurrences):
+  for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
+    if _has_definition_occurrence(match, line_occurrences):
+      yield match
+
+
+def _find_definitions_with_context(results, occurrences):
+  occurrence_lines = iter(_occurrences_by_line(occurrences))
+  for block in results:
+    has_definition = False
+    for match in block.matches:
+      line_occurrences = next(occurrence_lines, ())
+      if _has_definition_occurrence(match, line_occurrences):
+        has_definition = True
+    if has_definition:
+      yield block
 
 
 def _quoted_results(results, occurrences):
