@@ -73,6 +73,7 @@ GIT_GREP_OPTIONS_WITH_VALUE = {
   "-A": (VS.SPACED, VS.GLUED), "--after-context": (VS.EQUALS, VS.SPACED),
   "-B": (VS.SPACED, VS.GLUED), "--before-context": (VS.EQUALS, VS.SPACED),
   "-C": (VS.SPACED, VS.GLUED), "--context": (VS.EQUALS, VS.SPACED),
+  "--color": (VS.EQUALS,),
   "-e": (VS.SPACED, VS.GLUED), "--regexp": (VS.EQUALS, VS.SPACED),
   "-f": (VS.SPACED, VS.GLUED), "--file": (VS.EQUALS, VS.SPACED),
   "-m": (VS.SPACED, VS.GLUED), "--max-count": (VS.EQUALS, VS.SPACED),
@@ -222,13 +223,18 @@ class OptionsIterator:
     self.current_option = ""
     self.current_option_value = None
 
-
-class SkipContextOptions(OptionsIterator):
   def submit(self, argument, idx, key, value=None, value_style=None):
     if idx != self.current_idx:
       self.current_idx = idx
       yield from self.pop_current_options()
+    self.consume(argument, key, value, value_style)
 
+  def consume(self, argument, key, value=None, value_style=None):
+    ...
+
+
+class SkipContextOptions(OptionsIterator):
+  def consume(self, argument, key, value=None, value_style=None):
     if key not in _CONTEXT_SETTINGS and not key.removeprefix("-").isdigit():
       self.append_option(argument, value, value_style)
 
@@ -238,8 +244,39 @@ class ApplyOutputOptions(OptionsIterator):
     super().__init__()
     self.settings = settings
 
-  def submit(self, argument, idx, key, value=None, value_style=None):
-    ...
+  def consume(self, argument, key, value=None, value_style=None):
+    enabled = True
+    if key.startswith("--no-"):
+      key = _resolve_prefix("--" + key.removeprefix("--no-"))
+      enabled = False
+
+    if context_settings := _CONTEXT_SETTINGS.get(key):
+      for setting in context_settings:
+        setattr(self.settings, setting, enabled)
+    elif setting := _LONG_BOOLEAN_SETTINGS.get(key):
+      setattr(self.settings, setting, enabled)
+    elif len(key) == 2 and (update := _SHORT_SETTINGS.get(key[1])):
+      setting, setting_value = update
+      setattr(self.settings, setting, setting_value)
+    elif key.startswith("-") and key[1:].isdigit():
+      self.settings.before_context = True
+      self.settings.after_context = True
+    elif key == "--color":
+      self.settings.color = (
+        value if enabled and value_style == VS.EQUALS
+        else "always" if enabled else "never"
+      )
+
+    is_presentation_option = (
+      key in _PRESENTATION_LONG_OPTIONS
+      or len(key) == 2 and key[1] in _PRESENTATION_SHORT_OPTIONS
+    )
+    valid_presentation_option = is_presentation_option and (
+      value_style != VS.EQUALS
+      or key == "--color" and enabled and value in _COLOR_VALUES
+    )
+    if not valid_presentation_option:
+      self.append_option(argument, value, value_style)
 
 
 def without_context_options(arguments):
@@ -255,73 +292,6 @@ def without_context_options(arguments):
   yield from _filter_args(_arguments_until_dashdash(), opts_iter.submit)
   yield from opts_iter.pop_current_options()
   yield from arguments
-
-
-def _filter_short_output_option(argument, settings):
-  short_options = argument[1:]
-  if not short_options:
-    return argument
-  elif short_options.isdigit():
-    settings.before_context = True
-    settings.after_context = True
-    return argument
-
-  git_options = ""
-  for index, short_option in enumerate(short_options):
-    if short_option in "efmO":
-      git_options += short_options[index:]
-      break
-    if context_settings := _CONTEXT_SETTINGS.get("-" + short_option):
-      for setting in context_settings:
-        setattr(settings, setting, True)
-      git_options += short_options[index:]
-      break
-    if update := _SHORT_SETTINGS.get(short_option):
-      setting, setting_value = update
-      setattr(settings, setting, setting_value)
-    if short_option not in _PRESENTATION_SHORT_OPTIONS:
-      git_options += short_option
-
-  return "-" + git_options if git_options else None
-
-
-def _filter_output_arguments(arguments, settings):
-  arguments = iter(arguments)
-  for argument in arguments:
-    option_value = None
-    if argument in GIT_GREP_OPTIONS_WITH_VALUE:
-      option_value = next(arguments, None)
-
-    option, assignment, assigned_value = argument.partition("=")
-    enabled = True
-    if option.startswith("--no-"):
-      option = f"--{option.removeprefix('--no-')}"
-      enabled = False
-
-    option = _resolve_prefix(option)
-
-    if context_settings := _CONTEXT_SETTINGS.get(option):
-      for setting in context_settings:
-        setattr(settings, setting, enabled)
-    elif setting := _LONG_BOOLEAN_SETTINGS.get(option):
-      setattr(settings, setting, enabled)
-    elif option == "--color":
-      settings.color = (
-        assigned_value if enabled and assignment else "always" if enabled else "never"
-      )
-    elif argument.startswith("-") and not argument.startswith("--"):
-      argument = _filter_short_output_option(argument, settings)
-
-    valid_presentation_option = option in _PRESENTATION_LONG_OPTIONS and (
-      not assignment
-      or option == "--color"
-      and enabled
-      and assigned_value in _COLOR_VALUES
-    )
-    if argument is not None and not valid_presentation_option:
-      yield argument
-      if option_value is not None:
-        yield option_value
 
 
 def prepare_output(arguments):
@@ -342,7 +312,9 @@ def prepare_output(arguments):
     function_context=False,
     quiet=False,
   )
-  arguments = tuple(_filter_output_arguments(arguments, settings))
+  opts_iter = ApplyOutputOptions(settings)
+  arguments = tuple(_filter_args(arguments, opts_iter.submit))
+  arguments += tuple(opts_iter.pop_current_options())
 
   if settings.files_with_matches or settings.files_without_match:
     mode = GrepOutputMode.PATHS
@@ -397,7 +369,8 @@ def _split_leading_git_options(arguments, parser):
     if not argument.startswith("-"):
       break
     index += 1
-    if argument in GIT_GREP_OPTIONS_WITH_VALUE:
+    value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(argument, ())
+    if VS.SPACED in value_styles:
       if index == len(arguments):
         parser.error(f"{argument} requires an argument")
       if argument in ("-e", "--regexp"):
