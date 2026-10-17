@@ -95,7 +95,7 @@ def _has_no_import(text, import_regexes):
   return all(regex.search(text) is None for regex in import_regexes)
 
 
-def _is_import(match, occurrences):
+def _has_non_import(match, occurrences):
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
     find_import = re.compile(br"\s*(?:import\b|from\b.*\bimport\b)").match
@@ -104,17 +104,15 @@ def _is_import(match, occurrences):
   elif extension == ".coffee":
     find_import = re.compile(br"} *= *require\b").search
   else:
-    return False
+    return True
 
   text = remove_color_codes(match.text)
-  found_occurrence = False
   for occurrence in occurrences:
-    found_occurrence = True
     head = occurrence.column - 1
     statement = text[text.rfind(b";", 0, head) + 1:]
     if find_import(statement) is None:
-      return False
-  return found_occurrence
+      return True
+  return False
 
 
 def _is_quoted(text, head, tail):
@@ -193,7 +191,7 @@ def main(arguments=None):
 
   filter_predicate = None
   if not include_imports:
-    filter_predicate = lambda match, occ: not _is_import(match, occ)
+    filter_predicate = _has_non_import
 
   if main_arg == "def":
     filter_predicate = _has_definition_occurrence

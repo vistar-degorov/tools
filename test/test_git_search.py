@@ -10,7 +10,7 @@ import unittest
 
 from git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode
 from git_search_args import _split_leading_git_options, has_output_modifiers, OptionsIterator, make_output_plan, prepare_output, without_context_options
-from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _is_import
+from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -205,15 +205,15 @@ export const endpointPath = "api/status"
     match = SearchResult(
       "module.py", 1, 1, b"\x1b[1;31mimport\x1b[m dependency")
     occurrence = SearchResult("module.py", 1, 8, b"dependency")
-    self.assertTrue(_is_import(match, (occurrence,)))
+    self.assertFalse(_has_non_import(match, (occurrence,)))
 
   def test_occurrence_import_filter_keeps_mixed_lines(self):
     match = SearchResult(
       "module.py", 1, 1, b"import package; package.run()")
     imported = SearchResult("module.py", 1, 8, b"package")
     used = SearchResult("module.py", 1, 17, b"package")
-    self.assertTrue(_is_import(match, (imported,)))
-    self.assertFalse(_is_import(match, (imported, used)))
+    self.assertFalse(_has_non_import(match, (imported,)))
+    self.assertTrue(_has_non_import(match, (imported, used)))
 
   def test_quoted_filter_uses_byte_columns(self):
     match = SearchResult("module.py", 1, 1, b'\xc3\xa9 "marker"')
