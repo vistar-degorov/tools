@@ -143,7 +143,7 @@ def present_results(results, output_plan, result_action, *, program):
     return 1
 
   if result_action.filename_only:
-    results = [SearchResult(result.path, None, None, "") for result in results]
+    results = [SearchResult(result.path, None, None, b"") for result in results]
 
   if result_action.index is not None:
     try:

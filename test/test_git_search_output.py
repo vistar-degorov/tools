@@ -48,12 +48,21 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       self._parse(data, GrepOutputMode.MATCHES),
       [
-        SearchResult("module_a.py", 2, 4, "first value"),
+        SearchResult("module_a.py", 2, 4, b"first value"),
         SearchResult(
           "nested\nmodule_b.py", 7, 3,
-          "colored \x1b[1;31mvalue\x1b[m"),
+          b"colored \x1b[1;31mvalue\x1b[m"),
       ],
     )
+
+  def test_match_text_round_trips_as_bytes(self):
+    data = b"source.py\0" b"3\0" b"7\0" b"raw-\xff-value\n"
+    records = self._parse(data, GrepOutputMode.MATCHES)
+    self.assertEqual(
+      records,
+      [SearchResult("source.py", 3, 7, b"raw-\xff-value")],
+    )
+    self.assertEqual(self._render(records, GrepOutputMode.MATCHES), b"source.py:3:raw-\xff-value\n")
 
   def test_context_records_are_grouped_into_blocks(self):
     data = (
@@ -73,14 +82,14 @@ class StructuredOutputTest(unittest.TestCase):
     self.assertEqual(
       blocks[0].lines,
       (
-        SearchResult("module_a.py", 4, None, "before"),
-        SearchResult("module_a.py", 5, 3, "first match"),
-        SearchResult("module_a.py", 6, None, ""),
+        SearchResult("module_a.py", 4, None, b"before"),
+        SearchResult("module_a.py", 5, 3, b"first match"),
+        SearchResult("module_a.py", 6, None, b""),
       ),
     )
     self.assertEqual(
       blocks[0].matches,
-      (SearchResult("module_a.py", 5, 3, "first match"),),
+      (SearchResult("module_a.py", 5, 3, b"first match"),),
     )
     self.assertEqual(blocks[1].path, "module_a.py")
     self.assertEqual(blocks[2].path, "module_b.py")
@@ -131,14 +140,14 @@ class StructuredOutputTest(unittest.TestCase):
     cases = (
       (
         GrepOutputMode.MATCHES,
-        [SearchResult("source.py", 3, 2, "matched value")],
+        [SearchResult("source.py", 3, 2, b"matched value")],
         b"source.py:3:matched value\n",
       ),
       (
         GrepOutputMode.CONTEXT,
         [ContextBlock("source.py", (
-          SearchResult("source.py", 2, None, "before"),
-          SearchResult("source.py", 3, 2, "matched value"),
+          SearchResult("source.py", 2, None, b"before"),
+          SearchResult("source.py", 3, 2, b"matched value"),
         ))],
         b"source.py-2-before\nsource.py:3:matched value\n",
       ),
@@ -158,7 +167,7 @@ class StructuredOutputTest(unittest.TestCase):
         self.assertEqual(self._render(records, mode), expected)
 
   def test_match_fields_follow_the_output_plan(self):
-    result = SearchResult("nested/source.py", 12, 4, "matched value")
+    result = SearchResult("nested/source.py", 12, 4, b"matched value")
     cases = (
       ({}, b"nested/source.py:12:matched value\n"),
       (
@@ -201,9 +210,9 @@ class StructuredOutputTest(unittest.TestCase):
 
   def test_match_headings_and_file_breaks(self):
     records = (
-      SearchResult("first.py", 2, 1, "first match"),
-      SearchResult("first.py", 4, 2, "second match"),
-      SearchResult("second.py", 6, 3, "third match"),
+      SearchResult("first.py", 2, 1, b"first match"),
+      SearchResult("first.py", 4, 2, b"second match"),
+      SearchResult("second.py", 6, 3, b"third match"),
     )
     self.assertEqual(
       self._render(
@@ -224,7 +233,7 @@ class StructuredOutputTest(unittest.TestCase):
     )
 
   def test_heading_remains_newline_terminated_in_null_output(self):
-    result = SearchResult("source.py", 12, 4, "matched value")
+    result = SearchResult("source.py", 12, 4, b"matched value")
     self.assertEqual(
       self._render(
         [result],
@@ -239,15 +248,15 @@ class StructuredOutputTest(unittest.TestCase):
   def test_context_blocks_use_context_and_block_separators(self):
     blocks = (
       ContextBlock("first.py", (
-        SearchResult("first.py", 2, None, "before"),
-        SearchResult("first.py", 3, 2, "first match"),
+        SearchResult("first.py", 2, None, b"before"),
+        SearchResult("first.py", 3, 2, b"first match"),
       )),
       ContextBlock("first.py", (
-        SearchResult("first.py", 8, 4, "second match"),
+        SearchResult("first.py", 8, 4, b"second match"),
       )),
       ContextBlock("second.py", (
-        SearchResult("second.py", 5, 1, "third match"),
-        SearchResult("second.py", 6, None, "after"),
+        SearchResult("second.py", 5, 1, b"third match"),
+        SearchResult("second.py", 6, None, b"after"),
       )),
     )
     self.assertEqual(
@@ -273,8 +282,8 @@ class StructuredOutputTest(unittest.TestCase):
 
   def test_context_null_output_separates_every_visible_field(self):
     block = ContextBlock("source.py", (
-      SearchResult("source.py", 2, None, "before"),
-      SearchResult("source.py", 3, 5, "matched value"),
+      SearchResult("source.py", 2, None, b"before"),
+      SearchResult("source.py", 3, 5, b"matched value"),
     ))
     self.assertEqual(
       self._render(
@@ -330,7 +339,7 @@ class StructuredOutputTest(unittest.TestCase):
 
   def test_color_follows_the_plan_and_output_destination(self):
     result = SearchResult(
-      "source.py", 3, 2, "\x1b[1;31mmatched\x1b[m value")
+      "source.py", 3, 2, b"\x1b[1;31mmatched\x1b[m value")
     plain = b"source.py:3:\x1b[1;31mmatched\x1b[m value\n"
     colored = (
       b"source.py\x1b[36m:\x1b[m"
@@ -357,10 +366,10 @@ class StructuredOutputTest(unittest.TestCase):
   def test_context_block_separator_is_colored(self):
     blocks = (
       ContextBlock("source.py", (
-        SearchResult("source.py", 2, 1, "first match"),
+        SearchResult("source.py", 2, 1, b"first match"),
       )),
       ContextBlock("source.py", (
-        SearchResult("source.py", 5, 1, "second match"),
+        SearchResult("source.py", 5, 1, b"second match"),
       )),
     )
     self.assertEqual(
@@ -375,7 +384,7 @@ class StructuredOutputTest(unittest.TestCase):
     )
 
   def test_null_separators_are_not_colored(self):
-    result = SearchResult("source.py", 3, 2, "matched value")
+    result = SearchResult("source.py", 3, 2, b"matched value")
     self.assertEqual(
       self._render(
         [result], GrepOutputMode.MATCHES,

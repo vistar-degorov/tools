@@ -1,5 +1,6 @@
 #! /usr/bin/python
 
+import os
 import re
 import sys
 
@@ -13,11 +14,11 @@ from git_search import (
 
 
 def _parse_result(line):
-  line = remove_color_codes(line.decode("utf-8", "replace"))
-  if match := re.match(r"^(.*?):(\d+):(.*)$", line):
+  line = remove_color_codes(line)
+  if match := re.match(br"^(.*?):(\d+):(.*)$", line):
     path, line_number, text = match.groups()
-    return SearchResult(path, int(line_number), 0, text)
-  return SearchResult(line, None, None, "")
+    return SearchResult(os.fsdecode(path), int(line_number), 0, text)
+  return SearchResult(os.fsdecode(line), None, None, b"")
 
 
 if __name__ == "__main__":
