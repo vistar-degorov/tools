@@ -282,6 +282,7 @@ export const endpointPath = "api/status"
       ("--pattern", "AlphaMarker", "-e", "BetaMarker"),
       ("-e", "AlphaMarker", "--pattern", "BetaMarker"),
       ("-e", "AlphaMarker", "-e", "BetaMarker"),
+      ("--pattern=AlphaMarker", "-eBetaMarker"),
     )
     for arguments in forms:
       with self.subTest(arguments=arguments):
@@ -302,6 +303,28 @@ export const endpointPath = "api/status"
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn("a.py:", result.stdout)
     self.assertIn("b.py:", result.stdout)
+
+  def test_pattern_aliases_preserve_expression_order(self):
+    expression = (
+      "-e", "AlphaMarker", "--and", "(", "-e", "BetaMarker", ")",
+    )
+    result = self._run(
+      GG, "+print", "-e", "AlphaMarker", "--and", "(",
+      "--pattern", "BetaMarker", ")",
+    )
+    self.assertEqual(result.returncode, 0, result.stderr)
+    for line in result.stdout.splitlines():
+      command = shlex.split(line)
+      start = command.index("-e")
+      self.assertEqual(tuple(command[start:start + len(expression)]), expression)
+
+  def test_pattern_aliases_after_separator_are_not_rewritten(self):
+    result = self._run(
+      GG, "+print", "AlphaMarker", "--", "--pattern=literal-path",
+    )
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("--pattern=literal-path", result.stdout)
+    self.assertNotIn("gg-pattern-internal", result.stdout)
 
   def test_repeated_patterns_support_trailing_result_selection(self):
     result = self._run(
