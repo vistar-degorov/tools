@@ -156,57 +156,21 @@ def _has_definition_occurrence(match, occurrences):
   )
 
 
-def _find_definitions(results, occurrences):
+def _filter_occurrence_matches(results, occurrences, keep):
   for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
-    if _has_definition_occurrence(match, line_occurrences):
+    if keep(match, line_occurrences):
       yield match
 
 
-def _find_definitions_with_context(results, occurrences):
+def _filter_occurrence_contexts(results, occurrences, keep):
   occurrence_lines = iter(_occurrences_by_line(occurrences))
   for block in results:
-    has_definition = False
+    keep_block = False
     for match in block.matches:
       line_occurrences = next(occurrence_lines, ())
-      if _has_definition_occurrence(match, line_occurrences):
-        has_definition = True
-    if has_definition:
-      yield block
-
-
-def _quoted_results(results, occurrences):
-  for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
-    if _has_quoted_occurrence(match, line_occurrences):
-      yield match
-
-
-def _quoted_results_with_context(results, occurrences):
-  occurrence_lines = iter(_occurrences_by_line(occurrences))
-  for block in results:
-    block_is_quoted = False
-    for match in block.matches:
-      line_occurrences = next(occurrence_lines, ())
-      if not block_is_quoted and _has_quoted_occurrence(match, line_occurrences):
-        block_is_quoted = True
-    if block_is_quoted:
-      yield block
-
-
-def _non_import_results(results, occurrences):
-  for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
-    if not _is_import(match, line_occurrences):
-      yield match
-
-
-def _non_import_results_with_context(results, occurrences):
-  occurrence_lines = iter(_occurrences_by_line(occurrences))
-  for block in results:
-    block_is_quoted = False
-    for match in block.matches:
-      line_occurrences = next(occurrence_lines, ())
-      if not block_is_quoted and not _is_import(match, line_occurrences):
-        block_is_quoted = True
-    if block_is_quoted:
+      if not keep_block and keep(match, line_occurrences):
+        keep_block = True
+    if keep_block:
       yield block
 
 
@@ -227,7 +191,14 @@ def main(arguments=None):
     or any(not _has_no_import(pattern, import_regexes) for pattern in pattern_texts)
   )
 
-  quoted_search = main_arg in ("gq", "gqq")
+  filter_predicate = None
+  if not include_imports:
+    filter_predicate = lambda match, occ: not _is_import(match, occ)
+
+  if main_arg == "def":
+    filter_predicate = _has_definition_occurrence
+  elif main_arg in ("gq", "gqq"):
+    filter_predicate = _has_quoted_occurrence
 
   if options.word is None:
     word_regexp = (
@@ -269,17 +240,11 @@ def main(arguments=None):
   if results is None:
     return status
 
-  if quoted_search:
+  if filter_predicate:
     if output_plan.mode == GrepOutputMode.CONTEXT:
-      results = list(_quoted_results_with_context(results, occurrences))
-    else:
-      results = list(_quoted_results(results, occurrences))
-
-  if not include_imports:
-    if output_plan.mode == GrepOutputMode.CONTEXT:
-      results = list(_non_import_results_with_context(results, occurrences))
+      results = list(_filter_occurrence_contexts(results, occurrences, filter_predicate))
     elif output_plan.mode == GrepOutputMode.MATCHES:
-      results = list(_non_import_results(results, occurrences))
+      results = list(_filter_occurrence_matches(results, occurrences, filter_predicate))
 
   return present_results(results, output_plan, result_action, program=main_arg)
 
