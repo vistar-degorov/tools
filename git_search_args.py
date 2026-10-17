@@ -95,18 +95,18 @@ _LONG_BOOLEAN_SETTINGS = {
   "--quiet": "quiet",
 }
 
-_OTHER_OPTIONS = {
+_OTHER_OPTIONS = frozenset((
   "--all-match", "--and", "--basic-regexp", "--cached", "--exclude-standard",
   "--extended-regexp", "--fixed-strings", "--full-name", "--ignore-case", "--invert-match",
   "--no-color", "--no-exclude-standard", "--no-index", "--no-recursive", "--not", "--no-textconv",
   "--only-matching", "--open-files-in-pager", "--or", "--parent-basename", "--perl-regexp",
   "--recurse-submodules", "--recursive", "--text", "--textconv", "--untracked", "--word-regexp",
-}
+))
 
-_ALL_LONG_OPTIONS = {name for name in (
+_ALL_LONG_OPTIONS = frozenset(name for name in (
   *GIT_GREP_OPTIONS_WITH_VALUE, *_CONTEXT_SETTINGS, *_LONG_BOOLEAN_SETTINGS, *_OTHER_OPTIONS
   ) if name.startswith("--")
-}
+)
 
 
 def _resolve_prefix(prefix):
@@ -236,10 +236,10 @@ class OptionsIterator:
 
 
 class _LegacyOptionsConfig(OptionsIterator):
-  filename_only_options = {
+  filename_only_options = frozenset((
     "-l", "-L",  "--name-only",
     "--files-with-matches", "--files-without-match",
-  }
+  ))
 
   def __init__(self, arguments, config):
     super().__init__(arguments)
@@ -309,11 +309,11 @@ def without_context_options(arguments):
 
 
 class _HasOutputModifiers(OptionsIterator):
-  long_options = {
+  long_options = frozenset((
     "--break", "--color", "--count", "--null", "--heading", "--name-only",
     "--no-filename", "--files-with-matches", "--files-without-match",
     *_CONTEXT_SETTINGS,
-  }
+  ))
   def __init__(self, arguments):
     super().__init__(arguments)
     self.has_output_modifiers = False
