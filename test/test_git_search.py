@@ -445,6 +445,18 @@ export const endpointPath = "api/status"
       ("-ie", "needle"),
     )
 
+  def test_context_removal_preserves_spaced_value_for_abbreviated_option(self):
+    arguments = ("--max-d", "4", "-A", "2")
+    self.assertEqual(tuple(without_context_options(arguments)), ("--max-d", "4"))
+
+  def test_context_removal_preserves_empty_spaced_value(self):
+    self.assertEqual(tuple(without_context_options(("-e", ""))), ("-e", ""))
+
+  def test_context_removal_preserves_incomplete_and_invalid_options(self):
+    for arguments in (("-ie",), ("-",), ("--123",)):
+      with self.subTest(arguments=arguments):
+        self.assertEqual(tuple(without_context_options(arguments)), arguments)
+
   def test_context_flags_do_not_hide_following_presentation_flags(self):
     plan, arguments = prepare_output(("-ph",))
     self.assertFalse(plan.show_filename)

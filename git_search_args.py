@@ -154,20 +154,21 @@ _COLOR_VALUES = {"always", "auto", "never"}
 
 
 def _filter_short_options(idx, argument, later_arguments, submit):
-  argument = argument[1:]
+  if len(argument) < 2:
+    yield from submit(argument, idx, argument)
 
+  argument = argument[1:]
   for jdx, short_option in enumerate(argument):
     key = "-" + short_option
     value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
 
     if jdx + 1 == len(argument) and VS.SPACED in value_styles:
-      for _, value in later_arguments:
-        yield from submit(key, idx, key, value)
-        break
+      _, value = next(later_arguments, (None, None))
+      yield from submit(key, idx, key, value)
 
     elif VS.GLUED in value_styles:
       value = argument[jdx + 1:]
-      yield from submit(key + value, idx, key, value)
+      yield from submit(key + value, idx, key, value, VS.GLUED)
       break
 
     else:
@@ -204,8 +205,8 @@ class OptionsIterator:
     self.current_option = ""
     self.current_option_value = None
 
-  def append_option(self, argument, key, value=None):
-    if argument != key:
+  def append_option(self, argument, value=None, value_style=None):
+    if value_style == VS.GLUED:
       value = None # value is already contained in the argument
     if self.current_option:
       argument = argument.lstrip("-")
@@ -216,20 +217,20 @@ class OptionsIterator:
   def pop_current_options(self):
     if self.current_option:
       yield self.current_option
-    if self.current_option_value:
+    if self.current_option_value is not None:
       yield self.current_option_value
     self.current_option = ""
     self.current_option_value = None
 
 
 class SkipContextOptions(OptionsIterator):
-  def submit(self, argument, idx, key, value=None):
+  def submit(self, argument, idx, key, value=None, value_style=None):
     if idx != self.current_idx:
       self.current_idx = idx
       yield from self.pop_current_options()
 
-    if key not in _CONTEXT_SETTINGS and not key.lstrip("-").isdigit():
-      self.append_option(argument, key, value)
+    if key not in _CONTEXT_SETTINGS and not key.removeprefix("-").isdigit():
+      self.append_option(argument, value, value_style)
 
 
 def without_context_options(arguments):
