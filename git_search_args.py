@@ -382,48 +382,44 @@ def make_output_plan(arguments):
   return prepare_output(arguments)[0]
 
 
+class _LeadingGitOptions(OptionsIterator):
+  non_option_arguments = frozenset(("+debug", "+print", "+t", "+to", "(", ")"))
+
+  def __init__(self, arguments, parser):
+    self.parser = parser
+    self.leading = True
+    self.patterns = []
+    self.has_pattern_source = False
+    self.all_patterns_known = True
+    super().__init__(arguments)
+
+  def consume(self, argument, key, value=None, value_style=None):
+    if not self.leading:
+      return
+    if not argument.startswith("-") and argument not in self.non_option_arguments:
+      self.leading = False
+      return
+    if value_style == VS.SPACED and value is None:
+      self.parser.error(f"{argument} requires an argument")
+
+    if key in ("-e", "--regexp"):
+      self.patterns.append(value)
+      self.has_pattern_source = True
+    elif key in ("-f", "--file"):
+      self.has_pattern_source = True
+      self.all_patterns_known = False
+    self.append_option(argument, value, value_style)
+
+
 def _split_leading_git_options(arguments, parser):
-  index = 0
-  patterns = []
-  has_pattern_source = False
-  all_patterns_known = True
-  while index < len(arguments):
-    argument = arguments[index]
-    if argument in ("+debug", "+print", "+t", "+to", "(", ")"):
-      index += 1
-      continue
-    if not argument.startswith("-"):
-      break
-    index += 1
-    value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(argument, ())
-    if VS.SPACED in value_styles:
-      if index == len(arguments):
-        parser.error(f"{argument} requires an argument")
-      if argument in ("-e", "--regexp"):
-        patterns.append(arguments[index])
-        has_pattern_source = True
-      elif argument in ("-f", "--file"):
-        has_pattern_source = True
-        all_patterns_known = False
-      index += 1
-    elif argument.startswith("-e") and len(argument) > 2:
-      patterns.append(argument[2:])
-      has_pattern_source = True
-    elif argument.startswith("--regexp="):
-      patterns.append(argument.partition("=")[2])
-      has_pattern_source = True
-    elif argument.startswith("-f") and len(argument) > 2:
-      has_pattern_source = True
-      all_patterns_known = False
-    elif argument.startswith("--file="):
-      has_pattern_source = True
-      all_patterns_known = False
+  options = _LeadingGitOptions(arguments, parser)
+  option_count = len(tuple(options))
   return (
-    arguments[:index],
-    arguments[index:],
-    tuple(patterns),
-    has_pattern_source,
-    all_patterns_known,
+    arguments[:option_count],
+    arguments[option_count:],
+    tuple(options.patterns),
+    options.has_pattern_source,
+    options.all_patterns_known,
   )
 
 

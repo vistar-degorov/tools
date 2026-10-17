@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from git_search import remove_color_codes, SearchResult, GrepOutputMode
-from git_search_args import has_output_modifiers, OptionsIterator, make_output_plan, prepare_output, without_context_options
+from git_search_args import _split_leading_git_options, has_output_modifiers, OptionsIterator, make_output_plan, prepare_output, without_context_options
 from gg import _is_import
 
 
@@ -455,6 +455,22 @@ export const endpointPath = "api/status"
         options = OptionsIterator(arguments)
         self.assertIs(iter(options), options)
         self.assertEqual(tuple(options), arguments)
+
+  def test_leading_git_options_use_shared_option_parsing(self):
+    class Parser:
+      def error(self, message):
+        raise AssertionError(message)
+
+    arguments = [
+      "-iA", "2", "-efirst_expression", "--file=patterns.txt",
+      "fallback_expression", "source",
+    ]
+    options, operands, patterns, has_pattern_source, all_patterns_known = _split_leading_git_options(arguments, Parser())
+    self.assertEqual(options, arguments[:4])
+    self.assertEqual(operands, arguments[4:])
+    self.assertEqual(patterns, ("first_expression",))
+    self.assertTrue(has_pattern_source)
+    self.assertFalse(all_patterns_known)
 
   def test_has_output_modifiers_recognizes_supported_forms(self):
     cases = (
