@@ -10,7 +10,7 @@ import unittest
 
 from git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode
 from git_search_args import _split_leading_git_options, has_output_modifiers, OptionsIterator, make_output_plan, prepare_output, without_context_options
-from gg import _find_definitions, _find_definitions_with_context, _has_definition_occurrence, _has_quoted_occurrence, _is_import
+from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _is_import
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -244,7 +244,7 @@ export const endpointPath = "api/status"
     occurrence = SearchResult("module.txt", 1, 5, b"selected")
     self.assertFalse(_has_definition_occurrence(match, (occurrence,)))
 
-  def test_find_definitions_filters_match_results(self):
+  def test_occurrence_filter_finds_definitions_in_match_results(self):
     results = (
       SearchResult("module.py", 1, 5, b"def selected():"),
       SearchResult("module.py", 2, 3, b"selected()"),
@@ -253,9 +253,12 @@ export const endpointPath = "api/status"
       SearchResult("module.py", 1, 5, b"selected"),
       SearchResult("module.py", 2, 1, b"selected"),
     )
-    self.assertEqual(list(_find_definitions(results, occurrences)), [results[0]])
+    self.assertEqual(
+      list(_filter_occurrence_matches(results, occurrences, _has_definition_occurrence)),
+      [results[0]],
+    )
 
-  def test_find_definitions_with_context_consumes_every_match_line(self):
+  def test_occurrence_context_filter_consumes_every_match_line(self):
     blocks = (
       ContextBlock("module.py", (
         SearchResult("module.py", 1, 5, b"def first():"),
@@ -270,7 +273,10 @@ export const endpointPath = "api/status"
       SearchResult("module.py", 2, 1, b"first"),
       SearchResult("module.py", 8, 15, b"second"),
     )
-    self.assertEqual(list(_find_definitions_with_context(blocks, occurrences)), list(blocks))
+    self.assertEqual(
+      list(_filter_occurrence_contexts(blocks, occurrences, _has_definition_occurrence)),
+      list(blocks),
+    )
 
   def test_context_filter_removes_only_import_only_blocks(self):
     separate = self._run(GG, "-A", "1", "os", "a.py")
