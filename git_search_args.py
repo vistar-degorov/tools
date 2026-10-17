@@ -143,14 +143,12 @@ def _without_short_context_options(argument, later_arguments):
     value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(_opt, ())
 
     if index + 1 == len(short_options) and VS.SPACED in value_styles:
-      if _opt in _CONTEXT_SETTINGS:
-        next(later_arguments, None)
-      else:
-        yield "-" + remaining + short_option
-        remaining = ""
-        for argument in later_arguments:
-          yield argument
-          break
+      for later_argument in later_arguments:
+        if _opt not in _CONTEXT_SETTINGS:
+          yield "-" + remaining + short_option
+          yield later_argument
+          remaining = ""
+        break
 
     elif VS.GLUED in value_styles:
       if _opt not in _CONTEXT_SETTINGS:
