@@ -201,10 +201,29 @@ def _filter_args(arguments, submit):
 
 
 class OptionsIterator:
-  def __init__(self):
+  def __init__(self, arguments):
+    self.arguments = iter(arguments)
     self.current_idx = 0
     self.current_option = ""
     self.current_option_value = None
+    self.output = self._output()
+
+  def __iter__(self):
+    return self
+
+  def __next__(self):
+    return next(self.output)
+
+  def _output(self):
+    def arguments_until_dashdash():
+      for argument in self.arguments:
+        yield argument
+        if argument == "--":
+          break
+
+    yield from _filter_args(arguments_until_dashdash(), self.submit)
+    yield from self.pop_current_options()
+    yield from self.arguments
 
   def append_option(self, argument, value=None, value_style=None):
     if value_style in (VS.EQUALS, VS.GLUED):
@@ -240,9 +259,9 @@ class SkipContextOptions(OptionsIterator):
 
 
 class ApplyOutputOptions(OptionsIterator):
-  def __init__(self, settings):
-    super().__init__()
+  def __init__(self, arguments, settings):
     self.settings = settings
+    super().__init__(arguments)
 
   def consume(self, argument, key, value=None, value_style=None):
     enabled = True
@@ -280,18 +299,7 @@ class ApplyOutputOptions(OptionsIterator):
 
 
 def without_context_options(arguments):
-  opts_iter = SkipContextOptions()
-  arguments = iter(arguments)
-
-  def _arguments_until_dashdash():
-    for argument in arguments:
-      yield argument
-      if argument == "--":
-        break
-
-  yield from _filter_args(_arguments_until_dashdash(), opts_iter.submit)
-  yield from opts_iter.pop_current_options()
-  yield from arguments
+  return SkipContextOptions(arguments)
 
 
 def prepare_output(arguments):
@@ -312,9 +320,7 @@ def prepare_output(arguments):
     function_context=False,
     quiet=False,
   )
-  opts_iter = ApplyOutputOptions(settings)
-  arguments = tuple(_filter_args(arguments, opts_iter.submit))
-  arguments += tuple(opts_iter.pop_current_options())
+  arguments = tuple(ApplyOutputOptions(arguments, settings))
 
   if settings.files_with_matches or settings.files_without_match:
     mode = GrepOutputMode.PATHS

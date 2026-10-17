@@ -433,6 +433,11 @@ export const endpointPath = "api/status"
       ("-i", "-n", "--no-context", "--max-depth", "7", "-e", "-W", "--", "-B"),
     )
 
+  def test_context_options_filter_is_an_iterator(self):
+    filtered = without_context_options(("-i", "-A", "2"))
+    self.assertIs(iter(filtered), filtered)
+    self.assertEqual(tuple(filtered), ("-i",))
+
   def test_context_removal_preserves_attached_pager(self):
     self.assertEqual(
       tuple(without_context_options(("-Opager",))),
