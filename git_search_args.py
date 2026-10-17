@@ -54,12 +54,15 @@ class OptionValueStyle(Enum):
 VS = OptionValueStyle
 
 
+_HIDDEN_PATTERN_OPTION = "--gg-pattern-internal"
+
+
 GIT_GREP_OPTIONS_WITH_VALUE = {
   "-A": (VS.SPACED, VS.GLUED), "--after-context": (VS.EQUALS, VS.SPACED),
   "-B": (VS.SPACED, VS.GLUED), "--before-context": (VS.EQUALS, VS.SPACED),
   "-C": (VS.SPACED, VS.GLUED), "--context": (VS.EQUALS, VS.SPACED),
   "--color": (VS.EQUALS,),
-  "-e": (VS.SPACED, VS.GLUED), "--regexp": (VS.EQUALS, VS.SPACED),
+  "-e": (VS.SPACED, VS.GLUED),
   "-f": (VS.SPACED, VS.GLUED), "--file": (VS.EQUALS, VS.SPACED),
   "-m": (VS.SPACED, VS.GLUED), "--max-count": (VS.EQUALS, VS.SPACED),
   "--max-depth": (VS.EQUALS, VS.SPACED),
@@ -166,7 +169,10 @@ def _filter_args(arguments, submit):
   for idx, argument in arguments:
     key, equals, value = argument.partition("=")
     key = _resolve_prefix(key)
-    value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
+    value_styles = (
+      (VS.SPACED,) if key == _HIDDEN_PATTERN_OPTION
+      else GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
+    )
 
     if equals:
       if VS.EQUALS in value_styles:
@@ -410,42 +416,52 @@ class _LeadingGitOptions(OptionsIterator):
     if value_style == VS.SPACED and value is None:
       self.parser.error(f"{argument} requires an argument")
 
-    if key in ("-e", "--regexp"):
+    if key in ("-e", _HIDDEN_PATTERN_OPTION):
       self.patterns.append(value)
       self.has_pattern_source = True
     elif key in ("-f", "--file"):
       self.has_pattern_source = True
       self.all_patterns_known = False
+    if key == _HIDDEN_PATTERN_OPTION:
+      argument = "-e"
     self.append_option(argument, value, value_style)
 
 
 def _split_leading_git_options(arguments, parser):
   options = _LeadingGitOptions(arguments, parser)
-  option_count = len(tuple(options))
+  leading_arguments = list(options)
   return (
-    arguments[:option_count],
-    arguments[option_count:],
+    leading_arguments,
+    arguments[len(leading_arguments):],
     tuple(options.patterns),
     options.has_pattern_source,
     options.all_patterns_known,
   )
 
 
-def _replace_option(arguments, old_option, new_option):
-  replaced = []
+def _mask_pattern_options(arguments, pattern_options):
+  masked = []
+  pattern_options = frozenset(pattern_options)
   for index, argument in enumerate(arguments):
     if argument == "--":
-      replaced.extend(arguments[index:])
+      masked.extend(arguments[index:])
       break
-    if argument == old_option:
-      replaced.append(new_option)
-    elif argument.startswith(f"{old_option}="):
-      replaced.extend((new_option, argument.partition("=")[2]))
-    elif len(old_option) == 2 and argument.startswith(old_option) and len(argument) > 2:
-      replaced.extend((new_option, argument[2:]))
+
+    key, equals, value = argument.partition("=")
+    if key in pattern_options:
+      masked.append(_HIDDEN_PATTERN_OPTION)
+      if equals:
+        masked.append(value)
+      continue
+
+    if any(
+      len(option) == 2 and argument.startswith(option) and len(argument) > 2
+      for option in pattern_options
+    ):
+      masked.extend((_HIDDEN_PATTERN_OPTION, argument[2:]))
     else:
-      replaced.append(argument)
-  return replaced
+      masked.append(argument)
+  return masked
 
 
 def _pop_trailing_result_idx(arguments):
@@ -463,8 +479,7 @@ def parse_search_arguments(
   pattern_options=(),
 ):
   arguments = list(sys.argv[1:] if arguments is None else arguments)
-  for pattern_option in pattern_options:
-    arguments = _replace_option(arguments, pattern_option, "--regexp")
+  arguments = _mask_pattern_options(arguments, pattern_options)
   if "--" in arguments:
     separator = arguments.index("--")
     wrapper_arguments = arguments[:separator]
@@ -481,8 +496,6 @@ def parse_search_arguments(
     has_pattern_source,
     all_patterns_known,
   ) = _split_leading_git_options(remaining, parser)
-  if pattern_options:
-    grep_args = _replace_option(grep_args, "--regexp", "-e")
   if path_arguments is None:
     operands, trailing_result_idx = _pop_trailing_result_idx(operands)
   else:
