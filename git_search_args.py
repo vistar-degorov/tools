@@ -109,6 +109,29 @@ _LONG_BOOLEAN_SETTINGS = {
   "--quiet": "quiet",
 }
 
+_OTHER_OPTIONS = {
+  "--all-match", "--and", "--basic-regexp", "--cached", "--exclude-standard",
+  "--extended-regexp", "--fixed-strings", "--full-name", "--ignore-case", "--invert-match",
+  "--no-color", "--no-exclude-standard", "--no-index", "--no-recursive", "--not", "--no-textconv",
+  "--only-matching", "--open-files-in-pager", "--or", "--parent-basename", "--perl-regexp",
+  "--recurse-submodules", "--recursive", "--text", "--textconv", "--untracked", "--word-regexp",
+}
+
+_ALL_LONG_OPTIONS = {name for name in (
+  *GIT_GREP_OPTIONS_WITH_VALUE, *_CONTEXT_SETTINGS, *_LONG_BOOLEAN_SETTINGS, *_OTHER_OPTIONS
+  ) if name.startswith("--")
+}
+
+
+def _resolve_prefix(prefix):
+  if prefix in ("-", "--"):
+    return prefix
+  opts = [opt for opt in _ALL_LONG_OPTIONS if opt.startswith(prefix)]
+  if len(opts) == 1:
+    return opts[0]
+  return prefix
+
+
 _SHORT_SETTINGS = {
   "h": ("show_filename", False),
   "H": ("show_filename", True),
@@ -170,6 +193,8 @@ def without_context_options(arguments):
       return
 
     option, assignment, _ = argument.partition("=")
+    option = _resolve_prefix(option)
+
     value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(option, ())
 
     if assignment:
@@ -178,13 +203,13 @@ def without_context_options(arguments):
 
     elif VS.SPACED in value_styles:
       value = next(arguments, None)
-      if argument not in _CONTEXT_SETTINGS:
+      if option not in _CONTEXT_SETTINGS:
         yield argument
         if value is not None:
           yield value
       continue
 
-    elif argument in _CONTEXT_SETTINGS:
+    elif option in _CONTEXT_SETTINGS:
       continue
 
     elif argument.startswith("-") and not argument.startswith("--"):
@@ -234,6 +259,8 @@ def _filter_output_arguments(arguments, settings):
     if option.startswith("--no-"):
       option = f"--{option.removeprefix('--no-')}"
       enabled = False
+
+    option = _resolve_prefix(option)
 
     if context_settings := _CONTEXT_SETTINGS.get(option):
       for setting in context_settings:

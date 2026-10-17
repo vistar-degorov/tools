@@ -459,6 +459,15 @@ export const endpointPath = "api/status"
     arguments = ("--show-function=value", "--function-context=value")
     self.assertEqual(tuple(without_context_options(arguments)), arguments)
 
+  def test_context_removal_recognizes_abbreviated_long_options(self):
+    arguments = ("--bef=2", "--cont", "3", "--show-f", "--function-con", "-i")
+    self.assertEqual(tuple(without_context_options(arguments)), ("-i",))
+
+  def test_output_plan_recognizes_abbreviated_context_options(self):
+    for arguments in (("--bef=2",), ("--show-f",), ("--function-con",)):
+      with self.subTest(arguments=arguments):
+        self.assertIs(make_output_plan(arguments).mode, GrepOutputMode.CONTEXT)
+
   def test_output_plan_tracks_visible_fields(self):
     default = make_output_plan(())
     self.assertTrue(default.show_filename)
