@@ -1,5 +1,5 @@
 from enum import Enum
-from itertools import product
+from itertools import chain, product
 import os
 import re
 import sys
@@ -202,44 +202,42 @@ def _filter_args(arguments, submit):
 
 class OptionsIterator:
   def __init__(self, arguments):
-    self.arguments = iter(arguments)
     self.current_idx = 0
-    self.current_option = ""
+    self.current_option = None
     self.current_option_value = None
-    self.output = self._output()
+    arguments = iter(arguments)
+
+    def _arguments_until_dashdash():
+      for argument in arguments:
+        yield argument
+        if argument == "--":
+          break
+
+    filtered_args = _filter_args(_arguments_until_dashdash(), self.submit)
+    self._output = chain(filtered_args, self.pop_current_options(), arguments)
 
   def __iter__(self):
     return self
 
   def __next__(self):
-    return next(self.output)
-
-  def _output(self):
-    def arguments_until_dashdash():
-      for argument in self.arguments:
-        yield argument
-        if argument == "--":
-          break
-
-    yield from _filter_args(arguments_until_dashdash(), self.submit)
-    yield from self.pop_current_options()
-    yield from self.arguments
+    return next(self._output)
 
   def append_option(self, argument, value=None, value_style=None):
     if value_style in (VS.EQUALS, VS.GLUED):
       value = None # value is already contained in the argument
-    if self.current_option:
-      argument = argument.lstrip("-")
+    if self.current_option is None:
+      self.current_option = argument
+    else:
+      self.current_option += argument.removeprefix("-")
 
-    self.current_option += argument
     self.current_option_value = value
 
   def pop_current_options(self):
-    if self.current_option:
+    if self.current_option is not None:
       yield self.current_option
     if self.current_option_value is not None:
       yield self.current_option_value
-    self.current_option = ""
+    self.current_option = None
     self.current_option_value = None
 
   def submit(self, argument, idx, key, value=None, value_style=None):
@@ -249,7 +247,7 @@ class OptionsIterator:
     self.consume(argument, key, value, value_style)
 
   def consume(self, argument, key, value=None, value_style=None):
-    ...
+    self.append_option(argument, value, value_style)
 
 
 class SkipContextOptions(OptionsIterator):
