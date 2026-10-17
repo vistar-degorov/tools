@@ -63,21 +63,21 @@ def split_result_idx(query):
 
 
 class OptionValueStyle(Enum):
-  ASSIGNMENT = "="
-  SPACED = " "
-  GLUED = ""
+  EQUALS = "k=value"
+  SPACED = "k value"
+  GLUED = "kvalue"
 VS = OptionValueStyle
 
 
 GIT_GREP_OPTIONS_WITH_VALUE = {
-  "-A": (VS.SPACED, VS.GLUED), "--after-context": (VS.ASSIGNMENT, VS.SPACED),
-  "-B": (VS.SPACED, VS.GLUED), "--before-context": (VS.ASSIGNMENT, VS.SPACED),
-  "-C": (VS.SPACED, VS.GLUED), "--context": (VS.ASSIGNMENT, VS.SPACED),
-  "-e": (VS.SPACED, VS.GLUED), "--regexp": (VS.ASSIGNMENT, VS.SPACED),
-  "-f": (VS.SPACED, VS.GLUED), "--file": (VS.ASSIGNMENT, VS.SPACED),
-  "-m": (VS.SPACED, VS.GLUED), "--max-count": (VS.ASSIGNMENT, VS.SPACED),
-  "--max-depth": (VS.ASSIGNMENT, VS.SPACED),
-  "--threads": (VS.ASSIGNMENT, VS.SPACED),
+  "-A": (VS.SPACED, VS.GLUED), "--after-context": (VS.EQUALS, VS.SPACED),
+  "-B": (VS.SPACED, VS.GLUED), "--before-context": (VS.EQUALS, VS.SPACED),
+  "-C": (VS.SPACED, VS.GLUED), "--context": (VS.EQUALS, VS.SPACED),
+  "-e": (VS.SPACED, VS.GLUED), "--regexp": (VS.EQUALS, VS.SPACED),
+  "-f": (VS.SPACED, VS.GLUED), "--file": (VS.EQUALS, VS.SPACED),
+  "-m": (VS.SPACED, VS.GLUED), "--max-count": (VS.EQUALS, VS.SPACED),
+  "--max-depth": (VS.EQUALS, VS.SPACED),
+  "--threads": (VS.EQUALS, VS.SPACED),
   "-O": (VS.GLUED,),
 }
 
@@ -153,70 +153,98 @@ _PRESENTATION_SHORT_OPTIONS = frozenset("hHnz")
 _COLOR_VALUES = {"always", "auto", "never"}
 
 
-def _without_short_context_options(argument, later_arguments):
-  short_options = argument[1:]
-  if not short_options:
-    yield argument
-  if short_options.isdigit():
-    short_options = ""
+def _filter_short_options(idx, argument, later_arguments, submit):
+  argument = argument[1:]
 
-  remaining = ""
-  for index, short_option in enumerate(short_options):
-    _opt = "-" + short_option
-    value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(_opt, ())
+  for jdx, short_option in enumerate(argument):
+    key = "-" + short_option
+    value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
 
-    if index + 1 == len(short_options) and VS.SPACED in value_styles:
-      for later_argument in later_arguments:
-        if _opt not in _CONTEXT_SETTINGS:
-          yield "-" + remaining + short_option
-          yield later_argument
-          remaining = ""
+    if jdx + 1 == len(argument) and VS.SPACED in value_styles:
+      for _, value in later_arguments:
+        yield from submit(key, idx, key, value)
         break
 
     elif VS.GLUED in value_styles:
-      if _opt not in _CONTEXT_SETTINGS:
-        remaining += short_options[index:]
+      value = argument[jdx + 1:]
+      yield from submit(key + value, idx, key, value)
       break
-    elif _opt not in _CONTEXT_SETTINGS:
-      remaining += short_option
 
-  if remaining:
-    yield "-" + remaining
+    else:
+      yield from submit(key, idx, key)
+
+
+def _filter_args(arguments, submit):
+  arguments = iter(enumerate(arguments))
+  for idx, argument in arguments:
+    key, equals, value = argument.partition("=")
+    key = _resolve_prefix(key)
+    value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
+
+    if equals:
+      if VS.EQUALS in value_styles:
+        yield from submit(argument, idx, key, value)
+      else:
+        yield from submit(argument, idx, argument)
+
+    elif VS.SPACED in value_styles:
+      _, value = next(arguments, (None, None))
+      yield from submit(argument, idx, key, value)
+
+    elif argument.startswith("-") and not argument.startswith("--"):
+      yield from _filter_short_options(idx, argument, arguments, submit)
+
+    else:
+      yield from submit(argument, idx, key)
+
+
+class OptionsIterator:
+  def __init__(self):
+    self.current_idx = 0
+    self.current_option = ""
+    self.current_option_value = None
+
+  def append_option(self, argument, key, value=None):
+    if argument != key:
+      value = None # value is already contained in the argument
+    if self.current_option:
+      argument = argument.lstrip("-")
+
+    self.current_option += argument
+    self.current_option_value = value
+
+  def pop_current_options(self):
+    if self.current_option:
+      yield self.current_option
+    if self.current_option_value:
+      yield self.current_option_value
+    self.current_option = ""
+    self.current_option_value = None
+
+
+class SkipContextOptions(OptionsIterator):
+  def submit(self, argument, idx, key, value=None):
+    if idx != self.current_idx:
+      self.current_idx = idx
+      yield from self.pop_current_options()
+
+    if key not in _CONTEXT_SETTINGS and not key.lstrip("-").isdigit():
+      self.append_option(argument, key, value)
 
 
 def without_context_options(arguments):
+  opts_iter = SkipContextOptions()
   arguments = iter(arguments)
-  for argument in arguments:
-    if argument == "--":
+
+  def _arguments_until_dashdash():
+    for argument in arguments:
       yield argument
-      yield from arguments
-      return
+      if argument == "--":
+        break
 
-    option, assignment, _ = argument.partition("=")
-    option = _resolve_prefix(option)
-
-    value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(option, ())
-
-    if assignment:
-      if option in _CONTEXT_SETTINGS and VS.ASSIGNMENT in value_styles:
-        continue
-
-    elif VS.SPACED in value_styles:
-      value = next(arguments, None)
-      if option not in _CONTEXT_SETTINGS:
-        yield argument
-        if value is not None:
-          yield value
-      continue
-
-    elif option in _CONTEXT_SETTINGS:
-      continue
-
-    elif argument.startswith("-") and not argument.startswith("--"):
-      yield from _without_short_context_options(argument, arguments)
-      continue
-
-    yield argument
+  yield from _filter_args(_arguments_until_dashdash(), opts_iter.submit)
+  yield from opts_iter.pop_current_options()
+  yield from arguments
 
 
 def _filter_short_output_option(argument, settings):
