@@ -452,6 +452,11 @@ export const endpointPath = "api/status"
   def test_context_removal_preserves_empty_spaced_value(self):
     self.assertEqual(tuple(without_context_options(("-e", ""))), ("-e", ""))
 
+  def test_context_removal_does_not_repeat_equals_value(self):
+    for arguments in (("--threads=3",), ("--max-d=4",)):
+      with self.subTest(arguments=arguments):
+        self.assertEqual(tuple(without_context_options(arguments)), arguments)
+
   def test_context_removal_preserves_incomplete_and_invalid_options(self):
     for arguments in (("-ie",), ("-",), ("--123",)):
       with self.subTest(arguments=arguments):

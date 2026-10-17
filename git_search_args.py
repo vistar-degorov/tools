@@ -158,13 +158,13 @@ def _filter_short_options(idx, argument, later_arguments, submit):
     yield from submit(argument, idx, argument)
 
   argument = argument[1:]
-  for jdx, short_option in enumerate(argument):
-    key = "-" + short_option
+  for jdx, key in enumerate(argument):
+    key = "-" + key
     value_styles = GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
 
     if jdx + 1 == len(argument) and VS.SPACED in value_styles:
       _, value = next(later_arguments, (None, None))
-      yield from submit(key, idx, key, value)
+      yield from submit(key, idx, key, value, VS.SPACED)
 
     elif VS.GLUED in value_styles:
       value = argument[jdx + 1:]
@@ -184,13 +184,13 @@ def _filter_args(arguments, submit):
 
     if equals:
       if VS.EQUALS in value_styles:
-        yield from submit(argument, idx, key, value)
+        yield from submit(argument, idx, key, value, VS.EQUALS)
       else:
         yield from submit(argument, idx, argument)
 
     elif VS.SPACED in value_styles:
       _, value = next(arguments, (None, None))
-      yield from submit(argument, idx, key, value)
+      yield from submit(argument, idx, key, value, VS.SPACED)
 
     elif argument.startswith("-") and not argument.startswith("--"):
       yield from _filter_short_options(idx, argument, arguments, submit)
@@ -206,7 +206,7 @@ class OptionsIterator:
     self.current_option_value = None
 
   def append_option(self, argument, value=None, value_style=None):
-    if value_style == VS.GLUED:
+    if value_style in (VS.EQUALS, VS.GLUED):
       value = None # value is already contained in the argument
     if self.current_option:
       argument = argument.lstrip("-")
