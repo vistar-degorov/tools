@@ -15,39 +15,24 @@ class Config:
     self.only_filenames = False
     self.pats = ("{PREFIX}*{EXTEN}",)
     self.mods = ()
-    self.set_test_mode(test_mode, test_indicators)
-    self.flags = tuple(self._filter_flags(flags, test_indicators))
+    self.test_indicators = test_indicators
+    self.set_test_mode(test_mode)
+    self.flags = tuple(_LegacyOptionsConfig(flags, config=self))
     if not self.hide_filenames and not self.only_filenames:
       self.flags += ("-n",)
 
-  def set_test_mode(self, mode, test_indicators):
+  def set_test_mode(self, mode):
     if mode == "include":
       self.mods = ()
       self.pats = ("{PREFIX}*{EXTEN}",)
     elif mode == "only":
       self.mods = ()
       self.pats = tuple(
-        "{{PREFIX}}*{word}*{{EXTEN}}".format(word=word) for word in test_indicators
+        f"{{PREFIX}}*{word}*{{EXTEN}}" for word in self.test_indicators
       )
     else:
-      self.mods = tuple(":!:*{word}*".format(word=word) for word in test_indicators)
+      self.mods = tuple(f":!:*{word}*" for word in self.test_indicators)
       self.pats = ("{PREFIX}*{EXTEN}",)
-
-  def _filter_flags(self, flags, test_indicators):
-    for flag in flags:
-      if flag in ("+debug", "+print"):
-        self.debug_mode = True
-      elif flag == "+t":
-        self.set_test_mode("include", test_indicators)
-      elif flag == "+to":
-        self.set_test_mode("only", test_indicators)
-      else:
-        if flag in ("--files-with-matches", "--name-only"):
-          self.only_filenames = True
-        elif flag.startswith("-") and not flag.startswith("--"):
-          self.hide_filenames = self.hide_filenames or "h" in flag
-          self.only_filenames = self.only_filenames or "l" in flag
-        yield flag
 
   def format(self, prefix, extensions):
     pats = (
@@ -248,6 +233,29 @@ class OptionsIterator:
 
   def consume(self, argument, key, value=None, value_style=None):
     self.append_option(argument, value, value_style)
+
+
+class _LegacyOptionsConfig(OptionsIterator):
+  filename_only_options = {
+    "-l", "-L",  "--name-only",
+    "--files-with-matches", "--files-without-match",
+  }
+
+  def __init__(self, arguments, config):
+    super().__init__(arguments)
+    self.config = config
+
+  def consume(self, argument, key, value=None, value_style=None):
+    if key in ("+debug", "+print"):
+      self.config.debug_mode = True
+    elif key == "+t":
+      self.config.set_test_mode("include")
+    elif key == "+to":
+      self.config.set_test_mode("only")
+    else:
+      self.config.hide_filenames |= key == "-h"
+      self.config.only_filenames |= key in self.filename_only_options
+      self.append_option(argument, value, value_style)
 
 
 class SkipContextOptions(OptionsIterator):
