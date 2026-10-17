@@ -55,6 +55,7 @@ VS = OptionValueStyle
 
 
 _HIDDEN_PATTERN_OPTION = "--gg-pattern-internal"
+_HIDDEN_PATTERN_OPTION_VALUE = {_HIDDEN_PATTERN_OPTION: (VS.SPACED,)}
 
 
 GIT_GREP_OPTIONS_WITH_VALUE = {
@@ -62,7 +63,7 @@ GIT_GREP_OPTIONS_WITH_VALUE = {
   "-B": (VS.SPACED, VS.GLUED), "--before-context": (VS.EQUALS, VS.SPACED),
   "-C": (VS.SPACED, VS.GLUED), "--context": (VS.EQUALS, VS.SPACED),
   "--color": (VS.EQUALS,),
-  "-e": (VS.SPACED, VS.GLUED),
+  "-e": (VS.SPACED, VS.GLUED), "--pattern": (VS.EQUALS, VS.SPACED),
   "-f": (VS.SPACED, VS.GLUED), "--file": (VS.EQUALS, VS.SPACED),
   "-m": (VS.SPACED, VS.GLUED), "--max-count": (VS.EQUALS, VS.SPACED),
   "--max-depth": (VS.EQUALS, VS.SPACED),
@@ -170,8 +171,8 @@ def _filter_args(arguments, submit):
     key, equals, value = argument.partition("=")
     key = _resolve_prefix(key)
     value_styles = (
-      (VS.SPACED,) if key == _HIDDEN_PATTERN_OPTION
-      else GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
+      GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
+      or _HIDDEN_PATTERN_OPTION_VALUE.get(key, ())
     )
 
     if equals:
@@ -439,35 +440,22 @@ def _split_leading_git_options(arguments, parser):
   )
 
 
-def _mask_pattern_options(arguments, pattern_options):
-  masked = []
-  pattern_options = frozenset(pattern_options)
-  for index, argument in enumerate(arguments):
-    if argument == "--":
-      masked.extend(arguments[index:])
-      break
-
-    key, equals, value = argument.partition("=")
-    if key in pattern_options:
-      masked.append(_HIDDEN_PATTERN_OPTION)
-      if equals:
-        masked.append(value)
-      continue
-
-    if any(
-      len(option) == 2 and argument.startswith(option) and len(argument) > 2
-      for option in pattern_options
-    ):
-      masked.extend((_HIDDEN_PATTERN_OPTION, argument[2:]))
-    else:
-      masked.append(argument)
-  return masked
-
-
 def _pop_trailing_result_idx(arguments):
   if arguments and (match := re.fullmatch(r"/(\d+)", arguments[-1])):
     return arguments[:-1], int(match.group(1))
   return arguments, None
+
+
+class _MaskPatternOptions(OptionsIterator):
+  def __init__(self, arguments, keys_to_mask):
+    super().__init__(arguments)
+    self.keys_to_mask = keys_to_mask
+
+  def consume(self, argument, key, value=None, value_style=None):
+    if key in self.keys_to_mask:
+      self.append_option(_HIDDEN_PATTERN_OPTION, value, VS.SPACED)
+    else:
+      self.append_option(argument, value, value_style)
 
 
 def parse_search_arguments(
@@ -478,8 +466,8 @@ def parse_search_arguments(
   *,
   pattern_options=(),
 ):
-  arguments = list(sys.argv[1:] if arguments is None else arguments)
-  arguments = _mask_pattern_options(arguments, pattern_options)
+  arguments = sys.argv[1:] if arguments is None else arguments
+  arguments = list(_MaskPatternOptions(arguments, pattern_options))
   if "--" in arguments:
     separator = arguments.index("--")
     wrapper_arguments = arguments[:separator]
