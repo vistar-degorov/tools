@@ -233,6 +233,15 @@ class SkipContextOptions(OptionsIterator):
       self.append_option(argument, value, value_style)
 
 
+class ApplyOutputOptions(OptionsIterator):
+  def __init__(self, settings):
+    super().__init__()
+    self.settings = settings
+
+  def submit(self, argument, idx, key, value=None, value_style=None):
+    ...
+
+
 def without_context_options(arguments):
   opts_iter = SkipContextOptions()
   arguments = iter(arguments)
