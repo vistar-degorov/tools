@@ -9,7 +9,8 @@ import tempfile
 import unittest
 
 from git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode
-from git_search_args import _split_leading_git_options, has_output_modifiers, OptionsIterator, prepare_output, without_context_options
+from git_search_args import _split_leading_git_options, OptionsIterator, prepare_output, prepare_output_for_action, without_context_options
+from git_search_cli import ResultAction
 from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
 
 
@@ -17,6 +18,17 @@ TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
 GG = TOOLS_DIRECTORY / "gg.py"
 DEF = TOOLS_DIRECTORY / "def"
 OPEN_RESULT = TOOLS_DIRECTORY / "open_result.py"
+
+
+def _result_action(*, index=None, json=False):
+  return ResultAction(
+    index=index,
+    clamp_index=False,
+    json=json,
+    open_result=False,
+    stdout=True,
+    tool=None,
+  )
 
 
 class GitSearchTest(unittest.TestCase):
@@ -618,24 +630,34 @@ export const endpointPath = "api/status"
     self.assertTrue(has_pattern_source)
     self.assertFalse(all_patterns_known)
 
-  def test_has_output_modifiers_recognizes_supported_forms(self):
-    cases = (
-      ("--count",),
-      ("--color=always",),
-      ("-A", "2"),
-      ("--before-context", "--max-count"),
-      ("--after-context", "25", "--totally-fake"),
-      ("-4",),
-      ("-c",),
+  def test_incompatible_output_options_are_removed(self):
+    arguments = (
+      "-icqol",
+      "-A2",
+      "-C", "3",
+      "-7",
+      "--before-context=4",
+      "--function-con",
+      "--only-matching",
+      "--open-files-in-pager=viewer",
+      "--files-with-matches",
+      "--max-depth", "5",
     )
-    for arguments in cases:
-      with self.subTest(arguments=arguments):
-        self.assertTrue(has_output_modifiers(arguments))
+    plan, filtered = prepare_output_for_action(arguments, _result_action(json=True))
+    self.assertIs(plan.mode, GrepOutputMode.MATCHES)
+    self.assertEqual(filtered, ("-i", "--max-depth", "5"))
 
-  def test_has_output_modifiers_recognizes_flags_anywhere_in_cluster(self):
-    for arguments in (("-ci",), ("-ic",)):
-      with self.subTest(arguments=arguments):
-        self.assertTrue(has_output_modifiers(arguments))
+  def test_incompatible_output_filter_can_preserve_path_modes(self):
+    arguments = ("-ilL", "--name-only", "--files-without-match", "-c")
+    plan, filtered = prepare_output_for_action(arguments, _result_action(index=1))
+    self.assertIs(plan.mode, GrepOutputMode.PATHS)
+    self.assertEqual(filtered, ("-ilL", "--name-only", "--files-without-match"))
+
+  def test_incompatible_output_filter_preserves_option_values_and_operands(self):
+    arguments = ("-e", "-C", "-C", "2", "--", "-A", "3")
+    plan, filtered = prepare_output_for_action(arguments, _result_action(json=True))
+    self.assertIs(plan.mode, GrepOutputMode.MATCHES)
+    self.assertEqual(filtered, ("-e", "-C", "--", "-A", "3"))
 
   def test_context_removal_preserves_attached_pager(self):
     self.assertEqual(
@@ -787,6 +809,26 @@ export const endpointPath = "api/status"
     self.assertGreaterEqual(len(records), 2)
     self.assertEqual(
       set(records[0]), {"path", "line", "column", "text"})
+
+  def test_selection_takes_priority_over_context_output(self):
+    result = self._run(DEF, "-C", "3", "--stdout", "target/1")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(result.stdout.startswith("a.py:"), result.stdout)
+
+  def test_selection_takes_priority_over_other_incompatible_output(self):
+    for arguments in (("-c",), ("-q",), ("-o",), ("-Oviewer",)):
+      with self.subTest(arguments=arguments):
+        result = self._run(DEF, *arguments, "--stdout", "target/1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.startswith("a.py:"), result.stdout)
+
+  def test_json_takes_priority_over_aggregate_and_context_output(self):
+    result = self._run(GG, "--json", "-lC", "2", "target")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    records = [json.loads(line) for line in result.stdout.splitlines()]
+    self.assertGreaterEqual(len(records), 2)
+    self.assertIsInstance(records[0]["line"], int)
+    self.assertIn("target", records[0]["text"])
 
   def test_human_and_strict_selection(self):
     first = self._run(DEF, "target/0", "--stdout")

@@ -15,7 +15,7 @@ from git_search import (
   write_json_results,
   write_records,
 )
-from git_search_args import Config, has_output_modifiers, resolve_setting, without_context_options
+from git_search_args import Config, resolve_setting, without_context_options
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,6 @@ class ResultAction:
   open_result: bool
   stdout: bool
   tool: str | None
-  filename_only: bool
 
   @property
   def machine_output(self):
@@ -52,18 +51,7 @@ def prepare_search_scope(options, grep_args, extensions, *, test_indicators=("[T
   return SearchScope(config.flags, arguments, config.debug_mode)
 
 
-def make_result_action(options, output_plan):
-  selecting_result = options.show is not None or options.result_idx is not None
-  filename_only = selecting_result and output_plan.mode is GrepOutputMode.PATHS
-  if (
-    has_output_modifiers(options.grep_args)
-    and (options.json or selecting_result)
-    and not (filename_only and not options.json)
-  ):
-    options.parser.error(
-      "output-formatting git grep options cannot be combined with selection or --json"
-    )
-
+def make_result_action(options):
   # --show N will error when N is OOB, and /N will clamp
   clamp_index = options.show is None
   return ResultAction(
@@ -73,7 +61,6 @@ def make_result_action(options, output_plan):
     open_result=options.open_result,
     stdout=options.stdout,
     tool=options.tool,
-    filename_only=filename_only,
   )
 
 
@@ -139,7 +126,8 @@ def present_results(results, output_plan, result_action, *, program):
   if not results:
     return 1
 
-  if result_action.filename_only:
+  filename_only = result_action.index is not None and output_plan.mode is GrepOutputMode.PATHS
+  if filename_only:
     results = [SearchResult(result.path, None, None, b"") for result in results]
 
   if result_action.index is not None:
