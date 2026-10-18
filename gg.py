@@ -25,10 +25,12 @@ from git_search_cli import (
   present_results,
 )
 
+# for searching command line args
+_IMPORT_PATTERN = re.compile(r"\bimport\b")
+_COFFEE_IMPORT_PATTERN = re.compile(r"\brequire\b")
 
+# for searching file-content bytes
 _PYTHON_DEFINITION = re.compile(br"\s*(?:(?:async\s+)?def|class)\s+([^\s(:]+)")
-_IMPORT_PATTERN = re.compile(r"\bimport ")
-_COFFEE_IMPORT_PATTERN = re.compile(r"} *= *require\b")
 _PYTHON_IMPORT = re.compile(br"\s*(?:import\b|from\b.*\bimport\b)")
 _TYPESCRIPT_IMPORT = re.compile(br"\s*import\b")
 _COFFEE_IMPORT = re.compile(br"} *= *require\b")
