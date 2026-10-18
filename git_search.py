@@ -111,12 +111,6 @@ def _output_error(offset, message):
     f"unexpected git grep output at byte {offset}: {message}")
 
 
-def _parse_number(value, offset, description):
-  if value.isdigit():
-    return int(value)
-  raise _output_error(offset, f"invalid {description}")
-
-
 def _parse_line_records(data, with_context):
   record_rx = re.compile(br"([^\0]+)\0([^\0]+)\0([^\n]*)\n")
   ctx_separator_rx = re.compile(br"(\x1b\[[0-9;]*m)?--(\x1b\[[0-9;]*m)?\n")
@@ -134,7 +128,10 @@ def _parse_line_records(data, with_context):
       break
 
     path, line_number, rest = record.group(1, 2, 3)
-    line_number = _parse_number(line_number, record.start(2), "line number")
+    try:
+      line_number = int(line_number)
+    except ValueError:
+      raise _output_error(record.start(2), "invalid line number")
 
     column_end = rest.find(b"\0")
     if column_end < 0:
@@ -142,7 +139,10 @@ def _parse_line_records(data, with_context):
         raise _output_error(record.start(3), "missing column")
       column = None
     else:
-      column = _parse_number(rest[:column_end], record.start(3), "column")
+      try:
+        column = int(rest[:column_end])
+      except ValueError:
+        raise _output_error(record.start(3), "invalid column number")
       rest = rest[column_end + 1:]
 
     yield SearchResult(
@@ -199,7 +199,10 @@ def _parse_count_results(data):
   offset = 0
   while (record := record_rx.match(data, offset)) is not None:
     path, count = record.group(1, 2)
-    count = _parse_number(count, record.start(2), "count")
+    try:
+      count = int(count)
+    except ValueError:
+      raise _output_error(record.start(2), "invalid count")
     yield CountResult(os.fsdecode(path), count)
     offset = record.end()
   if offset < len(data):
