@@ -1,3 +1,5 @@
+from dataclasses import asdict
+from dataclasses import dataclass
 from enum import Enum
 from itertools import chain, product
 import os
@@ -5,7 +7,28 @@ import re
 import sys
 from types import SimpleNamespace
 
-from git_search import OutputPlan, GrepOutputMode
+
+class GrepOutputMode(Enum):
+  MATCHES = "matches"
+  CONTEXT = "context"
+  PATHS = "paths"
+  COUNTS = "counts"
+
+
+@dataclass(frozen=True)
+class OutputPlan:
+  mode: GrepOutputMode
+  show_filename: bool
+  show_line_number: bool
+  show_column_number: bool
+  heading: bool
+  break_between_files: bool
+  null_terminate_filenames: bool
+  color: str | None
+  quiet: bool = False
+
+  def with_mode(self, mode: GrepOutputMode) -> "OutputPlan":
+    return OutputPlan(**dict(asdict(self), mode=mode))
 
 
 class Config:
