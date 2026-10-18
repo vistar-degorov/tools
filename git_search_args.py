@@ -432,27 +432,16 @@ def _pop_trailing_result_idx(arguments):
 
 
 class _MaskPatternOptions(OptionsIterator):
-  def __init__(self, arguments, keys_to_mask):
-    super().__init__(arguments)
-    self.keys_to_mask = keys_to_mask
-
   def consume(self, argument, key, value=None, value_style=None):
-    if key in self.keys_to_mask:
+    if key in ("-e", "--pattern"):
       self.append_option(_MASKED_PATTERN_OPTION, value, VS.SPACED)
     else:
       self.append_option(argument, value, value_style)
 
 
-def parse_search_arguments(
-  parser,
-  value_attribute,
-  value_label,
-  arguments=None,
-  *,
-  pattern_options=(),
-):
+def parse_search_arguments(parser, arguments=None, *, pattern_metavar):
   arguments = sys.argv[1:] if arguments is None else arguments
-  arguments = list(_MaskPatternOptions(arguments, pattern_options))
+  arguments = list(_MaskPatternOptions(arguments))
   if "--" in arguments:
     separator = arguments.index("--")
     wrapper_arguments = arguments[:separator]
@@ -474,27 +463,27 @@ def parse_search_arguments(
   else:
     path_arguments, trailing_result_idx = _pop_trailing_result_idx(path_arguments)
 
-  value = getattr(options, value_attribute)
-  if pattern_options and has_pattern_source:
+  pattern_value = options.pattern
+  if has_pattern_source:
     command_patterns = ()
     pattern_texts = grep_patterns
     result_idx = None
     scope_arguments = operands
-  elif value is not None:
-    command_patterns = (value,)
+  elif pattern_value is not None:
+    command_patterns = (pattern_value,)
     pattern_texts = command_patterns
     result_idx = None
     scope_arguments = operands
   else:
     if not operands:
-      parser.error(f"{value_label} is required")
-    value, result_idx = split_result_idx(operands[0])
-    command_patterns = (value,)
+      parser.error(f"{pattern_metavar} is required")
+    pattern_value, result_idx = split_result_idx(operands[0])
+    command_patterns = (pattern_value,)
     pattern_texts = command_patterns
     scope_arguments = operands[1:]
 
   if any(argument.startswith("-") for argument in scope_arguments):
-    parser.error(f"git grep options must precede {value_label}")
+    parser.error(f"git grep options must precede {pattern_metavar}")
   if result_idx is not None and trailing_result_idx is not None:
     parser.error("result number specified more than once")
   if trailing_result_idx is not None:
@@ -510,15 +499,15 @@ def parse_search_arguments(
   if options.json and options.open_result:
     parser.error("--json cannot be combined with --open")
   if options.open_result and options.show is None and result_idx is None:
-    parser.error(f"--open requires --show or {value_label}/N")
-  if value == "":
-    parser.error(f"{value_label.lower()} cannot be empty")
+    parser.error(f"--open requires --show or {pattern_metavar}/N")
+  if pattern_value == "":
+    parser.error(f"{pattern_metavar.lower()} cannot be empty")
   if scope_arguments is not None and options.root is not None:
     parser.error("--root cannot be combined with revisions or paths")
   if scope_arguments is not None and options.ext is not None:
     parser.error("--ext cannot be combined with revisions or paths")
 
-  setattr(options, value_attribute, value)
+  options.pattern = pattern_value
   options.result_idx = result_idx
   options.grep_args = grep_args
   options.scope_arguments = scope_arguments
