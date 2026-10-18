@@ -45,12 +45,12 @@ def _argument_parser():
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=(
       "Examples:\n"
-      "  gg PATTERN\n"
-      "  gg -e PATTERN --pattern PATTERN\n"
-      "  gg -A 2 PATTERN\n"
-      "  gg PATTERN PATH ...\n"
-      "  gg PATTERN -- PATH ...\n"
-      "  gg PATTERN PATH ... /N\n"
+      "  %(prog)s PATTERN\n"
+      "  %(prog)s -e PATTERN --pattern PATTERN\n"
+      "  %(prog)s -A 2 PATTERN\n"
+      "  %(prog)s PATTERN PATH ...\n"
+      "  %(prog)s PATTERN -- PATH ...\n"
+      "  %(prog)s PATTERN PATH ... /N\n"
       "\n"
       "Git grep options go before PATTERN. Remaining positional arguments "
       "are passed to git grep as revisions or paths; -- before paths is "
