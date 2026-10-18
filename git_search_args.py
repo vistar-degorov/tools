@@ -333,10 +333,7 @@ class _ApplyOutputOptions(ArgumentIterator):
       self.settings.before_context = True
       self.settings.after_context = True
     elif key == "--color":
-      self.settings.color = (
-        value if enabled and value_style == VS.EQUALS
-        else "always" if enabled else "never"
-      )
+      self.settings.color = (value or "always") if enabled else "never"
 
     is_presentation_option = (
       key in _PRESENTATION_LONG_OPTIONS
