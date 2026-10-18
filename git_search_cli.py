@@ -28,7 +28,7 @@ class SearchScope:
 @dataclass(frozen=True)
 class ResultAction:
   index: int | None
-  strict: bool
+  clamp_index: bool
   json: bool
   open_result: bool
   stdout: bool
@@ -64,10 +64,11 @@ def make_result_action(options, output_plan):
       "output-formatting git grep options cannot be combined with selection or --json"
     )
 
-  strict = options.show is not None
+  # --show N will error when N is OOB, and /N will clamp
+  clamp_index = options.show is None
   return ResultAction(
-    index=options.show if strict else options.result_idx,
-    strict=strict,
+    index=options.result_idx if clamp_index else options.show,
+    clamp_index=clamp_index,
     json=options.json,
     open_result=options.open_result,
     stdout=options.stdout,
@@ -143,7 +144,7 @@ def present_results(results, output_plan, result_action, *, program):
 
   if result_action.index is not None:
     try:
-      result = select_result(results, result_action.index, clamp=not result_action.strict)
+      result = select_result(results, result_action.index, clamp=result_action.clamp_index)
     except IndexError:
       sys.stderr.write(
         f"{program}: result {result_action.index} is outside 1..{len(results)}\n"
@@ -155,7 +156,7 @@ def present_results(results, output_plan, result_action, *, program):
       return 0
 
     should_open = result_action.open_result or (
-      not result_action.strict and not result_action.stdout and sys.stdout.isatty()
+      result_action.clamp_index and not result_action.stdout and sys.stdout.isatty()
     )
     if should_open:
       tool = result_action.tool
