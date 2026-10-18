@@ -115,7 +115,7 @@ def _has_non_import(match, occurrences):
   return False
 
 
-def _is_quoted(text, head, tail):
+def _is_quoted(text: bytes, head: int, tail: int) -> bool:
   if text[head] not in b'\'"':
     head = max(0, head - 1)
   if text[tail - 1] not in b'\'"':
