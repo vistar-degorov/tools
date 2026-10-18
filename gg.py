@@ -31,6 +31,15 @@ _COFFEE_IMPORT_PATTERN = re.compile(r"\brequire\b")
 
 # for searching file-content bytes
 _PYTHON_DEFINITION = re.compile(br"\s*(?:(?:async\s+)?def|class)\s+([^\s(:]+)")
+_TYPESCRIPT_DECLARATION = re.compile(
+  br"\s*(?:(?:export|default|declare|abstract|async)\s+)*"
+  br"(?:(?:class|interface|type|enum|namespace|module|const\s+enum)\s+|function\s*\*?\s+)"
+  br"([A-Za-z_$][A-Za-z0-9_$]*)"
+)
+_TYPESCRIPT_VARIABLE = re.compile(
+  br"\s*(?:(?:export|declare)\s+)*(?:const|let|var)\s+"
+  br"(?!enum\b)([A-Za-z_$][A-Za-z0-9_$]*)"
+)
 _PYTHON_IMPORT = re.compile(br"\s*(?:import\b|from\b.*\bimport\b)")
 _TYPESCRIPT_IMPORT = re.compile(br"\s*import\b")
 _COFFEE_IMPORT = re.compile(br"} *= *require\b")
@@ -136,20 +145,29 @@ def _has_quoted_occurrence(match, occurrences):
 
 
 def _has_definition_occurrence(match, occurrences):
-  if Path(match.path).suffix.lower() not in (".py", ".pyi", ".pyw"):
+  extension = Path(match.path).suffix.lower()
+  if extension in (".py", ".pyi", ".pyw"):
+    definition_patterns = (_PYTHON_DEFINITION,)
+  elif extension in (".ts", ".tsx"):
+    definition_patterns = (_TYPESCRIPT_DECLARATION, _TYPESCRIPT_VARIABLE)
+  else:
     return False
 
   text = remove_color_codes(match.text)
-  definition = _PYTHON_DEFINITION.match(text)
-  if definition is None:
-    return False
-
-  definition_head, definition_tail = definition.span(1)
-  return any(
-    (occurrence_head := occurrence.column - 1) < definition_tail
-    and occurrence_head + len(occurrence.text) > definition_head
-    for occurrence in occurrences
+  definition_spans = tuple(
+    definition.span(1)
+    for pattern in definition_patterns
+    if (definition := pattern.match(text)) is not None
   )
+  for occurrence in occurrences:
+    occurrence_head = occurrence.column - 1
+    occurrence_tail = occurrence_head + len(occurrence.text)
+    if any(
+      occurrence_head < definition_tail and occurrence_tail > definition_head
+      for definition_head, definition_tail in definition_spans
+    ):
+      return True
+  return False
 
 
 def _filter_occurrence_matches(results, occurrences, keep):

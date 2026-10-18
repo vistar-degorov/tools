@@ -258,6 +258,47 @@ export const endpointPath = "api/status"
         occurrence = SearchResult("module.py", 1, column, occurrence_text)
         self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
 
+  def test_definition_filter_handles_typescript_declarations(self):
+    cases = (
+      ("model.ts", b"export abstract class DataStore<T> {}", b"DataStore"),
+      ("model.ts", b"export interface ResultShape {}", b"ResultShape"),
+      ("model.ts", b"export type ResultValue = string", b"ResultValue"),
+      ("model.ts", b"const enum StateCode {}", b"StateCode"),
+      ("model.ts", b"export namespace Utilities {}", b"Utilities"),
+      ("model.ts", b"declare module Internal {}", b"Internal"),
+      ("model.ts", b"export default async function* loadItems() {}", b"loadItems"),
+    )
+    for path, text, name in cases:
+      with self.subTest(text=text):
+        occurrence = SearchResult(path, 1, text.index(name) + 1, name)
+        match = SearchResult(path, 1, occurrence.column, text)
+        self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+
+  def test_definition_filter_handles_simple_typescript_variables(self):
+    cases = (
+      ("state.ts", b"export const cacheEntry: string = value", b"cacheEntry"),
+      ("state.ts", b"declare let activeFlag: boolean", b"activeFlag"),
+      ("view.tsx", b"var fallbackValue = null", b"fallbackValue"),
+    )
+    for path, text, name in cases:
+      with self.subTest(text=text):
+        occurrence = SearchResult(path, 1, text.index(name) + 1, name)
+        match = SearchResult(path, 1, occurrence.column, text)
+        self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+
+  def test_definition_filter_rejects_typescript_usages_and_destructuring(self):
+    cases = (
+      (b"const container = transform(sourceValue)", b"sourceValue"),
+      (b"const created = new Service()", b"Service"),
+      (b"const {selected} = source", b"selected"),
+      (b"const enum StateCode {}", b"enum"),
+    )
+    for text, name in cases:
+      with self.subTest(text=text):
+        occurrence = SearchResult("module.ts", 1, text.index(name) + 1, name)
+        match = SearchResult("module.ts", 1, occurrence.column, text)
+        self.assertFalse(_has_definition_occurrence(match, (occurrence,)))
+
   def test_definition_filter_is_language_aware(self):
     match = SearchResult("module.txt", 1, 1, b"def selected():")
     occurrence = SearchResult("module.txt", 1, 5, b"selected")
