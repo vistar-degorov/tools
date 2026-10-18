@@ -82,9 +82,7 @@ def _parse_arguments(arguments=None):
   arguments = list(sys.argv[1:] if arguments is None else arguments)
   if arguments == ["-h"]:
     arguments = ["--help"]
-  return parse_search_arguments(
-    _argument_parser(), "pattern", "PATTERN", arguments,
-    pattern_options=("-e", "--pattern"))
+  return parse_search_arguments(_argument_parser(), arguments, pattern_metavar="PATTERN")
 
 
 def _has_non_import(match, occurrences, patterns):
