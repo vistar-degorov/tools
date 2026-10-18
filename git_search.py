@@ -88,20 +88,15 @@ def build_command(
   grep_args,
   scope_arguments,
   *,
-  structured=False,
-  structured_color=False,
+  color=False,
   untracked=False,
   word_regexp=False,
 ):
   cmd = ["git", "grep"]
   if untracked:
     cmd.extend(("--untracked", "--exclude-standard"))
-  if structured:
-    color = "always" if structured_color else "never"
-    cmd.extend((
-      f"--color={color}", "-I", "-H", "-n", "--column", "-z"))
-  else:
-    cmd.append("--color=always" if sys.stdout.isatty() else "--color=never")
+  color = "always" if color else "never"
+  cmd.extend((f"--color={color}", "-I", "-H", "-n", "--column", "-z"))
   if word_regexp:
     cmd.append("-w")
   cmd.extend(grep_args)
@@ -109,10 +104,6 @@ def build_command(
     cmd.extend(("-e", pattern))
   cmd.extend(scope_arguments)
   return tuple(cmd)
-
-
-def run_command(cmd):
-  return subprocess.run(cmd, stdout=subprocess.PIPE)
 
 
 def _output_error(offset, message):
@@ -313,15 +304,6 @@ def write_records(records, plan, stream):
   writers[plan.mode](records, plan, stream, output_uses_color(plan, stream))
 
 
-def parse_null_results(data):
-  yield from parse_grep_results(data, GrepOutputMode.MATCHES)
-
-
-def parse_null_paths(data):
-  for result in parse_grep_results(data, GrepOutputMode.PATHS):
-    yield SearchResult(result.path, None, None, b"")
-
-
 def select_result(results, index, *, clamp):
   if not results:
     return None
@@ -341,11 +323,6 @@ def write_json_results(results):
       "column": result.column,
       "text": result.text.decode("utf-8", "replace"),
     }))
-
-
-def write_result(result):
-  text = result.text.decode("utf-8", "replace")
-  print(f"{result.path}:{result.line}:{text}")
 
 
 def write_context(result, context=12):

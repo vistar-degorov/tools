@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import shlex
+import subprocess
 import sys
 
 from git_search import (
@@ -9,7 +10,6 @@ from git_search import (
   open_search_result,
   output_uses_color,
   parse_grep_results,
-  run_command,
   select_result,
   write_context,
   write_json_results,
@@ -93,9 +93,7 @@ def build_search_command(
     patterns,
     grep_args,
     scope_arguments,
-    structured=True,
-    structured_color=not result_action.machine_output
-    and output_uses_color(output_plan, stream),
+    color=not result_action.machine_output and output_uses_color(output_plan, stream),
     untracked=untracked,
     word_regexp=word_regexp,
   )
@@ -113,8 +111,6 @@ def build_occurrence_search_command(
     patterns,
     (*without_context_options(grep_args), "-o"),
     scope_arguments,
-    structured=True,
-    structured_color=False,
     untracked=untracked,
     word_regexp=word_regexp,
   )
@@ -125,7 +121,7 @@ def execute_search(command, output_plan, *, program, debug=False):
     print(shlex.join(command))
     return 0, None
 
-  completed = run_command(command)
+  completed = subprocess.run(command, stdout=subprocess.PIPE)
   if completed.returncode != 0:
     return completed.returncode, None
   if output_plan.quiet:
