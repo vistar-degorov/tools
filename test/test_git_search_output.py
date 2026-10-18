@@ -398,7 +398,7 @@ class StructuredOutputTest(unittest.TestCase):
   def test_structured_command_can_preserve_match_color(self):
     command = build_command(
       ("needle",), (), ("--", "*.py"),
-      structured=True, structured_color=True)
+      color=True)
     self.assertIn("--color=always", command)
     self.assertNotIn("--color=never", command)
 

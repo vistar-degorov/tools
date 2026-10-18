@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode
-from git_search_args import _split_leading_git_options, has_output_modifiers, OptionsIterator, make_output_plan, prepare_output, without_context_options
+from git_search_args import _split_leading_git_options, has_output_modifiers, OptionsIterator, prepare_output, without_context_options
 from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
 
 
@@ -486,16 +486,16 @@ export const endpointPath = "api/status"
     for arguments in context_options:
       with self.subTest(arguments=arguments):
         self.assertIs(
-          make_output_plan(arguments).mode,
+          prepare_output(arguments)[0].mode,
           GrepOutputMode.CONTEXT,
         )
 
     self.assertIs(
-      make_output_plan(("-c", "-A", "2")).mode,
+      prepare_output(("-c", "-A", "2"))[0].mode,
       GrepOutputMode.COUNTS,
     )
     self.assertIs(
-      make_output_plan(("-c", "-l")).mode,
+      prepare_output(("-c", "-l"))[0].mode,
       GrepOutputMode.PATHS,
     )
 
@@ -627,39 +627,39 @@ export const endpointPath = "api/status"
   def test_output_plan_recognizes_abbreviated_context_options(self):
     for arguments in (("--bef=2",), ("--show-f",), ("--function-con",)):
       with self.subTest(arguments=arguments):
-        self.assertIs(make_output_plan(arguments).mode, GrepOutputMode.CONTEXT)
+        self.assertIs(prepare_output(arguments)[0].mode, GrepOutputMode.CONTEXT)
 
   def test_output_plan_tracks_visible_fields(self):
-    default = make_output_plan(())
+    default, _ = prepare_output(())
     self.assertTrue(default.show_filename)
     self.assertTrue(default.show_line_number)
     self.assertFalse(default.show_column_number)
 
-    hidden = make_output_plan(("-h",))
+    hidden, _ = prepare_output(("-h",))
     self.assertFalse(hidden.show_filename)
     self.assertFalse(hidden.show_line_number)
 
-    numbered = make_output_plan(("-h", "-n", "--column"))
+    numbered, _ = prepare_output(("-h", "-n", "--column"))
     self.assertFalse(numbered.show_filename)
     self.assertTrue(numbered.show_line_number)
     self.assertTrue(numbered.show_column_number)
 
-    count = make_output_plan(("-h", "-n", "--column", "-c"))
+    count, _ = prepare_output(("-h", "-n", "--column", "-c"))
     self.assertFalse(count.show_filename)
     self.assertFalse(count.show_line_number)
     self.assertFalse(count.show_column_number)
 
-    paths = make_output_plan(("-h", "-l"))
+    paths, _ = prepare_output(("-h", "-l"))
     self.assertTrue(paths.show_filename)
     self.assertFalse(paths.show_line_number)
 
   def test_output_plan_skips_pattern_option_values(self):
-    plan = make_output_plan(("-e", "-h", "-f", "--column"))
+    plan, _ = prepare_output(("-e", "-h", "-f", "--column"))
     self.assertTrue(plan.show_filename)
     self.assertFalse(plan.show_column_number)
 
   def test_output_plan_honors_negated_options(self):
-    plan = make_output_plan((
+    plan, _ = prepare_output((
       "--count", "--no-count",
       "--context=2", "--no-context",
       "--heading", "--no-heading",

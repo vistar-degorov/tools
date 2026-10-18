@@ -11,15 +11,11 @@ from git_search import OutputPlan, GrepOutputMode
 class Config:
   def __init__(self, flags, test_indicators=("[Tt]est",), test_mode="exclude"):
     self.debug_mode = False
-    self.hide_filenames = False
-    self.only_filenames = False
     self.pats = ("{PREFIX}*{EXTEN}",)
     self.mods = ()
     self.test_indicators = test_indicators
     self.set_test_mode(test_mode)
     self.flags = tuple(_LegacyOptionsConfig(flags, config=self))
-    if not self.hide_filenames and not self.only_filenames:
-      self.flags += ("-n",)
 
   def set_test_mode(self, mode):
     if mode == "include":
@@ -243,11 +239,6 @@ class OptionsIterator:
 
 
 class _LegacyOptionsConfig(OptionsIterator):
-  filename_only_options = frozenset((
-    "-l", "-L",  "--name-only",
-    "--files-with-matches", "--files-without-match",
-  ))
-
   def __init__(self, arguments, config):
     super().__init__(arguments)
     self.config = config
@@ -260,8 +251,6 @@ class _LegacyOptionsConfig(OptionsIterator):
     elif key == "+to":
       self.config.set_test_mode("only")
     else:
-      self.config.hide_filenames |= key == "-h"
-      self.config.only_filenames |= key in self.filename_only_options
       self.append_option(argument, value, value_style)
 
 
@@ -391,10 +380,6 @@ def prepare_output(arguments):
     color=settings.color,
     quiet=settings.quiet,
   ), arguments
-
-
-def make_output_plan(arguments):
-  return prepare_output(arguments)[0]
 
 
 class _LeadingGitOptions(OptionsIterator):
