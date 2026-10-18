@@ -50,8 +50,8 @@ class OptionValueStyle(Enum):
 VS = OptionValueStyle
 
 
-_HIDDEN_PATTERN_OPTION = "--gg-pattern-internal"
-_HIDDEN_PATTERN_OPTION_VALUE = {_HIDDEN_PATTERN_OPTION: (VS.SPACED,)}
+_MASKED_PATTERN_OPTION = "--gg-pattern-internal"
+_MASKED_PATTERN_OPTION_VALUE = {_MASKED_PATTERN_OPTION: (VS.SPACED,)}
 
 
 GIT_GREP_OPTIONS_WITH_VALUE = {
@@ -168,7 +168,7 @@ def _filter_args(arguments, submit):
     key = _resolve_prefix(key)
     value_styles = (
       GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
-      or _HIDDEN_PATTERN_OPTION_VALUE.get(key, ())
+      or _MASKED_PATTERN_OPTION_VALUE.get(key, ())
     )
 
     if equals:
@@ -402,13 +402,13 @@ class _LeadingGitOptions(OptionsIterator):
     if value_style == VS.SPACED and value is None:
       self.parser.error(f"{argument} requires an argument")
 
-    if key in ("-e", _HIDDEN_PATTERN_OPTION):
+    if key in ("-e", _MASKED_PATTERN_OPTION):
       self.patterns.append(value)
       self.has_pattern_source = True
     elif key in ("-f", "--file"):
       self.has_pattern_source = True
       self.all_patterns_known = False
-    if key == _HIDDEN_PATTERN_OPTION:
+    if key == _MASKED_PATTERN_OPTION:
       argument = "-e"
     self.append_option(argument, value, value_style)
 
@@ -438,7 +438,7 @@ class _MaskPatternOptions(OptionsIterator):
 
   def consume(self, argument, key, value=None, value_style=None):
     if key in self.keys_to_mask:
-      self.append_option(_HIDDEN_PATTERN_OPTION, value, VS.SPACED)
+      self.append_option(_MASKED_PATTERN_OPTION, value, VS.SPACED)
     else:
       self.append_option(argument, value, value_style)
 
