@@ -15,8 +15,6 @@ from git_search_args import (
 from git_search import (
   GrepOutputMode,
   remove_color_codes,
-)
-from git_search_cli import (
   build_search_command,
   build_occurrence_search_command,
   execute_search,
