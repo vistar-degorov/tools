@@ -140,7 +140,7 @@ _PRESENTATION_SHORT_OPTIONS = frozenset("hHnz")
 _COLOR_VALUES = {"always", "auto", "never"}
 
 
-def _filter_short_options(idx, argument, later_arguments, submit):
+def _iter_short_options(idx, argument, later_arguments, submit):
   if len(argument) < 2:
     yield from submit(argument, idx, argument)
 
@@ -162,7 +162,7 @@ def _filter_short_options(idx, argument, later_arguments, submit):
       yield from submit(key, idx, key)
 
 
-def _filter_args(arguments, submit):
+def _iter_args(arguments, submit):
   arguments = iter(enumerate(arguments))
   for idx, argument in arguments:
     key, equals, value = argument.partition("=")
@@ -171,7 +171,6 @@ def _filter_args(arguments, submit):
       GIT_GREP_OPTIONS_WITH_VALUE.get(key, ())
       or _MASKED_PATTERN_OPTION_VALUE.get(key, ())
     )
-
     if equals:
       if VS.EQUALS in value_styles:
         yield from submit(argument, idx, key, value, VS.EQUALS)
@@ -183,17 +182,17 @@ def _filter_args(arguments, submit):
       yield from submit(argument, idx, key, value, VS.SPACED)
 
     elif argument.startswith("-") and not argument.startswith("--"):
-      yield from _filter_short_options(idx, argument, arguments, submit)
+      yield from _iter_short_options(idx, argument, arguments, submit)
 
     else:
       yield from submit(argument, idx, key)
 
 
-class OptionsIterator:
+class ArgumentIterator:
   def __init__(self, arguments):
-    self.current_idx = 0
-    self.current_option = None
-    self.current_option_value = None
+    self._idx = 0
+    self._text = None
+    self._value = None
     arguments = iter(arguments)
 
     def _arguments_until_dashdash():
@@ -202,8 +201,8 @@ class OptionsIterator:
         if argument == "--":
           break
 
-    filtered_args = _filter_args(_arguments_until_dashdash(), self.submit)
-    self._output = chain(filtered_args, self.pop_current_options(), arguments)
+    filtered_args = _iter_args(_arguments_until_dashdash(), self._submit)
+    self._output = chain(filtered_args, self._pop_current(), arguments)
 
   def __iter__(self):
     return self
@@ -211,40 +210,39 @@ class OptionsIterator:
   def __next__(self):
     return next(self._output)
 
-  def append_option(self, argument, value=None, value_style=None):
+  def _submit(self, text, idx, key, value=None, value_style=None):
+    if idx != self._idx:
+      self._idx = idx
+      yield from self._pop_current()
+    self.inspect(text, key, value, value_style)
+
+  def _pop_current(self):
+    if self._text is not None:
+      yield self._text
+    if self._value is not None:
+      yield self._value
+    self._text = None
+    self._value = None
+
+  def retain(self, text, value=None, value_style=None):
     if value_style in (VS.EQUALS, VS.GLUED):
-      value = None # value is already contained in the argument
-    if self.current_option is None:
-      self.current_option = argument
+      value = None # value is already contained in the text
+    if self._text is None:
+      self._text = text
     else:
-      self.current_option += argument.removeprefix("-")
+      self._text += text.removeprefix("-")
+    self._value = value
 
-    self.current_option_value = value
-
-  def pop_current_options(self):
-    if self.current_option is not None:
-      yield self.current_option
-    if self.current_option_value is not None:
-      yield self.current_option_value
-    self.current_option = None
-    self.current_option_value = None
-
-  def submit(self, argument, idx, key, value=None, value_style=None):
-    if idx != self.current_idx:
-      self.current_idx = idx
-      yield from self.pop_current_options()
-    self.consume(argument, key, value, value_style)
-
-  def consume(self, argument, key, value=None, value_style=None):
-    self.append_option(argument, value, value_style)
+  def inspect(self, text, key, value=None, value_style=None):
+    self.retain(text, value, value_style)
 
 
-class _LegacyOptionsConfig(OptionsIterator):
+class _LegacyOptionsConfig(ArgumentIterator):
   def __init__(self, arguments, config):
     super().__init__(arguments)
     self.config = config
 
-  def consume(self, argument, key, value=None, value_style=None):
+  def inspect(self, text, key, value=None, value_style=None):
     if key in ("+debug", "+print"):
       self.config.debug_mode = True
     elif key == "+t":
@@ -252,13 +250,13 @@ class _LegacyOptionsConfig(OptionsIterator):
     elif key == "+to":
       self.config.set_test_mode("only")
     else:
-      self.append_option(argument, value, value_style)
+      self.retain(text, value, value_style)
 
 
-class SkipContextOptions(OptionsIterator):
-  def consume(self, argument, key, value=None, value_style=None):
+class _SkipContextOptions(ArgumentIterator):
+  def inspect(self, text, key, value=None, value_style=None):
     if key not in _CONTEXT_SETTINGS and not key.removeprefix("-").isdigit():
-      self.append_option(argument, value, value_style)
+      self.retain(text, value, value_style)
 
 
 _PATH_OUTPUT_OPTIONS = frozenset((
@@ -274,27 +272,27 @@ _INCOMPATIBLE_STRUCTURED_OUTPUT_OPTIONS = frozenset((
 ))
 
 
-class _SkipIncompatibleOutputOptions(OptionsIterator):
+class _SkipIncompatibleOutputOptions(ArgumentIterator):
   def __init__(self, arguments, keep_paths):
     self.keep_paths = keep_paths
     super().__init__(arguments)
 
-  def consume(self, argument, key, value=None, value_style=None):
+  def inspect(self, text, key, value=None, value_style=None):
     incompatible = (
       key in _INCOMPATIBLE_STRUCTURED_OUTPUT_OPTIONS
       or key.startswith("-") and key[1:].isdigit()
       or not self.keep_paths and key in _PATH_OUTPUT_OPTIONS
     )
     if not incompatible:
-      self.append_option(argument, value, value_style)
+      self.retain(text, value, value_style)
 
 
-class ApplyOutputOptions(OptionsIterator):
+class _ApplyOutputOptions(ArgumentIterator):
   def __init__(self, arguments, settings):
     self.settings = settings
     super().__init__(arguments)
 
-  def consume(self, argument, key, value=None, value_style=None):
+  def inspect(self, text, key, value=None, value_style=None):
     enabled = True
     if key.startswith("--no-"):
       key = _resolve_prefix("--" + key.removeprefix("--no-"))
@@ -326,14 +324,14 @@ class ApplyOutputOptions(OptionsIterator):
       or key == "--color" and enabled and value in _COLOR_VALUES
     )
     if not valid_presentation_option:
-      self.append_option(argument, value, value_style)
+      self.retain(text, value, value_style)
 
 
-def without_context_options(arguments):
-  return SkipContextOptions(arguments)
+def skip_context_options(arguments):
+  return _SkipContextOptions(arguments)
 
 
-def prepare_output(arguments):
+def _apply_output_options(arguments):
   settings = SimpleNamespace(
     show_filename=True,
     line_numbers=None,
@@ -351,7 +349,7 @@ def prepare_output(arguments):
     function_context=False,
     quiet=False,
   )
-  arguments = tuple(ApplyOutputOptions(arguments, settings))
+  arguments = tuple(_ApplyOutputOptions(arguments, settings))
 
   if settings.files_with_matches or settings.files_without_match:
     mode = GrepOutputMode.PATHS
@@ -387,19 +385,19 @@ def prepare_output(arguments):
   ), arguments
 
 
-def prepare_output_for_action(arguments, action):
+def make_output_plan(arguments, result_action=None):
   arguments = tuple(arguments)
-  if not action.machine_output:
-    return prepare_output(arguments)
+  if result_action is None or not result_action.machine_output:
+    return _apply_output_options(arguments)
 
   keep_paths = False
-  if action.index is not None and not action.json:
-    requested_output_plan, _ = prepare_output(arguments)
+  if result_action.index is not None and not result_action.json:
+    requested_output_plan, _ = _apply_output_options(arguments)
     keep_paths = requested_output_plan.mode is GrepOutputMode.PATHS
-  return prepare_output(_SkipIncompatibleOutputOptions(arguments, keep_paths))
+  return _apply_output_options(_SkipIncompatibleOutputOptions(arguments, keep_paths))
 
 
-class _LeadingGitOptions(OptionsIterator):
+class _LeadingGitOptions(ArgumentIterator):
   non_option_arguments = frozenset(("+debug", "+print", "+t", "+to", "(", ")"))
 
   def __init__(self, arguments, parser):
@@ -410,14 +408,14 @@ class _LeadingGitOptions(OptionsIterator):
     self.all_patterns_known = True
     super().__init__(arguments)
 
-  def consume(self, argument, key, value=None, value_style=None):
+  def inspect(self, text, key, value=None, value_style=None):
     if not self.leading:
       return
-    if not argument.startswith("-") and argument not in self.non_option_arguments:
+    if not text.startswith("-") and text not in self.non_option_arguments:
       self.leading = False
       return
     if value_style == VS.SPACED and value is None:
-      self.parser.error(f"{argument} requires an argument")
+      self.parser.error(f"{text} requires an argument")
 
     if key in ("-e", _MASKED_PATTERN_OPTION):
       self.patterns.append(value)
@@ -426,8 +424,8 @@ class _LeadingGitOptions(OptionsIterator):
       self.has_pattern_source = True
       self.all_patterns_known = False
     if key == _MASKED_PATTERN_OPTION:
-      argument = "-e"
-    self.append_option(argument, value, value_style)
+      text = "-e"
+    self.retain(text, value, value_style)
 
 
 def _split_leading_git_options(arguments, parser):
@@ -448,12 +446,12 @@ def _pop_trailing_result_idx(arguments):
   return arguments, None
 
 
-class _MaskPatternOptions(OptionsIterator):
-  def consume(self, argument, key, value=None, value_style=None):
+class _MaskPatternOptions(ArgumentIterator):
+  def inspect(self, text, key, value=None, value_style=None):
     if key in ("-e", "--pattern"):
-      self.append_option(_MASKED_PATTERN_OPTION, value, VS.SPACED)
+      self.retain(_MASKED_PATTERN_OPTION, value, VS.SPACED)
     else:
-      self.append_option(argument, value, value_style)
+      self.retain(text, value, value_style)
 
 
 def parse_search_arguments(parser, arguments=None, *, pattern_metavar):

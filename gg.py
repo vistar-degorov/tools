@@ -9,7 +9,7 @@ import sys
 from git_search_args import (
   add_common_search_arguments,
   parse_search_arguments,
-  prepare_output_for_action,
+  make_output_plan,
   resolve_extensions,
 )
 from git_search import (
@@ -21,7 +21,7 @@ from git_search_cli import (
   build_occurrence_search_command,
   execute_search,
   make_result_action,
-  prepare_search_scope,
+  make_search_scope,
   present_results,
 )
 
@@ -191,7 +191,7 @@ def _filter_occurrence_contexts(results, occurrences, keep):
 def main(arguments=None):
   options = _parse_arguments(arguments)
   result_action = make_result_action(options)
-  output_plan, grep_args = prepare_output_for_action(options.grep_args, result_action)
+  output_plan, grep_args = make_output_plan(options.grep_args, result_action)
   main_arg = Path(sys.argv[0]).name
   patterns = options.command_patterns
   pattern_texts = options.pattern_texts
@@ -224,7 +224,7 @@ def main(arguments=None):
   test_indicators = ["[Tt]est"]
   if {".coffee", ".ts", ".tsx"}.intersection(filtered_extensions):
     test_indicators.append("[Ss]pec")
-  scope = prepare_search_scope(options, grep_args, extensions, test_indicators=test_indicators)
+  scope = make_search_scope(options, grep_args, extensions, test_indicators=test_indicators)
   debug_mode = options.debug or scope.debug
 
   if filter_predicate and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):

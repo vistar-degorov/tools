@@ -15,7 +15,7 @@ from git_search import (
   write_json_results,
   write_records,
 )
-from git_search_args import Config, resolve_setting, without_context_options
+from git_search_args import Config, resolve_setting, skip_context_options
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class ResultAction:
     return self.json or self.index is not None
 
 
-def prepare_search_scope(options, grep_args, extensions, *, test_indicators=("[Tt]est",)):
+def make_search_scope(options, grep_args, extensions, *, test_indicators=("[Tt]est",)):
   config = Config(
     grep_args, test_indicators=test_indicators, test_mode=options.tests or "exclude"
   )
@@ -97,7 +97,7 @@ def build_occurrence_search_command(
 ):
   return build_command(
     patterns,
-    (*without_context_options(grep_args), "-o"),
+    (*skip_context_options(grep_args), "-o"),
     scope_arguments,
     untracked=untracked,
     word_regexp=word_regexp,
