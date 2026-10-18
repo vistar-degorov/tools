@@ -27,6 +27,11 @@ from git_search_cli import (
 
 
 _PYTHON_DEFINITION = re.compile(br"\s*(?:(?:async\s+)?def|class)\s+([^\s(:]+)")
+_IMPORT_PATTERN = re.compile(r"\bimport ")
+_COFFEE_IMPORT_PATTERN = re.compile(r"} *= *require\b")
+_PYTHON_IMPORT = re.compile(br"\s*(?:import\b|from\b.*\bimport\b)")
+_TYPESCRIPT_IMPORT = re.compile(br"\s*import\b")
+_COFFEE_IMPORT = re.compile(br"} *= *require\b")
 
 
 def _argument_parser():
@@ -82,28 +87,21 @@ def _parse_arguments(arguments=None):
     pattern_options=("-e", "--pattern"))
 
 
-def _import_regexes(extensions):
-  regexes = []
-  if {".py", ".ts", ".tsx"}.intersection(extensions):
-    regexes.append(re.compile(r"\bimport "))
-  if ".coffee" in extensions:
-    regexes.append(re.compile(r"} *= *require\b"))
-  return tuple(regexes)
-
-
-def _has_no_import(text, import_regexes):
-  return all(regex.search(text) is None for regex in import_regexes)
-
-
-def _has_non_import(match, occurrences):
+def _has_non_import(match, occurrences, patterns):
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
-    find_import = re.compile(br"\s*(?:import\b|from\b.*\bimport\b)").match
+    find_import = _PYTHON_IMPORT.match
+    pattern_has_import = _IMPORT_PATTERN.search
   elif extension in (".ts", ".tsx"):
-    find_import = re.compile(br"\s*import\b").match
+    find_import = _TYPESCRIPT_IMPORT.match
+    pattern_has_import = _IMPORT_PATTERN.search
   elif extension == ".coffee":
-    find_import = re.compile(br"} *= *require\b").search
+    find_import = _COFFEE_IMPORT.search
+    pattern_has_import = _COFFEE_IMPORT_PATTERN.search
   else:
+    return True
+
+  if any(pattern_has_import(pattern) is not None for pattern in patterns):
     return True
 
   text = remove_color_codes(match.text)
@@ -182,21 +180,14 @@ def main(arguments=None):
   filtered_extensions = extensions
   if options.scope_arguments is not None:
     filtered_extensions = (*extensions, ".py", ".ts", ".tsx", ".coffee")
-  import_regexes = _import_regexes(filtered_extensions)
-  include_imports = (
-    options.imports
-    or main_arg == "gi"
-    or any(not _has_no_import(pattern, import_regexes) for pattern in pattern_texts)
-  )
-
   filter_predicate = None
-  if not include_imports:
-    filter_predicate = _has_non_import
-
   if main_arg == "def":
     filter_predicate = _has_definition_occurrence
   elif main_arg in ("gq", "gqq"):
     filter_predicate = _has_quoted_occurrence
+  elif not options.imports and main_arg != "gi":
+    filter_predicate = lambda match, occurrences: _has_non_import(
+      match, occurrences, pattern_texts)
 
   if options.word is None:
     word_regexp = (

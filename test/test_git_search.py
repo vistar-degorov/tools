@@ -191,6 +191,10 @@ export const endpointPath = "api/status"
     result = self._run(GG, "--imports", "os")
     self.assertIn("import os", result.stdout)
 
+    result = self._run(GG, "import os")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("import os", result.stdout)
+
     self.assertEqual(self._run(GG, "TEST_ONLY").returncode, 1)
     self.assertEqual(self._run(GG, "+t", "TEST_ONLY").returncode, 0)
     self.assertEqual(
@@ -205,15 +209,30 @@ export const endpointPath = "api/status"
     match = SearchResult(
       "module.py", 1, 1, b"\x1b[1;31mimport\x1b[m dependency")
     occurrence = SearchResult("module.py", 1, 8, b"dependency")
-    self.assertFalse(_has_non_import(match, (occurrence,)))
+    self.assertFalse(_has_non_import(match, (occurrence,), ("dependency",)))
 
   def test_occurrence_import_filter_keeps_mixed_lines(self):
     match = SearchResult(
       "module.py", 1, 1, b"import package; package.run()")
     imported = SearchResult("module.py", 1, 8, b"package")
     used = SearchResult("module.py", 1, 17, b"package")
-    self.assertFalse(_has_non_import(match, (imported,)))
-    self.assertTrue(_has_non_import(match, (imported, used)))
+    self.assertFalse(_has_non_import(match, (imported,), ("package",)))
+    self.assertTrue(_has_non_import(match, (imported, used), ("package",)))
+
+  def test_import_filter_checks_patterns_for_the_matched_language(self):
+    python_match = SearchResult("module.py", 1, 1, b"import dependency")
+    python_occurrence = SearchResult("module.py", 1, 8, b"dependency")
+    coffee_match = SearchResult("module.coffee", 1, 1, b"{dependency} = require 'package'")
+    coffee_occurrence = SearchResult("module.coffee", 1, 2, b"dependency")
+
+    self.assertTrue(_has_non_import(
+      python_match, (python_occurrence,), ("import dependency",)))
+    self.assertFalse(_has_non_import(
+      python_match, (python_occurrence,), ("{dependency} = require",)))
+    self.assertTrue(_has_non_import(
+      coffee_match, (coffee_occurrence,), ("{dependency} = require",)))
+    self.assertFalse(_has_non_import(
+      coffee_match, (coffee_occurrence,), ("import dependency",)))
 
   def test_quoted_filter_uses_byte_columns(self):
     match = SearchResult("module.py", 1, 1, b'\xc3\xa9 "marker"')
