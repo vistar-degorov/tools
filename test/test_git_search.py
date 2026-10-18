@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode
-from git_search_args import _split_leading_git_options, OptionsIterator, prepare_output, prepare_output_for_action, without_context_options
+from git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
 from git_search_cli import ResultAction
 from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
 
@@ -558,20 +558,20 @@ export const endpointPath = "api/status"
     for arguments in context_options:
       with self.subTest(arguments=arguments):
         self.assertIs(
-          prepare_output(arguments)[0].mode,
+          make_output_plan(arguments)[0].mode,
           GrepOutputMode.CONTEXT,
         )
 
     self.assertIs(
-      prepare_output(("-c", "-A", "2"))[0].mode,
+      make_output_plan(("-c", "-A", "2"))[0].mode,
       GrepOutputMode.COUNTS,
     )
     self.assertIs(
-      prepare_output(("-c", "-l"))[0].mode,
+      make_output_plan(("-c", "-l"))[0].mode,
       GrepOutputMode.PATHS,
     )
 
-  def test_without_context_options(self):
+  def test_skip_context_options(self):
     arguments = (
       "-iA2",
       "-pWn",
@@ -587,16 +587,16 @@ export const endpointPath = "api/status"
       "--", "-B",
     )
     self.assertEqual(
-      tuple(without_context_options(arguments)),
+      tuple(skip_context_options(arguments)),
       ("-i", "-n", "--no-context", "--max-depth", "7", "-e", "-W", "--", "-B"),
     )
 
   def test_context_options_filter_is_an_iterator(self):
-    filtered = without_context_options(("-i", "-A", "2"))
+    filtered = skip_context_options(("-i", "-A", "2"))
     self.assertIs(iter(filtered), filtered)
     self.assertEqual(tuple(filtered), ("-i",))
 
-  def test_options_iterator_is_a_pass_through_iterator(self):
+  def test_argument_iterator_is_a_pass_through_iterator(self):
     cases = (
       (),
       ("",),
@@ -610,7 +610,7 @@ export const endpointPath = "api/status"
     )
     for arguments in cases:
       with self.subTest(arguments=arguments):
-        options = OptionsIterator(arguments)
+        options = ArgumentIterator(arguments)
         self.assertIs(iter(options), options)
         self.assertEqual(tuple(options), arguments)
 
@@ -643,105 +643,105 @@ export const endpointPath = "api/status"
       "--files-with-matches",
       "--max-depth", "5",
     )
-    plan, filtered = prepare_output_for_action(arguments, _result_action(json=True))
+    plan, filtered = make_output_plan(arguments, _result_action(json=True))
     self.assertIs(plan.mode, GrepOutputMode.MATCHES)
     self.assertEqual(filtered, ("-i", "--max-depth", "5"))
 
   def test_incompatible_output_filter_can_preserve_path_modes(self):
     arguments = ("-ilL", "--name-only", "--files-without-match", "-c")
-    plan, filtered = prepare_output_for_action(arguments, _result_action(index=1))
+    plan, filtered = make_output_plan(arguments, _result_action(index=1))
     self.assertIs(plan.mode, GrepOutputMode.PATHS)
     self.assertEqual(filtered, ("-ilL", "--name-only", "--files-without-match"))
 
   def test_incompatible_output_filter_preserves_option_values_and_operands(self):
     arguments = ("-e", "-C", "-C", "2", "--", "-A", "3")
-    plan, filtered = prepare_output_for_action(arguments, _result_action(json=True))
+    plan, filtered = make_output_plan(arguments, _result_action(json=True))
     self.assertIs(plan.mode, GrepOutputMode.MATCHES)
     self.assertEqual(filtered, ("-e", "-C", "--", "-A", "3"))
 
   def test_context_removal_preserves_attached_pager(self):
     self.assertEqual(
-      tuple(without_context_options(("-Opager",))),
+      tuple(skip_context_options(("-Opager",))),
       ("-Opager",),
     )
 
   def test_context_removal_preserves_spaced_value_for_clustered_option(self):
     self.assertEqual(
-      tuple(without_context_options(("-ie", "needle"))),
+      tuple(skip_context_options(("-ie", "needle"))),
       ("-ie", "needle"),
     )
 
   def test_context_removal_preserves_spaced_value_for_abbreviated_option(self):
     arguments = ("--max-d", "4", "-A", "2")
-    self.assertEqual(tuple(without_context_options(arguments)), ("--max-d", "4"))
+    self.assertEqual(tuple(skip_context_options(arguments)), ("--max-d", "4"))
 
   def test_context_removal_preserves_empty_spaced_value(self):
-    self.assertEqual(tuple(without_context_options(("-e", ""))), ("-e", ""))
+    self.assertEqual(tuple(skip_context_options(("-e", ""))), ("-e", ""))
 
   def test_context_removal_does_not_repeat_equals_value(self):
     for arguments in (("--threads=3",), ("--max-d=4",)):
       with self.subTest(arguments=arguments):
-        self.assertEqual(tuple(without_context_options(arguments)), arguments)
+        self.assertEqual(tuple(skip_context_options(arguments)), arguments)
 
   def test_context_removal_preserves_incomplete_and_invalid_options(self):
     for arguments in (("-ie",), ("-",), ("--123",)):
       with self.subTest(arguments=arguments):
-        self.assertEqual(tuple(without_context_options(arguments)), arguments)
+        self.assertEqual(tuple(skip_context_options(arguments)), arguments)
 
   def test_context_flags_do_not_hide_following_presentation_flags(self):
-    plan, arguments = prepare_output(("-ph",))
+    plan, arguments = make_output_plan(("-ph",))
     self.assertFalse(plan.show_filename)
     self.assertFalse(plan.show_line_number)
     self.assertEqual(arguments, ("-p",))
 
-    plan, arguments = prepare_output(("-Wz",))
+    plan, arguments = make_output_plan(("-Wz",))
     self.assertTrue(plan.null_terminate_filenames)
     self.assertEqual(arguments, ("-W",))
 
   def test_context_removal_preserves_invalid_assignments(self):
     arguments = ("--show-function=value", "--function-context=value")
-    self.assertEqual(tuple(without_context_options(arguments)), arguments)
+    self.assertEqual(tuple(skip_context_options(arguments)), arguments)
 
   def test_context_removal_recognizes_abbreviated_long_options(self):
     arguments = ("--bef=2", "--cont", "3", "--show-f", "--function-con", "-i")
-    self.assertEqual(tuple(without_context_options(arguments)), ("-i",))
+    self.assertEqual(tuple(skip_context_options(arguments)), ("-i",))
 
   def test_output_plan_recognizes_abbreviated_context_options(self):
     for arguments in (("--bef=2",), ("--show-f",), ("--function-con",)):
       with self.subTest(arguments=arguments):
-        self.assertIs(prepare_output(arguments)[0].mode, GrepOutputMode.CONTEXT)
+        self.assertIs(make_output_plan(arguments)[0].mode, GrepOutputMode.CONTEXT)
 
   def test_output_plan_tracks_visible_fields(self):
-    default, _ = prepare_output(())
+    default, _ = make_output_plan(())
     self.assertTrue(default.show_filename)
     self.assertTrue(default.show_line_number)
     self.assertFalse(default.show_column_number)
 
-    hidden, _ = prepare_output(("-h",))
+    hidden, _ = make_output_plan(("-h",))
     self.assertFalse(hidden.show_filename)
     self.assertFalse(hidden.show_line_number)
 
-    numbered, _ = prepare_output(("-h", "-n", "--column"))
+    numbered, _ = make_output_plan(("-h", "-n", "--column"))
     self.assertFalse(numbered.show_filename)
     self.assertTrue(numbered.show_line_number)
     self.assertTrue(numbered.show_column_number)
 
-    count, _ = prepare_output(("-h", "-n", "--column", "-c"))
+    count, _ = make_output_plan(("-h", "-n", "--column", "-c"))
     self.assertFalse(count.show_filename)
     self.assertFalse(count.show_line_number)
     self.assertFalse(count.show_column_number)
 
-    paths, _ = prepare_output(("-h", "-l"))
+    paths, _ = make_output_plan(("-h", "-l"))
     self.assertTrue(paths.show_filename)
     self.assertFalse(paths.show_line_number)
 
   def test_output_plan_skips_pattern_option_values(self):
-    plan, _ = prepare_output(("-e", "-h", "-f", "--column"))
+    plan, _ = make_output_plan(("-e", "-h", "-f", "--column"))
     self.assertTrue(plan.show_filename)
     self.assertFalse(plan.show_column_number)
 
   def test_output_plan_honors_negated_options(self):
-    plan, _ = prepare_output((
+    plan, _ = make_output_plan((
       "--count", "--no-count",
       "--context=2", "--no-context",
       "--heading", "--no-heading",
@@ -754,7 +754,7 @@ export const endpointPath = "api/status"
     self.assertFalse(plan.quiet)
 
   def test_output_preparation_removes_presentation_options(self):
-    plan, arguments = prepare_output((
+    plan, arguments = make_output_plan((
       "-hinA2",
       "--column",
       "--heading",
@@ -766,7 +766,7 @@ export const endpointPath = "api/status"
     self.assertEqual(arguments, ("-iA2", "-c"))
 
   def test_output_preparation_preserves_git_options_and_values(self):
-    _, arguments = prepare_output((
+    _, arguments = make_output_plan((
       "-e", "--column",
       "-f", "-h",
       "--max-depth", "3",
@@ -780,7 +780,7 @@ export const endpointPath = "api/status"
     ))
 
   def test_output_preparation_preserves_invalid_assignments(self):
-    _, arguments = prepare_output((
+    _, arguments = make_output_plan((
       "--column=value", "--color=value", "--no-color=value",
     ))
     self.assertEqual(arguments, (
