@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import argparse
+from io import BytesIO
 from itertools import groupby
 from pathlib import Path
 import re
@@ -41,7 +42,11 @@ _TYPESCRIPT_VARIABLE = re.compile(
 _PYTHON_IMPORT = re.compile(br"\s*(?:import\b|from\b.*\bimport\b)")
 _TYPESCRIPT_IMPORT = re.compile(br"\s*import\b")
 _COFFEE_IMPORT = re.compile(br"} *= *require\b")
-
+_COMMA_LIST_OF_NAMES = re.compile(
+  br"\s*(?:[(,]\s*)?"
+  br"\w+(?:\s*,\s*\w+)*"
+  br"\s*,?\s*\)?\s*"
+)
 
 def _argument_parser():
   parser = argparse.ArgumentParser(
@@ -94,7 +99,7 @@ def _parse_arguments(arguments=None):
   return parse_search_arguments(_argument_parser(), arguments, pattern_metavar="PATTERN")
 
 
-def _has_non_import(match, occurrences, patterns):
+def _has_non_import(match, occurrences, file_reader, patterns):
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
     find_import = _PYTHON_IMPORT.match
@@ -112,6 +117,17 @@ def _has_non_import(match, occurrences, patterns):
     return True
 
   text = remove_color_codes(match.text)
+
+  if _COMMA_LIST_OF_NAMES.fullmatch(text) is not None:
+    is_import = False
+    for line in file_reader.readlines(match.path, match.line - 10, match.line):
+      if is_import:
+        if _COMMA_LIST_OF_NAMES.fullmatch(line) is None:
+          is_import = False
+      elif find_import(line) is not None:
+          is_import = True
+    return not is_import
+
   for occurrence in occurrences:
     head = occurrence.column - 1
     statement = text[text.rfind(b";", 0, head) + 1:]
@@ -133,7 +149,7 @@ def _occurrences_by_line(occurrences):
     yield tuple(line_occurrences)
 
 
-def _has_quoted_occurrence(match, occurrences):
+def _has_quoted_occurrence(match, occurrences, _):
   text = remove_color_codes(match.text)
   for occurrence in occurrences:
     head = occurrence.column - 1
@@ -142,7 +158,7 @@ def _has_quoted_occurrence(match, occurrences):
   return False
 
 
-def _has_definition_occurrence(match, occurrences):
+def _has_definition_occurrence(match, occurrences, _):
   extension = Path(match.path).suffix.lower()
   if extension in (".py", ".pyi", ".pyw", ".bzl"):
     definition_patterns = (_PYTHON_DEFINITION,)
@@ -168,22 +184,54 @@ def _has_definition_occurrence(match, occurrences):
   return False
 
 
-def _filter_occurrence_matches(results, occurrences, keep):
+def _filter_occurrence_matches(results, occurrences, predicate, file_reader):
   for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
-    if keep(match, line_occurrences):
+    if predicate(match, line_occurrences, file_reader):
       yield match
 
 
-def _filter_occurrence_contexts(results, occurrences, keep):
+def _filter_occurrence_contexts(results, occurrences, predicate, file_reader):
   occurrence_lines = iter(_occurrences_by_line(occurrences))
   for block in results:
     keep_block = False
     for match in block.matches:
       line_occurrences = next(occurrence_lines, ())
-      if not keep_block and keep(match, line_occurrences):
+      if not keep_block and predicate(match, line_occurrences, file_reader):
         keep_block = True
     if keep_block:
       yield block
+
+
+class FileReader:
+  def __init__(self):
+    self._path = None
+    self._line_nr = 1
+    self._reader = None
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, *_):
+    if self._reader is not None:
+      self._reader.close()
+    return False
+
+  def readlines(self, path, line, until_line):
+    if self._path != path:
+      if self._reader is not None:
+        self._reader.close()
+      self._path = path
+      self._line_nr = 1
+      try:
+        self._reader = open(path, "rb")
+      except OSError:
+        self._reader = BytesIO(b"")
+
+    while self._line_nr < until_line:
+      text = self._reader.readline()
+      if self._line_nr >= line:
+        yield text
+      self._line_nr += 1
 
 
 def main(arguments=None):
@@ -203,8 +251,8 @@ def main(arguments=None):
   elif main_arg in ("gq", "gqq"):
     filter_predicate = _has_quoted_occurrence
   elif not options.imports and main_arg != "gi":
-    filter_predicate = lambda match, occurrences: _has_non_import(
-      match, occurrences, pattern_texts)
+    filter_predicate = lambda match, occurrences, file_reader: _has_non_import(
+      match, occurrences, file_reader, pattern_texts)
 
   if options.word is None:
     word_regexp = (
@@ -245,10 +293,13 @@ def main(arguments=None):
     return status
 
   if filter_predicate:
-    if output_plan.mode == GrepOutputMode.CONTEXT:
-      results = list(_filter_occurrence_contexts(results, occurrences, filter_predicate))
-    elif output_plan.mode == GrepOutputMode.MATCHES:
-      results = list(_filter_occurrence_matches(results, occurrences, filter_predicate))
+    with FileReader() as file_reader:
+      if output_plan.mode == GrepOutputMode.CONTEXT:
+        results = list(_filter_occurrence_contexts(
+          results, occurrences, filter_predicate, file_reader))
+      elif output_plan.mode == GrepOutputMode.MATCHES:
+        results = list(_filter_occurrence_matches(
+          results, occurrences, filter_predicate, file_reader))
 
   return present_results(results, output_plan, result_action, program=main_arg)
 
