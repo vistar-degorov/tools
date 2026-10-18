@@ -58,13 +58,14 @@ GIT_GREP_OPTIONS_WITH_VALUE = {
   "-A": (VS.SPACED, VS.GLUED), "--after-context": (VS.EQUALS, VS.SPACED),
   "-B": (VS.SPACED, VS.GLUED), "--before-context": (VS.EQUALS, VS.SPACED),
   "-C": (VS.SPACED, VS.GLUED), "--context": (VS.EQUALS, VS.SPACED),
-  "--color": (VS.EQUALS,),
   "-e": (VS.SPACED, VS.GLUED), "--pattern": (VS.EQUALS, VS.SPACED),
   "-f": (VS.SPACED, VS.GLUED), "--file": (VS.EQUALS, VS.SPACED),
   "-m": (VS.SPACED, VS.GLUED), "--max-count": (VS.EQUALS, VS.SPACED),
+  "-O": (VS.GLUED,),
   "--max-depth": (VS.EQUALS, VS.SPACED),
   "--threads": (VS.EQUALS, VS.SPACED),
-  "-O": (VS.GLUED,),
+  "--open-files-in-pager": (VS.EQUALS,),
+  "--color": (VS.EQUALS,),
 }
 
 _CONTEXT_SETTINGS = {
@@ -99,7 +100,7 @@ _OTHER_OPTIONS = frozenset((
   "--all-match", "--and", "--basic-regexp", "--cached", "--exclude-standard",
   "--extended-regexp", "--fixed-strings", "--full-name", "--ignore-case", "--invert-match",
   "--no-color", "--no-exclude-standard", "--no-index", "--no-recursive", "--not", "--no-textconv",
-  "--only-matching", "--open-files-in-pager", "--or", "--parent-basename", "--perl-regexp",
+  "--only-matching", "--or", "--parent-basename", "--perl-regexp",
   "--recurse-submodules", "--recursive", "--text", "--textconv", "--untracked", "--word-regexp",
 ))
 
@@ -260,6 +261,34 @@ class SkipContextOptions(OptionsIterator):
       self.append_option(argument, value, value_style)
 
 
+_PATH_OUTPUT_OPTIONS = frozenset((
+  "-l", "-L", "--name-only", "--files-with-matches", "--files-without-match",
+))
+
+_INCOMPATIBLE_STRUCTURED_OUTPUT_OPTIONS = frozenset((
+  "-c", "--count",
+  "-q", "--quiet",
+  "-o", "--only-matching",
+  "-O", "--open-files-in-pager",
+  *_CONTEXT_SETTINGS,
+))
+
+
+class _SkipIncompatibleOutputOptions(OptionsIterator):
+  def __init__(self, arguments, keep_paths):
+    self.keep_paths = keep_paths
+    super().__init__(arguments)
+
+  def consume(self, argument, key, value=None, value_style=None):
+    incompatible = (
+      key in _INCOMPATIBLE_STRUCTURED_OUTPUT_OPTIONS
+      or key.startswith("-") and key[1:].isdigit()
+      or not self.keep_paths and key in _PATH_OUTPUT_OPTIONS
+    )
+    if not incompatible:
+      self.append_option(argument, value, value_style)
+
+
 class ApplyOutputOptions(OptionsIterator):
   def __init__(self, arguments, settings):
     self.settings = settings
@@ -302,30 +331,6 @@ class ApplyOutputOptions(OptionsIterator):
 
 def without_context_options(arguments):
   return SkipContextOptions(arguments)
-
-
-class _HasOutputModifiers(OptionsIterator):
-  long_options = frozenset((
-    "--break", "--color", "--count", "--null", "--heading", "--name-only",
-    "--no-filename", "--files-with-matches", "--files-without-match",
-    *_CONTEXT_SETTINGS,
-  ))
-  def __init__(self, arguments):
-    super().__init__(arguments)
-    self.has_output_modifiers = False
-
-  def consume(self, argument, key, value=None, value_style=None):
-    self.has_output_modifiers |= (key in self.long_options
-      or len(key) == 2 and key[1] in "ABCcLlhpW"
-      or key.startswith("-") and key[1:].isdigit())
-    self.append_option(argument, value, value_style)
-
-
-def has_output_modifiers(arguments):
-  for _ in (arguments := _HasOutputModifiers(arguments)):
-    if arguments.has_output_modifiers:
-      return True
-  return False
 
 
 def prepare_output(arguments):
@@ -380,6 +385,18 @@ def prepare_output(arguments):
     color=settings.color,
     quiet=settings.quiet,
   ), arguments
+
+
+def prepare_output_for_action(arguments, action):
+  arguments = tuple(arguments)
+  if not action.machine_output:
+    return prepare_output(arguments)
+
+  keep_paths = False
+  if action.index is not None and not action.json:
+    requested_output_plan, _ = prepare_output(arguments)
+    keep_paths = requested_output_plan.mode is GrepOutputMode.PATHS
+  return prepare_output(_SkipIncompatibleOutputOptions(arguments, keep_paths))
 
 
 class _LeadingGitOptions(OptionsIterator):
