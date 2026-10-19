@@ -144,7 +144,7 @@ def _has_quoted_occurrence(match, occurrences):
 
 def _has_definition_occurrence(match, occurrences):
   extension = Path(match.path).suffix.lower()
-  if extension in (".py", ".pyi", ".pyw"):
+  if extension in (".py", ".pyi", ".pyw", ".bzl"):
     definition_patterns = (_PYTHON_DEFINITION,)
   elif extension in (".ts", ".tsx"):
     definition_patterns = (_TYPESCRIPT_DECLARATION, _TYPESCRIPT_VARIABLE)
