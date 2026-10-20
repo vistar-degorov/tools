@@ -1,88 +1,292 @@
 #! /usr/bin/python
 
+import argparse
+import ast
 from pathlib import Path
-import re
 import sys
+import tokenize
 
-def should_ignore(match, text):
-  phrase = " __future__"
-  return phrase == text[match.start() - len(phrase) : match.start()]
 
-if __name__ == "__main__":
-  imp_rx = re.compile(r' *\bimport +(.+)')
-  imp_ml_rx = re.compile(r' *\bimport +\((.+?)\)', flags=re.DOTALL)
-  ident_rx = re.compile(r'([\w\.\*]+)(.*)', flags=re.DOTALL)
-  rename_rx = re.compile(r'as +(\w+)(.*)', flags=re.DOTALL)
+VERSION = "0.0.2"
 
-  def _parse_import(match, trailing_comma_ok):
-    end_idx = match.end()
-    imported_names = []
 
-    for line in match.group(1).splitlines():
-      line = line.lstrip()
+def _tokenize_stream(input_stream):
+  def unindented_readline():
+    return input_stream.readline().lstrip(" \t\f")
 
-      while match := ident_rx.match(line):
-        orig_name, line = match.group(1, 2)
-        line = line.lstrip()
+  try:
+    yield from tokenize.generate_tokens(unindented_readline)
+  except (IndentationError, tokenize.TokenError):
+    # Analyze all tokens produced before an unrecoverable tokenization error.
+    pass
 
-        if match := rename_rx.match(line):
-          new_name, line = match.group(1, 2)
-          line = line.lstrip()
-        else:
-          new_name = orig_name
 
-        imported_names.append((orig_name, new_name, end_idx))
+def _names_in_fstring(token):
+  literal = token.string
+  prefix = literal[:2].lower()
+  if not (prefix.startswith("f") or prefix == "rf"):
+    return
 
-        if has_comma := line.startswith(","):
-          line = line[1:].lstrip()
-        if line == "" or line.startswith("#"):
-          if has_comma and not trailing_comma_ok:
-            return ()
+  try:
+    expression = ast.parse(literal, mode="eval").body
+  except SyntaxError:
+    return
+  if not isinstance(expression, ast.JoinedStr):
+    return
+
+  for node in ast.walk(expression):
+    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+      yield node.id
+
+
+def _parse_dotted_name(statement, index):
+  if index >= len(statement) or statement[index].type != tokenize.NAME:
+    return None, index
+  if statement[index].string in ("as", "import"):
+    return None, index
+
+  parts = [statement[index].string]
+  index += 1
+  while (
+    index + 1 < len(statement)
+    and statement[index].string == "."
+    and statement[index + 1].type == tokenize.NAME
+  ):
+    parts.append(statement[index + 1].string)
+    index += 2
+  return ".".join(parts), index
+
+
+def _parse_import_names(statement, index, *, allow_dotted):
+  imported_names = []
+
+  while index < len(statement):
+    original_name, alias = None, None
+
+    if allow_dotted:
+      original_name, next_index = _parse_dotted_name(statement, index)
+    elif statement[index].type == tokenize.NAME:
+      original_name = statement[index].string
+      next_index = index + 1
+
+    if original_name is None:
+      break
+    index = next_index
+
+    if index + 1 < len(statement) and statement[index].string == "as" \
+      and statement[index + 1].type == tokenize.NAME:
+      alias = statement[index + 1].string
+      index += 2
+
+    if alias:
+      bound_name = alias
+    elif allow_dotted:
+      bound_name = original_name.split(".", 1)[0]
+    else:
+      bound_name = original_name
+    imported_names.append((alias or original_name, bound_name))
+
+    if not (index < len(statement) and statement[index].string == ","):
+      break
+    index += 1
+
+  return imported_names, index
+
+
+def _parse_from_import(statement, import_index):
+  index = import_index + 1
+  parenthesized = False
+
+  if (index < len(statement) and statement[index].string == "("):
+    parenthesized = True
+    index += 1
+
+  if (index < len(statement) and statement[index].string == "*"):
+    return [("*", "*")], index + 1
+
+  imported_names, index = _parse_import_names(statement, index, allow_dotted=False)
+  if (parenthesized and index < len(statement)
+    and statement[index].string == ")"):
+    index += 1
+
+  return imported_names, index
+
+
+def _parse_import_statement(statement):
+  if not statement:
+    return None
+
+  match statement[0].string:
+    case "import":
+      imported_names, end_index = _parse_import_names(
+        statement, 1, allow_dotted=True)
+
+    case "from":
+      for import_index in range(1, len(statement)):
+        if statement[import_index].string == "import":
           break
-        elif not has_comma:
-          return ()
-    return imported_names
+      else:
+        return None
 
-  def _parse_imports(text):
-    for match in imp_rx.finditer(text):
-      if not should_ignore(match, text):
-        yield from _parse_import(match, trailing_comma_ok=False)
-    for match in imp_ml_rx.finditer(text):
-      if not should_ignore(match, text):
-        yield from _parse_import(match, trailing_comma_ok=True)
+      module_name = "".join(token.string for token in statement[1:import_index])
+      imported_names, end_index = _parse_from_import(statement, import_index)
+      if module_name == "__future__":
+        imported_names = []
 
-  if sys.argv[1:] in (["--version"], ["-v"]):
-    sys.exit("0.0.1")
+    case _:
+      return None
 
-  for filename in sys.argv[1:]:
-    if filename.startswith("-"):
-      sys.stderr.write(f"Ignoring argument {filename}\n")
+  end_index = max(1, end_index)
+  end_position = statement[end_index - 1].end
+  imports = [
+    (displayed_name, bound_name, end_position)
+    for displayed_name, bound_name in imported_names
+  ]
+  return imports, end_index
+
+
+def _finish_import_candidate(statement, imports, bound_names, usages):
+  if (import_stmt := _parse_import_statement(statement)) is None:
+    usage_index = 0
+  else:
+    statement_imports, usage_index = import_stmt
+    imports.extend(statement_imports)
+    bound_names.update(
+      bound_name for _, bound_name, _ in statement_imports)
+
+  # A malformed import can have tokens after the part that was parsed.
+  for token in statement[usage_index:]:
+    if token.string in bound_names:
+      usages[token.string] = token.start
+    elif token.type == tokenize.STRING:
+      for name in _names_in_fstring(token):
+        if name in bound_names:
+          usages[name] = token.start
+
+
+def parse_imports(input_stream):
+  imports = []
+  usages = {}
+  bound_names = set()
+  import_candidate = None
+  statement_start = True
+  ignored = {
+    tokenize.COMMENT,
+    tokenize.ENCODING,
+    tokenize.INDENT,
+    tokenize.DEDENT,
+  }
+
+  for token in _tokenize_stream(input_stream):
+    t_type = token.type
+
+    if t_type in ignored:
+      continue
+    if t_type == tokenize.ENDMARKER:
+      break
+
+    t_value = token.string
+    if t_type == tokenize.NL:
+      continue
+    if t_type == tokenize.NEWLINE or (
+      t_type == tokenize.ERRORTOKEN and t_value in ("\n", "\r\n")):
+      if import_candidate is not None:
+        _finish_import_candidate(
+          import_candidate, imports, bound_names, usages)
+        import_candidate = None
+      statement_start = True
       continue
 
-    if Path(filename).name == "__init__.py":
+    # Recover when a later physical line clearly starts another import after
+    # an unmatched opening bracket or explicit line continuation.
+    if (
+      t_value in ("from", "import")
+      and not statement_start
+      and token.start[1] == 0
+    ):
+      continues_from_import = (
+        t_value == "import"
+        and import_candidate is not None
+        and import_candidate[0].string == "from"
+        and all(part.string != "import" for part in import_candidate)
+      )
+      if not continues_from_import:
+        if import_candidate is not None:
+          _finish_import_candidate(
+            import_candidate, imports, bound_names, usages)
+          import_candidate = None
+        statement_start = True
+
+    if t_value in (";", ":"):
+      if import_candidate is not None:
+        _finish_import_candidate(
+          import_candidate, imports, bound_names, usages)
+        import_candidate = None
+      statement_start = True
+      continue
+
+    if import_candidate is not None:
+      import_candidate.append(token)
+    elif statement_start and t_value in ("from", "import"):
+      import_candidate = [token]
+    else:
+      if t_value in bound_names:
+        usages[t_value] = token.start
+      elif t_type == tokenize.STRING:
+        for name in _names_in_fstring(token):
+          if name in bound_names:
+            usages[name] = token.start
+
+    statement_start = False
+
+  if import_candidate is not None:
+    _finish_import_candidate(import_candidate, imports, bound_names, usages)
+
+  return imports, usages
+
+
+def _parse_arguments(arguments=None):
+  parser = argparse.ArgumentParser(
+    description="Find unused and duplicate imports in Python code.")
+  parser.add_argument(
+    "-v", "--version", action="version", version=VERSION)
+  parser.add_argument(
+    "-i", "--include-init", action="store_true",
+    help="include __init__.py files")
+  parser.add_argument("filenames", metavar="FILE", nargs="*")
+  return parser.parse_intermixed_args(arguments)
+
+
+def main():
+  arguments = _parse_arguments()
+
+  for filename in arguments.filenames:
+    if not arguments.include_init and Path(filename).name == "__init__.py":
       continue
 
     try:
       with open(filename, 'r') as istr:
-        text = istr.read()
-    except FileNotFoundError as err:
+        imports, usages = parse_imports(istr)
+
+    except FileNotFoundError:
       sys.stderr.write(f"Error reading {filename}\n")
       continue
 
     imported_names_in_file = set()
     list_header = f"- {filename}:\n"
-    for _, new_name, begin_idx in _parse_imports(text):
-      if new_name == "*":
-        continue
-      try:
-        rx = re.compile(r'\b' + re.escape(new_name) + r'\b')
-      except re.error as err:
-        sys.stderr.write(f"Error in {filename}:\n  {err}\n")
+    for displayed_name, bound_name, end_position in imports:
+      if displayed_name == "*":
         continue
 
-      dup_message = "  (duplicate)" if new_name in imported_names_in_file else ""
-      imported_names_in_file.add(new_name)
+      duplicate = displayed_name in imported_names_in_file
+      imported_names_in_file.add(displayed_name)
 
-      if rx.search(text, begin_idx) is None or dup_message:
-        print(f"{list_header}    {new_name}{dup_message}")
+      used_later = usages.get(bound_name, (0, 0)) > end_position
+      if not used_later or duplicate:
+        suffix = "  (duplicate)" if duplicate else ""
+        print(f"{list_header}    {displayed_name}{suffix}")
         list_header = ""
+
+
+if __name__ == "__main__":
+  main()
