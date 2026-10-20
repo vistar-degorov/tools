@@ -7,7 +7,7 @@ import shlex
 import subprocess
 import sys
 
-from git_search_args import (
+from .git_search_args import (
   Config, GrepOutputMode, resolve_setting, skip_context_options,
 )
 

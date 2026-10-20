@@ -2,8 +2,8 @@ from io import BytesIO
 import os
 import unittest
 
-from git_search_args import OutputPlan
-from git_search import (
+from lib.git_search_args import OutputPlan
+from lib.git_search import (
   ContextBlock,
   CountResult,
   PathResult,
