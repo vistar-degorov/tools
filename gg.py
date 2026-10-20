@@ -7,13 +7,13 @@ from pathlib import Path
 import re
 import sys
 
-from git_search_args import (
+from lib.git_search_args import (
   add_common_search_arguments,
   parse_search_arguments,
   make_output_plan,
   resolve_extensions,
 )
-from git_search import (
+from lib.git_search import (
   GrepOutputMode,
   remove_color_codes,
   build_search_command,

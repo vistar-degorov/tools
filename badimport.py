@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 import sys
 
-from parser import PythonImportParser
+from lib.parser import PythonImportParser
 
 VERSION = "0.0.3"
 

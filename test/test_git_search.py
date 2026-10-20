@@ -8,8 +8,8 @@ import subprocess
 import tempfile
 import unittest
 
-from git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
-from git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
+from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
+from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
 from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
 
 
