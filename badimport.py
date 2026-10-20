@@ -11,17 +11,6 @@ import tokenize
 VERSION = "0.0.2"
 
 
-def _tokenize_stream(input_stream):
-  def unindented_readline():
-    return input_stream.readline().lstrip(" \t\f")
-
-  try:
-    yield from tokenize.generate_tokens(unindented_readline)
-  except (IndentationError, tokenize.TokenError):
-    # Analyze all tokens produced before an unrecoverable tokenization error.
-    pass
-
-
 def _names_in_fstring(token):
   literal = token.string
   prefix = literal[:2].lower()
@@ -190,12 +179,15 @@ class PythonImportParser:
   ))
 
   def __init__(self, input_stream, *, line_offset=0):
+    def _unindented_readline():
+      return input_stream.readline().lstrip(" \t\f")
+    self._tokens = tokenize.generate_tokens(_unindented_readline)
+
     self.imports = []
     self.usages = {}
     self._bound_names = set()
     self._import_candidate = None
     self._statement_start = True
-    self._tokens = iter(_tokenize_stream(input_stream))
     self._pending_token = None
     self._done = False
     self._line_offset = line_offset
@@ -224,94 +216,102 @@ class PythonImportParser:
       tokens = chain((self._pending_token,), tokens)
       self._pending_token = None
 
+    # binding these to local variables makes it go faster
+    ignored_token_types = self._ignored_token_types
     imports = self.imports
     usages = self.usages
     bound_names = self._bound_names
     import_candidate = self._import_candidate
     statement_start = self._statement_start
-    advanced_through = self._advanced_through
-    done = False
+    token = None
 
-    for token in tokens:
-      if local_through_line is not None and token.start[0] > local_through_line:
-        self._pending_token = token
-        advanced_through = through_line
-        break
+    try:
+      for token in tokens:
+        if local_through_line is not None and token.start[0] > local_through_line:
+          self._pending_token = token
+          self._advanced_through = through_line
+          break
 
-      advanced_through = token.end[0] + line_offset
-      t_type = token.type
+        t_type = token.type
 
-      if t_type in self._ignored_token_types:
-        continue
-      if t_type == tokenize.ENDMARKER:
-        done = True
-        break
+        if t_type in ignored_token_types:
+          continue
+        if t_type == tokenize.ENDMARKER:
+          self._advanced_through = token.end[0] + line_offset
+          self._done = True
+          break
 
-      t_value = token.string
-      if t_type == tokenize.NL:
-        continue
-      if t_type == tokenize.NEWLINE or (
-        t_type == tokenize.ERRORTOKEN and t_value in ("\n", "\r\n")):
-        if import_candidate is not None:
-          _finish_import_candidate(
-            import_candidate, imports, bound_names, usages, line_offset)
-          import_candidate = None
-        statement_start = True
-        continue
-
-      # Recover when a later physical line clearly starts another import after
-      # an unmatched opening bracket or explicit line continuation.
-      if (
-        t_value in ("from", "import")
-        and not statement_start
-        and token.start[1] == 0
-      ):
-        continues_from_import = (
-          t_value == "import"
-          and import_candidate is not None
-          and import_candidate[0].string == "from"
-          and all(part.string != "import" for part in import_candidate)
-        )
-        if not continues_from_import:
+        t_value = token.string
+        if t_type == tokenize.NL:
+          continue
+        if t_type == tokenize.NEWLINE or (
+          t_type == tokenize.ERRORTOKEN and t_value in ("\n", "\r\n")):
           if import_candidate is not None:
             _finish_import_candidate(
               import_candidate, imports, bound_names, usages, line_offset)
             import_candidate = None
           statement_start = True
+          continue
 
-      if t_value in (";", ":"):
+        # Recover when a later physical line clearly starts another import after
+        # an unmatched opening bracket or explicit line continuation.
+        if (
+          t_value in ("from", "import")
+          and not statement_start
+          and token.start[1] == 0
+        ):
+          continues_from_import = (
+            t_value == "import"
+            and import_candidate is not None
+            and import_candidate[0].string == "from"
+            and all(part.string != "import" for part in import_candidate)
+          )
+          if not continues_from_import:
+            if import_candidate is not None:
+              _finish_import_candidate(
+                import_candidate, imports, bound_names, usages, line_offset)
+              import_candidate = None
+            statement_start = True
+
+        if t_value in (";", ":"):
+          if import_candidate is not None:
+            _finish_import_candidate(
+              import_candidate, imports, bound_names, usages, line_offset)
+            import_candidate = None
+          statement_start = True
+          continue
+
         if import_candidate is not None:
-          _finish_import_candidate(
-            import_candidate, imports, bound_names, usages, line_offset)
-          import_candidate = None
-        statement_start = True
-        continue
+          import_candidate.append(token)
+        elif statement_start and t_value in ("from", "import"):
+          import_candidate = [token]
+        else:
+          if t_value in bound_names:
+            usages[t_value] = _offset_position(token.start, line_offset)
+          elif bound_names and t_type == tokenize.STRING:
+            for name in _names_in_fstring(token):
+              if name in bound_names:
+                usages[name] = _offset_position(token.start, line_offset)
 
-      if import_candidate is not None:
-        import_candidate.append(token)
-      elif statement_start and t_value in ("from", "import"):
-        import_candidate = [token]
+        statement_start = False
       else:
-        if t_value in bound_names:
-          usages[t_value] = _offset_position(token.start, line_offset)
-        elif bound_names and t_type == tokenize.STRING:
-          for name in _names_in_fstring(token):
-            if name in bound_names:
-              usages[name] = _offset_position(token.start, line_offset)
+        if token is not None:
+          self._advanced_through = token.end[0] + line_offset
+        self._done = True
 
-      statement_start = False
-    else:
-      done = True
+    except (IndentationError, tokenize.TokenError):
+      # Analyze all tokens produced before an unrecoverable tokenization error.
+      if token is not None:
+        self._advanced_through = token.end[0] + line_offset
+      self._done = True
 
-    if done and import_candidate is not None:
+    if self._done and import_candidate is not None:
       _finish_import_candidate(
         import_candidate, imports, bound_names, usages, line_offset)
       import_candidate = None
 
     self._import_candidate = import_candidate
     self._statement_start = statement_start
-    self._advanced_through = advanced_through
-    self._done = done
 
   def advance_through(self, line):
     """Process tokens through an absolute source line without finishing."""
