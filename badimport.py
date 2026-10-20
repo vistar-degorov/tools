@@ -8,7 +8,7 @@ import sys
 import tokenize
 
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 
 
 def _names_in_fstring(token):
