@@ -26,6 +26,10 @@ from lib.git_search import (
 )
 from lib.parser import PythonImportParser
 
+# code parser settings
+_LOOKBACK_LINES = 10
+_MAX_GAP_LINES = 10
+
 # for searching command line args
 _IMPORT_PATTERN = re.compile(r"\bimport\b")
 _COFFEE_IMPORT_PATTERN = re.compile(r"\brequire\b")
@@ -129,7 +133,7 @@ def _has_non_import(match, occurrences, patterns, file_reader=None, python_impor
     if file_reader is None:
       return True
     is_import = False
-    for line in file_reader.readlines(match.path, match.line - 10, match.line):
+    for line in file_reader.readlines(match.path, match.line - _LOOKBACK_LINES, match.line):
       if is_import:
         if _COMMA_LIST_OF_NAMES.fullmatch(line) is None:
           is_import = False
@@ -250,9 +254,9 @@ class PythonImportScanner:
   should treat it as non-import content rather than hide a possible match.
   """
 
-  def __init__(self, *, lookback=10, bridge=10):
+  def __init__(self, *, lookback=_LOOKBACK_LINES, max_gap=_MAX_GAP_LINES):
     self._lookback = lookback
-    self._bridge = bridge
+    self._max_gap = max_gap
     self._path = None
     self._reader = None
     self._parser = None
@@ -311,9 +315,9 @@ class PythonImportScanner:
         return None
 
       self._restart(
-        window_start if window_start > upcoming_line + self._bridge else upcoming_line
+        window_start if window_start > upcoming_line + self._max_gap else upcoming_line
       )
-    elif window_start > upcoming_line + self._bridge:
+    elif window_start > upcoming_line + self._max_gap:
       self._restart(window_start)
 
     parser = self._parser
