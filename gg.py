@@ -243,38 +243,6 @@ class FileReader:
       self._line_nr += 1
 
 
-class _ForwardTextReader:
-  def __init__(self, path):
-    self._reader = tokenize.open(path)
-    self._line_nr = 1
-
-  def close(self):
-    self._reader.close()
-
-  def readline(self):
-    if text := self._reader.readline():
-      self._line_nr += 1
-    return text
-
-  def skip_to_line(self, line_nr):
-    '''
-    Calling readline after this should read the line_nr'th line.
-    line_nr is 1-based.
-
-    '''
-    if line_nr < self._line_nr:
-      raise ValueError(f"skip_to_line: line {line_nr} was already read")
-
-    while self._line_nr < line_nr:
-      if not self._reader.readline():
-        return False
-      self._line_nr += 1
-    return True
-
-  def upcoming_line(self):
-    return self._line_nr
-
-
 class PythonImportScanner:
   """Classify matched Python lines using bounded, incremental tokenization.
 
@@ -288,6 +256,7 @@ class PythonImportScanner:
     self._path = None
     self._reader = None
     self._parser = None
+    self._upcoming_line = 1
 
   def __enter__(self):
     return self
@@ -301,20 +270,29 @@ class PythonImportScanner:
       self._reader.close()
     self._reader = None
     self._parser = None
+    self._upcoming_line = 1
 
   def _open(self, path):
     self.close()
     self._path = path
     try:
-      self._reader = _ForwardTextReader(path)
+      self._reader = tokenize.open(path)
     except (OSError, SyntaxError, UnicodeError, LookupError):
       self._reader = None
 
+  def readline(self):
+    if text := self._reader.readline():
+      self._upcoming_line += 1
+    return text
+
   def _restart(self, line):
-    if self._reader is None or not self._reader.skip_to_line(line):
-      self._parser = None
-      return
-    self._parser = PythonImportParser(self._reader, line_offset=line - 1)
+    if line < self._upcoming_line:
+      raise ValueError(f"cannot restart at already-read line {line}")
+    while self._upcoming_line < line:
+      if not self.readline():
+        self._parser = None
+        return
+    self._parser = PythonImportParser(self, line_offset=line - 1)
 
   def classify(self, path, line):
     """Return True for an import, False for other code, or None if uncertain."""
@@ -324,7 +302,7 @@ class PythonImportScanner:
     if self._reader is None:
       return None
 
-    upcoming_line = self._reader.upcoming_line()
+    upcoming_line = self._upcoming_line
     window_start = max(1, line - self._lookback)
 
     parser = self._parser
