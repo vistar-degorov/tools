@@ -10,7 +10,7 @@ import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
-from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
+from gg import PythonImportScanner, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -60,6 +60,16 @@ def target():
 BetaMarker = object()
 """)
     self._write("dependencies.py", "import decimal\n")
+    self._write("multiline_import.py", """\
+from package import (
+  ImportedMarker)
+
+ImportedMarker()
+""")
+    self._write("incomplete_import.py", """\
+from package import (
+  UncertainMarker,
+""")
     self._write("tests/test_app.py", """\
 def target():
   return "test"
@@ -216,6 +226,24 @@ export const endpointPath = "api/status"
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn("import directory/plain.py:", result.stdout)
 
+  def test_completed_multiline_python_import_is_filtered(self):
+    result = self._run(GG, "ImportedMarker")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertNotIn("  ImportedMarker)", result.stdout)
+    self.assertIn("ImportedMarker()", result.stdout)
+
+  def test_incomplete_multiline_python_import_is_kept(self):
+    result = self._run(GG, "UncertainMarker")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("UncertainMarker", result.stdout)
+
+  def test_python_import_scanner_reuses_incremental_parser(self):
+    path = str(self.repository / "multiline_import.py")
+    with PythonImportScanner() as scanner:
+      self.assertIsNone(scanner.classify(path, 1))
+      self.assertTrue(scanner.classify(path, 2))
+      self.assertFalse(scanner.classify(path, 4))
+
   def test_import_filter_ignores_color_codes(self):
     match = SearchResult(
       "module.py", 1, 1, b"\x1b[1;31mimport\x1b[m dependency")
@@ -344,10 +372,13 @@ export const endpointPath = "api/status"
       SearchResult("module.py", 2, 1, b"first"),
       SearchResult("module.py", 8, 15, b"second"),
     )
-    self.assertEqual(
-      list(_filter_occurrence_contexts(blocks, occurrences, _has_definition_occurrence)),
-      list(blocks),
-    )
+    checked_lines = []
+    def predicate(match, line_occurrences):
+      checked_lines.append(match.line)
+      return _has_definition_occurrence(match, line_occurrences)
+
+    self.assertEqual(list(_filter_occurrence_contexts(blocks, occurrences, predicate)), list(blocks))
+    self.assertEqual(checked_lines, [1, 2, 8])
 
   def test_context_filter_removes_only_import_only_blocks(self):
     separate = self._run(GG, "-A", "1", "os", "a.py")

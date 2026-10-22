@@ -6,6 +6,7 @@ from itertools import groupby
 from pathlib import Path
 import re
 import sys
+import tokenize
 
 from lib.git_search_args import (
   add_common_search_arguments,
@@ -23,6 +24,7 @@ from lib.git_search import (
   make_search_scope,
   present_results,
 )
+from lib.parser import PythonImportParser
 
 # for searching command line args
 _IMPORT_PATTERN = re.compile(r"\bimport\b")
@@ -99,7 +101,7 @@ def _parse_arguments(arguments=None):
   return parse_search_arguments(_argument_parser(), arguments, pattern_metavar="PATTERN")
 
 
-def _has_non_import(match, occurrences, file_reader, patterns):
+def _has_non_import(match, occurrences, patterns, file_reader=None, python_import_scanner=None):
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
     find_import = _PYTHON_IMPORT.match
@@ -119,6 +121,13 @@ def _has_non_import(match, occurrences, file_reader, patterns):
   text = remove_color_codes(match.text)
 
   if _COMMA_LIST_OF_NAMES.fullmatch(text) is not None:
+    if extension == ".py":
+      if python_import_scanner is None:
+        return True
+      return python_import_scanner.classify(match.path, match.line) is not True
+
+    if file_reader is None:
+      return True
     is_import = False
     for line in file_reader.readlines(match.path, match.line - 10, match.line):
       if is_import:
@@ -149,7 +158,7 @@ def _occurrences_by_line(occurrences):
     yield tuple(line_occurrences)
 
 
-def _has_quoted_occurrence(match, occurrences, _):
+def _has_quoted_occurrence(match, occurrences):
   text = remove_color_codes(match.text)
   for occurrence in occurrences:
     head = occurrence.column - 1
@@ -158,7 +167,7 @@ def _has_quoted_occurrence(match, occurrences, _):
   return False
 
 
-def _has_definition_occurrence(match, occurrences, _):
+def _has_definition_occurrence(match, occurrences):
   extension = Path(match.path).suffix.lower()
   if extension in (".py", ".pyi", ".pyw", ".bzl"):
     definition_patterns = (_PYTHON_DEFINITION,)
@@ -184,20 +193,20 @@ def _has_definition_occurrence(match, occurrences, _):
   return False
 
 
-def _filter_occurrence_matches(results, occurrences, predicate, file_reader):
+def _filter_occurrence_matches(results, occurrences, predicate):
   for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
-    if predicate(match, line_occurrences, file_reader):
+    if predicate(match, line_occurrences):
       yield match
 
 
-def _filter_occurrence_contexts(results, occurrences, predicate, file_reader):
+def _filter_occurrence_contexts(results, occurrences, predicate):
   occurrence_lines = iter(_occurrences_by_line(occurrences))
   for block in results:
     keep_block = False
     for match in block.matches:
       line_occurrences = next(occurrence_lines, ())
-      if not keep_block and predicate(match, line_occurrences, file_reader):
-        keep_block = True
+      keep_match = predicate(match, line_occurrences)
+      keep_block = keep_block or keep_match
     if keep_block:
       yield block
 
@@ -234,6 +243,116 @@ class FileReader:
       self._line_nr += 1
 
 
+class _ForwardTextReader:
+  def __init__(self, path):
+    self._reader = tokenize.open(path)
+    self._line_nr = 1
+
+  def close(self):
+    self._reader.close()
+
+  def readline(self):
+    if text := self._reader.readline():
+      self._line_nr += 1
+    return text
+
+  def skip_to_line(self, line_nr):
+    '''
+    Calling readline after this should read the line_nr'th line.
+    line_nr is 1-based.
+
+    '''
+    if line_nr < self._line_nr:
+      raise ValueError(f"skip_to_line: line {line_nr} was already read")
+
+    while self._line_nr < line_nr:
+      if not self._reader.readline():
+        return False
+      self._line_nr += 1
+    return True
+
+  def upcoming_line(self):
+    return self._line_nr
+
+
+class PythonImportScanner:
+  """Classify matched Python lines using bounded, incremental tokenization.
+
+  None means that tokenization could not establish a safe answer. Callers
+  should treat it as non-import content rather than hide a possible match.
+  """
+
+  def __init__(self, *, lookback=10, bridge=10):
+    self._lookback = lookback
+    self._bridge = bridge
+    self._path = None
+    self._reader = None
+    self._parser = None
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, *_):
+    self.close()
+    return False
+
+  def close(self):
+    if self._reader is not None:
+      self._reader.close()
+    self._reader = None
+    self._parser = None
+
+  def _open(self, path):
+    self.close()
+    self._path = path
+    try:
+      self._reader = _ForwardTextReader(path)
+    except (OSError, SyntaxError, UnicodeError, LookupError):
+      self._reader = None
+
+  def _restart(self, line):
+    if self._reader is None or not self._reader.skip_to_line(line):
+      self._parser = None
+      return
+    self._parser = PythonImportParser(self._reader, line_offset=line - 1)
+
+  def classify(self, path, line):
+    """Return True for an import, False for other code, or None if uncertain."""
+
+    if path != self._path:
+      self._open(path)
+    if self._reader is None:
+      return None
+
+    upcoming_line = self._reader.upcoming_line()
+    window_start = max(1, line - self._lookback)
+
+    parser = self._parser
+    if parser is None or parser.failed:
+      if window_start > upcoming_line + self._bridge:
+        self._restart(window_start)
+      else:
+        self._restart(upcoming_line)
+
+    elif window_start > upcoming_line + self._bridge:
+      self._restart(window_start)
+
+    parser = self._parser
+    if parser is None:
+      return None
+
+    parser.advance_through(line)
+    for start, end in reversed(parser.completed_import_ranges):
+      if start[0] <= line <= end[0]:
+        return True
+      if end[0] < line:
+        break
+
+    if parser.import_in_progress or parser.failed or parser.advanced_through < line:
+      return None
+    return False
+
+
 def main(arguments=None):
   options = _parse_arguments(arguments)
   result_action = make_result_action(options)
@@ -251,8 +370,7 @@ def main(arguments=None):
   elif main_arg in ("gq", "gqq"):
     filter_predicate = _has_quoted_occurrence
   elif not options.imports and main_arg != "gi":
-    filter_predicate = lambda match, occurrences, file_reader: _has_non_import(
-      match, occurrences, file_reader, pattern_texts)
+    filter_predicate = _has_non_import
 
   if options.word is None:
     word_regexp = (
@@ -293,13 +411,19 @@ def main(arguments=None):
     return status
 
   if filter_predicate:
-    with FileReader() as file_reader:
+    if filter_predicate is _has_non_import:
+      with FileReader() as file_reader, PythonImportScanner() as python_import_scanner:
+        predicate = lambda match, line_occurrences: _has_non_import(
+          match, line_occurrences, pattern_texts, file_reader, python_import_scanner)
+        if output_plan.mode == GrepOutputMode.CONTEXT:
+          results = list(_filter_occurrence_contexts(results, occurrences, predicate))
+        elif output_plan.mode == GrepOutputMode.MATCHES:
+          results = list(_filter_occurrence_matches(results, occurrences, predicate))
+    else:
       if output_plan.mode == GrepOutputMode.CONTEXT:
-        results = list(_filter_occurrence_contexts(
-          results, occurrences, filter_predicate, file_reader))
+        results = list(_filter_occurrence_contexts(results, occurrences, filter_predicate))
       elif output_plan.mode == GrepOutputMode.MATCHES:
-        results = list(_filter_occurrence_matches(
-          results, occurrences, filter_predicate, file_reader))
+        results = list(_filter_occurrence_matches(results, occurrences, filter_predicate))
 
   return present_results(results, output_plan, result_action, program=main_arg)
 
