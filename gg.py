@@ -105,7 +105,7 @@ def _parse_arguments(arguments=None):
   return parse_search_arguments(_argument_parser(), arguments, pattern_metavar="PATTERN")
 
 
-def _has_non_import(match, occurrences, patterns, file_reader=None, python_import_scanner=None):
+def _has_non_import(match, occurrences, patterns, import_scanner=None, python_import_scanner=None):
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
     find_import = _PYTHON_IMPORT.match
@@ -130,16 +130,9 @@ def _has_non_import(match, occurrences, patterns, file_reader=None, python_impor
         return True
       return python_import_scanner.classify(match.path, match.line) is not True
 
-    if file_reader is None:
+    if import_scanner is None:
       return True
-    is_import = False
-    for line in file_reader.readlines(match.path, match.line - _LOOKBACK_LINES, match.line):
-      if is_import:
-        if _COMMA_LIST_OF_NAMES.fullmatch(line) is None:
-          is_import = False
-      elif find_import(line) is not None:
-          is_import = True
-    return not is_import
+    return import_scanner.classify(match.path, match.line, find_import) is not True
 
   for occurrence in occurrences:
     head = occurrence.column - 1
@@ -215,36 +208,70 @@ def _filter_occurrence_contexts(results, occurrences, predicate):
       yield block
 
 
-class FileReader:
-  def __init__(self):
+class ImportScanner:
+  def __init__(self, *, lookback=_LOOKBACK_LINES, max_gap=_MAX_GAP_LINES):
+    self._lookback = lookback
+    self._max_gap = max_gap
     self._path = None
-    self._line_nr = 1
     self._reader = None
+    self._upcoming_line = 1
+    self._import_in_progress = False
 
   def __enter__(self):
     return self
 
   def __exit__(self, *_):
-    if self._reader is not None:
-      self._reader.close()
+    self.close()
     return False
 
-  def readlines(self, path, line, until_line):
-    if self._path != path:
-      if self._reader is not None:
-        self._reader.close()
-      self._path = path
-      self._line_nr = 1
-      try:
-        self._reader = open(path, "rb")
-      except OSError:
-        self._reader = BytesIO(b"")
+  def close(self):
+    if self._reader is not None:
+      self._reader.close()
+    self._reader = None
 
-    while self._line_nr < until_line:
-      text = self._reader.readline()
-      if self._line_nr >= line:
-        yield text
-      self._line_nr += 1
+  def _open(self, path):
+    self.close()
+    self._path = path
+    try:
+      self._reader = open(path, "rb")
+    except OSError:
+      self._reader = None
+    else:
+      self._upcoming_line = 1
+      self._import_in_progress = False
+
+  def classify(self, path, line, is_import):
+    if path != self._path:
+      self._open(path)
+    if self._reader is None:
+      return None
+    if line < self._upcoming_line:
+      raise ValueError(f"cannot restart at already-read line {line}")
+
+    window_start = max(1, line - self._lookback)
+
+    if window_start > self._upcoming_line + self._max_gap:
+      self._import_in_progress = False
+      while self._upcoming_line < window_start:
+        if not self._reader.readline():
+          return None
+        self._upcoming_line += 1
+
+    for text in self._reader:
+      self._upcoming_line += 1
+
+      if self._import_in_progress:
+        if _COMMA_LIST_OF_NAMES.fullmatch(text) is None:
+          self._import_in_progress = False
+      elif is_import(text) is not None:
+          self._import_in_progress = True
+
+      if self._upcoming_line > line:
+        break
+
+    if self._upcoming_line <= line:
+      return None
+    return self._import_in_progress
 
 
 class PythonImportScanner:
@@ -395,9 +422,9 @@ def main(arguments=None):
 
   if filter_predicate:
     if filter_predicate is _has_non_import:
-      with FileReader() as file_reader, PythonImportScanner() as python_import_scanner:
+      with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
         predicate = lambda match, line_occurrences: _has_non_import(
-          match, line_occurrences, pattern_texts, file_reader, python_import_scanner)
+          match, line_occurrences, pattern_texts, import_scanner, python_import_scanner)
         if output_plan.mode == GrepOutputMode.CONTEXT:
           results = list(_filter_occurrence_contexts(results, occurrences, predicate))
         elif output_plan.mode == GrepOutputMode.MATCHES:

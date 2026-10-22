@@ -10,7 +10,7 @@ import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
-from gg import PythonImportScanner, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -243,6 +243,25 @@ export const endpointPath = "api/status"
       self.assertIsNone(scanner.classify(path, 1))
       self.assertTrue(scanner.classify(path, 2))
       self.assertFalse(scanner.classify(path, 4))
+
+  def test_import_scanner_returns_unknown_if_requested_line_was_not_read(self):
+    path = self.repository / "frontend/incomplete.ts"
+    self._write(path.relative_to(self.repository), "import {\n  MissingSymbol,\n")
+    with ImportScanner() as scanner:
+      self.assertIsNone(scanner.classify(str(path), 20, _TYPESCRIPT_IMPORT.match))
+
+  def test_import_scanner_restarts_at_lookback_window_after_large_gap(self):
+    path = self.repository / "frontend/long_import.ts"
+    self._write(path.relative_to(self.repository), """\
+first line
+second line
+import {
+  FirstSymbol,
+  SecondSymbol,
+  ThirdSymbol,
+""")
+    with ImportScanner(lookback=1, max_gap=2) as scanner:
+      self.assertFalse(scanner.classify(str(path), 6, _TYPESCRIPT_IMPORT.match))
 
   def test_import_filter_ignores_color_codes(self):
     match = SearchResult(
