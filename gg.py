@@ -329,11 +329,12 @@ class PythonImportScanner:
 
     parser = self._parser
     if parser is None or parser.failed:
-      if window_start > upcoming_line + self._bridge:
-        self._restart(window_start)
-      else:
-        self._restart(upcoming_line)
+      if upcoming_line > line:
+        return None
 
+      self._restart(
+        window_start if window_start > upcoming_line + self._bridge else upcoming_line
+      )
     elif window_start > upcoming_line + self._bridge:
       self._restart(window_start)
 
