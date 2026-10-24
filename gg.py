@@ -58,6 +58,13 @@ _COMMA_LIST_OF_NAMES = re.compile(
   br"\s*,?\s*\)?\s*"
 )
 
+
+def _update_typescript_import_state(text, import_in_progress):
+  if import_in_progress:
+    return _COMMA_LIST_OF_NAMES.fullmatch(text) is not None
+  return _TYPESCRIPT_MULTILINE_IMPORT.match(text) is not None
+
+
 def _argument_parser():
   parser = argparse.ArgumentParser(
     add_help=False,
@@ -136,7 +143,7 @@ def _has_non_import(match, occurrences, patterns, import_scanner, python_import_
 
     if extension in (".ts", ".tsx"):
       return import_scanner.classify(
-        match.path, match.line, _TYPESCRIPT_MULTILINE_IMPORT.match) is not True
+        match.path, match.line, _update_typescript_import_state) is not True
 
     else:
       return True
@@ -277,7 +284,7 @@ class ImportScanner(_BaseFileScanner):
   def _reset_state(self):
     self._import_in_progress = False
 
-  def classify(self, path, line, starts_multiline_import):
+  def classify(self, path, line, update_import_state):
     if (window_start := self._prepare(path, line)) is None:
       return None
     if line < self._upcoming_line:
@@ -292,11 +299,7 @@ class ImportScanner(_BaseFileScanner):
       if not (text := self.readline()):
         return None
 
-      if self._import_in_progress:
-        if _COMMA_LIST_OF_NAMES.fullmatch(text) is None:
-          self._import_in_progress = False
-      elif starts_multiline_import(text) is not None:
-        self._import_in_progress = True
+      self._import_in_progress = update_import_state(text, self._import_in_progress)
 
     return self._import_in_progress
 
