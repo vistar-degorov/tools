@@ -10,7 +10,7 @@ import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
-from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import, _update_typescript_import_state
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -253,8 +253,8 @@ export const endpointPath = "api/status"
     path = self.repository / "frontend/incomplete.ts"
     self._write(path.relative_to(self.repository), "import {\n  MissingSymbol,\n")
     with ImportScanner() as scanner:
-      self.assertTrue(scanner.classify(str(path), 2, _TYPESCRIPT_MULTILINE_IMPORT.match))
-      self.assertIsNone(scanner.classify(str(path), 20, _TYPESCRIPT_MULTILINE_IMPORT.match))
+      self.assertTrue(scanner.classify(str(path), 2, _update_typescript_import_state))
+      self.assertIsNone(scanner.classify(str(path), 20, _update_typescript_import_state))
 
   def test_import_scanner_restarts_at_lookback_window_after_large_gap(self):
     path = self.repository / "frontend/long_import.ts"
@@ -267,7 +267,7 @@ import {
   ThirdSymbol,
 """)
     with ImportScanner(lookback=1, max_gap=2) as scanner:
-      self.assertFalse(scanner.classify(str(path), 6, _TYPESCRIPT_MULTILINE_IMPORT.match))
+      self.assertFalse(scanner.classify(str(path), 6, _update_typescript_import_state))
 
   def test_import_scanner_ignores_complete_typescript_imports(self):
     path = self.repository / "frontend/single_import.ts"
@@ -276,7 +276,7 @@ import {ExistingBinding} from "dependency"
 IndependentBinding
 """)
     with ImportScanner() as scanner:
-      self.assertFalse(scanner.classify(str(path), 2, _TYPESCRIPT_MULTILINE_IMPORT.match))
+      self.assertFalse(scanner.classify(str(path), 2, _update_typescript_import_state))
 
   def test_typescript_multiline_import_headers(self):
     headers = (
