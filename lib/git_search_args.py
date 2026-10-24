@@ -214,8 +214,7 @@ def _iter_args(arguments, submit):
 class ArgumentIterator:
   def __init__(self, arguments):
     self._idx = 0
-    self._text = None
-    self._value = None
+    self._retained = []
     arguments = iter(arguments)
 
     def _arguments_until_dashdash():
@@ -225,7 +224,7 @@ class ArgumentIterator:
           break
 
     filtered_args = _iter_args(_arguments_until_dashdash(), self._submit)
-    self._output = chain(filtered_args, self._pop_current(), arguments)
+    self._output = chain(filtered_args, self._flush(), arguments)
 
   def __iter__(self):
     return self
@@ -233,28 +232,24 @@ class ArgumentIterator:
   def __next__(self):
     return next(self._output)
 
+  def _flush(self):
+    yield from self._retained
+    self._retained.clear()
+
   def _submit(self, text, idx, key, value=None, value_style=None):
     if idx != self._idx:
       self._idx = idx
-      yield from self._pop_current()
+      yield from self._flush()
     self.inspect(text, key, value, value_style)
 
-  def _pop_current(self):
-    if self._text is not None:
-      yield self._text
-    if self._value is not None:
-      yield self._value
-    self._text = None
-    self._value = None
-
-  def retain(self, text, value=None, value_style=None):
-    if value_style in (VS.EQUALS, VS.GLUED):
-      value = None # value is already contained in the text
-    if self._text is None:
-      self._text = text
+  def retain(self, text, value=None, value_style=None, separately=False):
+    if separately or not self._retained:
+      self._retained.append(text)
     else:
-      self._text += text.removeprefix("-")
-    self._value = value
+      self._retained[-1] += text.removeprefix("-")
+
+    if not (value is None or value_style in (VS.EQUALS, VS.GLUED)):
+      self._retained.append(value)
 
   def inspect(self, text, key, value=None, value_style=None):
     self.retain(text, value, value_style)
@@ -469,7 +464,7 @@ def _pop_trailing_result_idx(arguments):
 class _MaskPatternOptions(ArgumentIterator):
   def inspect(self, text, key, value=None, value_style=None):
     if key in ("-e", "--pattern"):
-      self.retain(_MASKED_PATTERN_OPTION, value, VS.SPACED)
+      self.retain(_MASKED_PATTERN_OPTION, value, VS.SPACED, separately=True)
     else:
       self.retain(text, value, value_style)
 
