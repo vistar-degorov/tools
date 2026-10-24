@@ -1,7 +1,6 @@
 #! /usr/bin/python
 
 import argparse
-from io import BytesIO
 from itertools import groupby
 from pathlib import Path
 import re
@@ -217,14 +216,16 @@ def _filter_occurrence_contexts(results, occurrences, predicate):
       yield block
 
 
-class ImportScanner:
+class _BaseFileScanner:
+  _open_errors = (OSError,)
+
   def __init__(self, *, lookback=_LOOKBACK_LINES, max_gap=_MAX_GAP_LINES):
     self._lookback = lookback
     self._max_gap = max_gap
     self._path = None
     self._reader = None
     self._upcoming_line = 1
-    self._import_in_progress = False
+    self._reset_state()
 
   def __enter__(self):
     return self
@@ -237,87 +238,18 @@ class ImportScanner:
     if self._reader is not None:
       self._reader.close()
     self._reader = None
+    self._upcoming_line = 1
+    self._reset_state()
+
+  def _open_reader(self, path):
+    return open(path, "rb")
 
   def _open(self, path):
     self.close()
     self._path = path
     try:
-      self._reader = open(path, "rb")
-    except OSError:
-      self._reader = None
-    else:
-      self._upcoming_line = 1
-      self._import_in_progress = False
-
-  def classify(self, path, line, starts_multiline_import):
-    if path != self._path:
-      self._open(path)
-    if self._reader is None:
-      return None
-    if line < self._upcoming_line:
-      raise ValueError(f"cannot restart at already-read line {line}")
-
-    window_start = max(1, line - self._lookback)
-
-    if window_start > self._upcoming_line + self._max_gap:
-      self._import_in_progress = False
-      while self._upcoming_line < window_start:
-        if not self._reader.readline():
-          return None
-        self._upcoming_line += 1
-
-    for text in self._reader:
-      self._upcoming_line += 1
-
-      if self._import_in_progress:
-        if _COMMA_LIST_OF_NAMES.fullmatch(text) is None:
-          self._import_in_progress = False
-      elif starts_multiline_import(text) is not None:
-        self._import_in_progress = True
-
-      if self._upcoming_line > line:
-        break
-
-    if self._upcoming_line <= line:
-      return None
-    return self._import_in_progress
-
-
-class PythonImportScanner:
-  """Classify matched Python lines using bounded, incremental tokenization.
-
-  None means that tokenization could not establish a safe answer. Callers
-  should treat it as non-import content rather than hide a possible match.
-  """
-
-  def __init__(self, *, lookback=_LOOKBACK_LINES, max_gap=_MAX_GAP_LINES):
-    self._lookback = lookback
-    self._max_gap = max_gap
-    self._path = None
-    self._reader = None
-    self._parser = None
-    self._upcoming_line = 1
-
-  def __enter__(self):
-    return self
-
-  def __exit__(self, *_):
-    self.close()
-    return False
-
-  def close(self):
-    if self._reader is not None:
-      self._reader.close()
-    self._reader = None
-    self._parser = None
-    self._upcoming_line = 1
-
-  def _open(self, path):
-    self.close()
-    self._path = path
-    try:
-      self._reader = tokenize.open(path)
-    except (OSError, SyntaxError, UnicodeError, LookupError):
+      self._reader = self._open_reader(path)
+    except self._open_errors:
       self._reader = None
 
   def readline(self):
@@ -325,36 +257,88 @@ class PythonImportScanner:
       self._upcoming_line += 1
     return text
 
-  def _restart(self, line):
+  def _skip_to(self, line):
     if line < self._upcoming_line:
       raise ValueError(f"cannot restart at already-read line {line}")
     while self._upcoming_line < line:
       if not self.readline():
-        self._parser = None
-        return
-    self._parser = PythonImportParser(self, line_offset=line - 1)
+        return False
+    return True
 
-  def classify(self, path, line):
-    """Return True for an import, False for other code, or None if uncertain."""
-
+  def _prepare(self, path, line):
     if path != self._path:
       self._open(path)
     if self._reader is None:
       return None
+    return max(1, line - self._lookback)
+
+
+class ImportScanner(_BaseFileScanner):
+  def _reset_state(self):
+    self._import_in_progress = False
+
+  def classify(self, path, line, starts_multiline_import):
+    if (window_start := self._prepare(path, line)) is None:
+      return None
+    if line < self._upcoming_line:
+      raise ValueError(f"cannot restart at already-read line {line}")
+
+    if window_start > self._upcoming_line + self._max_gap:
+      self._import_in_progress = False
+      if not self._skip_to(window_start):
+        return None
+
+    while self._upcoming_line <= line:
+      if not (text := self.readline()):
+        return None
+
+      if self._import_in_progress:
+        if _COMMA_LIST_OF_NAMES.fullmatch(text) is None:
+          self._import_in_progress = False
+      elif starts_multiline_import(text) is not None:
+        self._import_in_progress = True
+
+    return self._import_in_progress
+
+
+class PythonImportScanner(_BaseFileScanner):
+  """Classify matched Python lines using bounded, incremental tokenization.
+
+  None means that tokenization could not establish a safe answer. Callers
+  should treat it as non-import content rather than hide a possible match.
+  """
+
+  _open_errors = (OSError, SyntaxError, UnicodeError, LookupError)
+
+  def _reset_state(self):
+    self._parser = None
+
+  def _open_reader(self, path):
+    return tokenize.open(path)
+
+  def _restart_parser_at(self, line):
+    if self._skip_to(line):
+      self._parser = PythonImportParser(self, line_offset=line - 1)
+    else:
+      self._parser = None
+
+  def classify(self, path, line):
+    """Return True for an import, False for other code, or None if uncertain."""
+
+    if (window_start := self._prepare(path, line)) is None:
+      return None
 
     upcoming_line = self._upcoming_line
-    window_start = max(1, line - self._lookback)
-
     parser = self._parser
     if parser is None or parser.failed:
       if upcoming_line > line:
         return None
 
-      self._restart(
+      self._restart_parser_at(
         window_start if window_start > upcoming_line + self._max_gap else upcoming_line
       )
     elif window_start > upcoming_line + self._max_gap:
-      self._restart(window_start)
+      self._restart_parser_at(window_start)
 
     parser = self._parser
     if parser is None:
