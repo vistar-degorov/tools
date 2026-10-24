@@ -47,6 +47,11 @@ _TYPESCRIPT_VARIABLE = re.compile(
 )
 _PYTHON_IMPORT = re.compile(br"\s*(?:import\b|from\b.*\bimport\b)")
 _TYPESCRIPT_IMPORT = re.compile(br"\s*import\b")
+_TYPESCRIPT_MULTILINE_IMPORT = re.compile(
+  br"\s*import\s+(?:type\s+)?"
+  br"(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?"
+  br"\{[^}\r\n]*(?:\r?\n)?$"
+)
 _COFFEE_IMPORT = re.compile(br"} *= *require\b")
 _COMMA_LIST_OF_NAMES = re.compile(
   br"\s*(?:[(,]\s*)?"
@@ -130,9 +135,10 @@ def _has_non_import(match, occurrences, patterns, import_scanner=None, python_im
         return True
       return python_import_scanner.classify(match.path, match.line) is not True
 
-    if import_scanner is None:
+    if extension not in (".ts", ".tsx") or import_scanner is None:
       return True
-    return import_scanner.classify(match.path, match.line, find_import) is not True
+    return import_scanner.classify(
+      match.path, match.line, _TYPESCRIPT_MULTILINE_IMPORT.match) is not True
 
   for occurrence in occurrences:
     head = occurrence.column - 1
@@ -240,7 +246,7 @@ class ImportScanner:
       self._upcoming_line = 1
       self._import_in_progress = False
 
-  def classify(self, path, line, is_import):
+  def classify(self, path, line, starts_multiline_import):
     if path != self._path:
       self._open(path)
     if self._reader is None:
@@ -263,8 +269,8 @@ class ImportScanner:
       if self._import_in_progress:
         if _COMMA_LIST_OF_NAMES.fullmatch(text) is None:
           self._import_in_progress = False
-      elif is_import(text) is not None:
-          self._import_in_progress = True
+      elif starts_multiline_import(text) is not None:
+        self._import_in_progress = True
 
       if self._upcoming_line > line:
         break

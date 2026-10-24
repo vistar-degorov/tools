@@ -10,7 +10,7 @@ import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
-from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -248,7 +248,8 @@ export const endpointPath = "api/status"
     path = self.repository / "frontend/incomplete.ts"
     self._write(path.relative_to(self.repository), "import {\n  MissingSymbol,\n")
     with ImportScanner() as scanner:
-      self.assertIsNone(scanner.classify(str(path), 20, _TYPESCRIPT_IMPORT.match))
+      self.assertTrue(scanner.classify(str(path), 2, _TYPESCRIPT_MULTILINE_IMPORT.match))
+      self.assertIsNone(scanner.classify(str(path), 20, _TYPESCRIPT_MULTILINE_IMPORT.match))
 
   def test_import_scanner_restarts_at_lookback_window_after_large_gap(self):
     path = self.repository / "frontend/long_import.ts"
@@ -261,7 +262,36 @@ import {
   ThirdSymbol,
 """)
     with ImportScanner(lookback=1, max_gap=2) as scanner:
-      self.assertFalse(scanner.classify(str(path), 6, _TYPESCRIPT_IMPORT.match))
+      self.assertFalse(scanner.classify(str(path), 6, _TYPESCRIPT_MULTILINE_IMPORT.match))
+
+  def test_import_scanner_ignores_complete_typescript_imports(self):
+    path = self.repository / "frontend/single_import.ts"
+    self._write(path.relative_to(self.repository), """\
+import {ExistingBinding} from "dependency"
+IndependentBinding
+""")
+    with ImportScanner() as scanner:
+      self.assertFalse(scanner.classify(str(path), 2, _TYPESCRIPT_MULTILINE_IMPORT.match))
+
+  def test_typescript_multiline_import_headers(self):
+    headers = (
+      b"import {\n",
+      b"import type {\n",
+      b"import DefaultBinding, {\n",
+    )
+    for header in headers:
+      with self.subTest(header=header):
+        self.assertIsNotNone(_TYPESCRIPT_MULTILINE_IMPORT.match(header))
+
+  def test_coffeescript_comma_list_match_is_not_scanned(self):
+    path = self.repository / "legacy/module.coffee"
+    self._write(path.relative_to(self.repository), """\
+{ExistingBinding} = require "dependency"
+IndependentBinding
+""")
+    match = SearchResult(str(path), 2, 1, b"IndependentBinding")
+    with ImportScanner() as scanner:
+      self.assertTrue(_has_non_import(match, (), ("IndependentBinding",), scanner))
 
   def test_import_filter_ignores_color_codes(self):
     match = SearchResult(
