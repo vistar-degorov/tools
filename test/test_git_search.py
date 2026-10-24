@@ -566,6 +566,16 @@ var Result = GroupAlias
       start = command.index("-e")
       self.assertEqual(tuple(command[start:start + len(expression)]), expression)
 
+  def test_pattern_option_at_end_of_short_option_cluster(self):
+    result = self._run(GG, "+print", "-iPe", "AlphaMarker")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    for line in result.stdout.splitlines():
+      command = shlex.split(line)
+      self.assertIn("-iP", command)
+      pattern_index = command.index("-e")
+      self.assertEqual(command[pattern_index + 1], "AlphaMarker")
+      self.assertNotIn("gg-pattern-internal", line)
+
   def test_pattern_aliases_after_separator_are_not_rewritten(self):
     result = self._run(
       GG, "+print", "AlphaMarker", "--", "--pattern=literal-path",
