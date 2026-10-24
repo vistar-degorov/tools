@@ -297,6 +297,36 @@ IndependentBinding
     match = SearchResult(str(path), 2, 1, b"IndependentBinding")
     self.assertTrue(self._has_non_import(match, (), ("IndependentBinding",)))
 
+  def test_go_import_filter(self):
+    path = self.repository / "backend/module.go"
+    self._write(path.relative_to(self.repository), """\
+package backend
+
+import SingleAlias "module/one"
+import (
+  // retained comment
+  GroupAlias "module/two"
+  _ "module/driver"
+  . "module/helpers"
+)
+
+var Result = GroupAlias
+""")
+
+    def has_non_import(line, text, name):
+      encoded_name = name.encode()
+      match = SearchResult(str(path), line, 1, text)
+      occurrence = SearchResult(str(path), line, text.index(encoded_name) + 1, encoded_name)
+      return _has_non_import(
+        match, (occurrence,), (name,), import_scanner, python_import_scanner)
+
+    with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
+      self.assertFalse(has_non_import(3, b'import SingleAlias "module/one"', "SingleAlias"))
+      self.assertFalse(has_non_import(6, b'  GroupAlias "module/two"', "GroupAlias"))
+      self.assertFalse(has_non_import(7, b'  _ "module/driver"', "driver"))
+      self.assertFalse(has_non_import(8, b'  . "module/helpers"', "helpers"))
+      self.assertTrue(has_non_import(11, b"var Result = GroupAlias", "GroupAlias"))
+
   def test_import_filter_ignores_color_codes(self):
     match = SearchResult(
       "module.py", 1, 1, b"\x1b[1;31mimport\x1b[m dependency")
