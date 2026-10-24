@@ -73,7 +73,7 @@ class OptionValueStyle(Enum):
 VS = OptionValueStyle
 
 
-_MASKED_PATTERN_OPTION = "--gg-pattern-internal"
+_MASKED_PATTERN_OPTION = "--__gg-pattern"
 _MASKED_PATTERN_OPTION_VALUE = {_MASKED_PATTERN_OPTION: (VS.SPACED,)}
 
 
