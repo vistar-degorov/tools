@@ -110,7 +110,7 @@ def _parse_arguments(arguments=None):
   return parse_search_arguments(_argument_parser(), arguments, pattern_metavar="PATTERN")
 
 
-def _has_non_import(match, occurrences, patterns, import_scanner=None, python_import_scanner=None):
+def _has_non_import(match, occurrences, patterns, import_scanner, python_import_scanner):
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
     find_import = _PYTHON_IMPORT.match
@@ -124,22 +124,25 @@ def _has_non_import(match, occurrences, patterns, import_scanner=None, python_im
   else:
     return True
 
+  # if a search pattern looks like it's searching for an import, skip filtering
   if any(pattern_has_import(pattern) is not None for pattern in patterns):
     return True
 
   text = remove_color_codes(match.text)
 
+  # multiline import detection
   if _COMMA_LIST_OF_NAMES.fullmatch(text) is not None:
     if extension == ".py":
-      if python_import_scanner is None:
-        return True
       return python_import_scanner.classify(match.path, match.line) is not True
 
-    if extension not in (".ts", ".tsx") or import_scanner is None:
-      return True
-    return import_scanner.classify(
-      match.path, match.line, _TYPESCRIPT_MULTILINE_IMPORT.match) is not True
+    if extension in (".ts", ".tsx"):
+      return import_scanner.classify(
+        match.path, match.line, _TYPESCRIPT_MULTILINE_IMPORT.match) is not True
 
+    else:
+      return True
+
+  # single line import detection
   for occurrence in occurrences:
     head = occurrence.column - 1
     statement = text[text.rfind(b";", 0, head) + 1:]
