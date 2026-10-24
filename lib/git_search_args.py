@@ -82,8 +82,8 @@ GIT_GREP_OPTIONS_WITH_VALUE = {
   "-B": (VS.SPACED, VS.GLUED), "--before-context": (VS.EQUALS, VS.SPACED),
   "-C": (VS.SPACED, VS.GLUED), "--context": (VS.EQUALS, VS.SPACED),
   "-e": (VS.SPACED, VS.GLUED), "--pattern": (VS.EQUALS, VS.SPACED),
-  "-f": (VS.SPACED, VS.GLUED), "--file": (VS.EQUALS, VS.SPACED),
   "-m": (VS.SPACED, VS.GLUED), "--max-count": (VS.EQUALS, VS.SPACED),
+  "-f": (VS.SPACED, VS.GLUED),
   "-O": (VS.GLUED,),
   "--max-depth": (VS.EQUALS, VS.SPACED),
   "--threads": (VS.EQUALS, VS.SPACED),
@@ -435,7 +435,7 @@ class _LeadingGitOptions(ArgumentIterator):
     if key in ("-e", _MASKED_PATTERN_OPTION):
       self.patterns.append(value)
       self.has_pattern_source = True
-    elif key in ("-f", "--file"):
+    elif key == "-f":
       self.has_pattern_source = True
       self.all_patterns_known = False
     if key == _MASKED_PATTERN_OPTION:

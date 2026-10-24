@@ -713,7 +713,7 @@ IndependentBinding
         raise AssertionError(message)
 
     arguments = [
-      "-iA", "2", "-efirst_expression", "--file=patterns.txt",
+      "-iA", "2", "-efirst_expression", "-fpatterns.txt",
       "fallback_expression", "source",
     ]
     options, operands, patterns, has_pattern_source, all_patterns_known = _split_leading_git_options(arguments, Parser())
