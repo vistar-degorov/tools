@@ -51,6 +51,9 @@ _TYPESCRIPT_MULTILINE_IMPORT = re.compile(
   br"(?:[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*)?"
   br"\{[^}\r\n]*(?:\r?\n)?$"
 )
+_GO_IMPORT = re.compile(br"\s*import\b")
+_GO_MULTILINE_IMPORT = re.compile(br"\s*import\s*\([^)\r\n]*(?:\r?\n)?$")
+_GO_IMPORT_END = re.compile(br"\s*\)")
 _COFFEE_IMPORT = re.compile(br"} *= *require\b")
 _COMMA_LIST_OF_NAMES = re.compile(
   br"\s*(?:[(,]\s*)?"
@@ -58,11 +61,15 @@ _COMMA_LIST_OF_NAMES = re.compile(
   br"\s*,?\s*\)?\s*"
 )
 
-
 def _update_typescript_import_state(text, import_in_progress):
   if import_in_progress:
     return _COMMA_LIST_OF_NAMES.fullmatch(text) is not None
   return _TYPESCRIPT_MULTILINE_IMPORT.match(text) is not None
+
+def _update_go_import_state(text, import_in_progress):
+  if import_in_progress:
+    return _GO_IMPORT_END.match(text) is None
+  return _GO_MULTILINE_IMPORT.match(text) is not None
 
 
 def _argument_parser():
@@ -124,6 +131,9 @@ def _has_non_import(match, occurrences, patterns, import_scanner, python_import_
   elif extension in (".ts", ".tsx"):
     find_import = _TYPESCRIPT_IMPORT.match
     pattern_has_import = _IMPORT_PATTERN.search
+  elif extension == ".go":
+    find_import = _GO_IMPORT.match
+    pattern_has_import = _IMPORT_PATTERN.search
   elif extension == ".coffee":
     find_import = _COFFEE_IMPORT.search
     pattern_has_import = _COFFEE_IMPORT_PATTERN.search
@@ -137,6 +147,10 @@ def _has_non_import(match, occurrences, patterns, import_scanner, python_import_
   text = remove_color_codes(match.text)
 
   # multiline import detection
+  if extension == ".go" and import_scanner.classify(
+    match.path, match.line, _update_go_import_state) is True:
+    return False
+
   if _COMMA_LIST_OF_NAMES.fullmatch(text) is not None:
     if extension == ".py":
       return python_import_scanner.classify(match.path, match.line) is not True
