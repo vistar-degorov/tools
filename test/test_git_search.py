@@ -8,9 +8,9 @@ import subprocess
 import tempfile
 import unittest
 
-from git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
-from git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
-from gg import _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import
+from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
+from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import, _update_typescript_import_state
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -60,6 +60,16 @@ def target():
 BetaMarker = object()
 """)
     self._write("dependencies.py", "import decimal\n")
+    self._write("multiline_import.py", """\
+from package import (
+  ImportedMarker)
+
+ImportedMarker()
+""")
+    self._write("incomplete_import.py", """\
+from package import (
+  UncertainMarker,
+""")
     self._write("tests/test_app.py", """\
 def target():
   return "test"
@@ -113,6 +123,11 @@ export const endpointPath = "api/status"
     path = self.repository / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(contents)
+
+  def _has_non_import(self, match, occurrences, patterns):
+    with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
+      return _has_non_import(
+        match, occurrences, patterns, import_scanner, python_import_scanner)
 
   def _run(self, script, *arguments):
     return subprocess.run(
@@ -216,19 +231,85 @@ export const endpointPath = "api/status"
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn("import directory/plain.py:", result.stdout)
 
+  def test_completed_multiline_python_import_is_filtered(self):
+    result = self._run(GG, "ImportedMarker")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertNotIn("  ImportedMarker)", result.stdout)
+    self.assertIn("ImportedMarker()", result.stdout)
+
+  def test_incomplete_multiline_python_import_is_kept(self):
+    result = self._run(GG, "UncertainMarker")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("UncertainMarker", result.stdout)
+
+  def test_python_import_scanner_reuses_incremental_parser(self):
+    path = str(self.repository / "multiline_import.py")
+    with PythonImportScanner() as scanner:
+      self.assertIsNone(scanner.classify(path, 1))
+      self.assertTrue(scanner.classify(path, 2))
+      self.assertFalse(scanner.classify(path, 4))
+
+  def test_import_scanner_returns_unknown_if_requested_line_was_not_read(self):
+    path = self.repository / "frontend/incomplete.ts"
+    self._write(path.relative_to(self.repository), "import {\n  MissingSymbol,\n")
+    with ImportScanner() as scanner:
+      self.assertTrue(scanner.classify(str(path), 2, _update_typescript_import_state))
+      self.assertIsNone(scanner.classify(str(path), 20, _update_typescript_import_state))
+
+  def test_import_scanner_restarts_at_lookback_window_after_large_gap(self):
+    path = self.repository / "frontend/long_import.ts"
+    self._write(path.relative_to(self.repository), """\
+first line
+second line
+import {
+  FirstSymbol,
+  SecondSymbol,
+  ThirdSymbol,
+""")
+    with ImportScanner(lookback=1, max_gap=2) as scanner:
+      self.assertFalse(scanner.classify(str(path), 6, _update_typescript_import_state))
+
+  def test_import_scanner_ignores_complete_typescript_imports(self):
+    path = self.repository / "frontend/single_import.ts"
+    self._write(path.relative_to(self.repository), """\
+import {ExistingBinding} from "dependency"
+IndependentBinding
+""")
+    with ImportScanner() as scanner:
+      self.assertFalse(scanner.classify(str(path), 2, _update_typescript_import_state))
+
+  def test_typescript_multiline_import_headers(self):
+    headers = (
+      b"import {\n",
+      b"import type {\n",
+      b"import DefaultBinding, {\n",
+    )
+    for header in headers:
+      with self.subTest(header=header):
+        self.assertIsNotNone(_TYPESCRIPT_MULTILINE_IMPORT.match(header))
+
+  def test_coffeescript_comma_list_match_is_not_scanned(self):
+    path = self.repository / "legacy/module.coffee"
+    self._write(path.relative_to(self.repository), """\
+{ExistingBinding} = require "dependency"
+IndependentBinding
+""")
+    match = SearchResult(str(path), 2, 1, b"IndependentBinding")
+    self.assertTrue(self._has_non_import(match, (), ("IndependentBinding",)))
+
   def test_import_filter_ignores_color_codes(self):
     match = SearchResult(
       "module.py", 1, 1, b"\x1b[1;31mimport\x1b[m dependency")
     occurrence = SearchResult("module.py", 1, 8, b"dependency")
-    self.assertFalse(_has_non_import(match, (occurrence,), ("dependency",)))
+    self.assertFalse(self._has_non_import(match, (occurrence,), ("dependency",)))
 
   def test_occurrence_import_filter_keeps_mixed_lines(self):
     match = SearchResult(
       "module.py", 1, 1, b"import package; package.run()")
     imported = SearchResult("module.py", 1, 8, b"package")
     used = SearchResult("module.py", 1, 17, b"package")
-    self.assertFalse(_has_non_import(match, (imported,), ("package",)))
-    self.assertTrue(_has_non_import(match, (imported, used), ("package",)))
+    self.assertFalse(self._has_non_import(match, (imported,), ("package",)))
+    self.assertTrue(self._has_non_import(match, (imported, used), ("package",)))
 
   def test_import_filter_checks_patterns_for_the_matched_language(self):
     python_match = SearchResult("module.py", 1, 1, b"import dependency")
@@ -236,13 +317,13 @@ export const endpointPath = "api/status"
     coffee_match = SearchResult("module.coffee", 1, 1, b"{dependency} = require 'package'")
     coffee_occurrence = SearchResult("module.coffee", 1, 2, b"dependency")
 
-    self.assertTrue(_has_non_import(
+    self.assertTrue(self._has_non_import(
       python_match, (python_occurrence,), ("import dependency",)))
-    self.assertFalse(_has_non_import(
+    self.assertFalse(self._has_non_import(
       python_match, (python_occurrence,), ("{dependency} = require",)))
-    self.assertTrue(_has_non_import(
+    self.assertTrue(self._has_non_import(
       coffee_match, (coffee_occurrence,), ("{dependency} = require",)))
-    self.assertFalse(_has_non_import(
+    self.assertFalse(self._has_non_import(
       coffee_match, (coffee_occurrence,), ("import dependency",)))
 
   def test_quoted_filter_uses_byte_columns(self):
@@ -344,10 +425,13 @@ export const endpointPath = "api/status"
       SearchResult("module.py", 2, 1, b"first"),
       SearchResult("module.py", 8, 15, b"second"),
     )
-    self.assertEqual(
-      list(_filter_occurrence_contexts(blocks, occurrences, _has_definition_occurrence)),
-      list(blocks),
-    )
+    checked_lines = []
+    def predicate(match, line_occurrences):
+      checked_lines.append(match.line)
+      return _has_definition_occurrence(match, line_occurrences)
+
+    self.assertEqual(list(_filter_occurrence_contexts(blocks, occurrences, predicate)), list(blocks))
+    self.assertEqual(checked_lines, [1, 2, 8])
 
   def test_context_filter_removes_only_import_only_blocks(self):
     separate = self._run(GG, "-A", "1", "os", "a.py")
