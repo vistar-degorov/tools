@@ -73,7 +73,7 @@ class OptionValueStyle(Enum):
 VS = OptionValueStyle
 
 
-_MASKED_PATTERN_OPTION = "--gg-pattern-internal"
+_MASKED_PATTERN_OPTION = "--__gg-pattern"
 _MASKED_PATTERN_OPTION_VALUE = {_MASKED_PATTERN_OPTION: (VS.SPACED,)}
 
 
@@ -82,8 +82,8 @@ GIT_GREP_OPTIONS_WITH_VALUE = {
   "-B": (VS.SPACED, VS.GLUED), "--before-context": (VS.EQUALS, VS.SPACED),
   "-C": (VS.SPACED, VS.GLUED), "--context": (VS.EQUALS, VS.SPACED),
   "-e": (VS.SPACED, VS.GLUED), "--pattern": (VS.EQUALS, VS.SPACED),
-  "-f": (VS.SPACED, VS.GLUED), "--file": (VS.EQUALS, VS.SPACED),
   "-m": (VS.SPACED, VS.GLUED), "--max-count": (VS.EQUALS, VS.SPACED),
+  "-f": (VS.SPACED, VS.GLUED),
   "-O": (VS.GLUED,),
   "--max-depth": (VS.EQUALS, VS.SPACED),
   "--threads": (VS.EQUALS, VS.SPACED),
@@ -214,8 +214,7 @@ def _iter_args(arguments, submit):
 class ArgumentIterator:
   def __init__(self, arguments):
     self._idx = 0
-    self._text = None
-    self._value = None
+    self._retained = []
     arguments = iter(arguments)
 
     def _arguments_until_dashdash():
@@ -225,7 +224,7 @@ class ArgumentIterator:
           break
 
     filtered_args = _iter_args(_arguments_until_dashdash(), self._submit)
-    self._output = chain(filtered_args, self._pop_current(), arguments)
+    self._output = chain(filtered_args, self._flush(), arguments)
 
   def __iter__(self):
     return self
@@ -233,28 +232,24 @@ class ArgumentIterator:
   def __next__(self):
     return next(self._output)
 
+  def _flush(self):
+    yield from self._retained
+    self._retained.clear()
+
   def _submit(self, text, idx, key, value=None, value_style=None):
     if idx != self._idx:
       self._idx = idx
-      yield from self._pop_current()
+      yield from self._flush()
     self.inspect(text, key, value, value_style)
 
-  def _pop_current(self):
-    if self._text is not None:
-      yield self._text
-    if self._value is not None:
-      yield self._value
-    self._text = None
-    self._value = None
-
-  def retain(self, text, value=None, value_style=None):
-    if value_style in (VS.EQUALS, VS.GLUED):
-      value = None # value is already contained in the text
-    if self._text is None:
-      self._text = text
+  def retain(self, text, value=None, value_style=None, separately=False):
+    if separately or not self._retained:
+      self._retained.append(text)
     else:
-      self._text += text.removeprefix("-")
-    self._value = value
+      self._retained[-1] += text.removeprefix("-")
+
+    if not (value is None or value_style in (VS.EQUALS, VS.GLUED)):
+      self._retained.append(value)
 
   def inspect(self, text, key, value=None, value_style=None):
     self.retain(text, value, value_style)
@@ -418,7 +413,7 @@ def make_output_plan(arguments, result_action=None):
 
 
 class _LeadingGitOptions(ArgumentIterator):
-  non_option_arguments = frozenset(("+debug", "+print", "+t", "+to", "(", ")"))
+  allowed_leading_args = frozenset(("+debug", "+print", "+t", "+to", "(", ")"))
 
   def __init__(self, arguments, parser):
     self.parser = parser
@@ -431,7 +426,7 @@ class _LeadingGitOptions(ArgumentIterator):
   def inspect(self, text, key, value=None, value_style=None):
     if not self.leading:
       return
-    if not text.startswith("-") and text not in self.non_option_arguments:
+    if not (text.startswith("-") or text in self.allowed_leading_args):
       self.leading = False
       return
     if value_style == VS.SPACED and value is None:
@@ -440,7 +435,7 @@ class _LeadingGitOptions(ArgumentIterator):
     if key in ("-e", _MASKED_PATTERN_OPTION):
       self.patterns.append(value)
       self.has_pattern_source = True
-    elif key in ("-f", "--file"):
+    elif key == "-f":
       self.has_pattern_source = True
       self.all_patterns_known = False
     if key == _MASKED_PATTERN_OPTION:
@@ -469,7 +464,7 @@ def _pop_trailing_result_idx(arguments):
 class _MaskPatternOptions(ArgumentIterator):
   def inspect(self, text, key, value=None, value_style=None):
     if key in ("-e", "--pattern"):
-      self.retain(_MASKED_PATTERN_OPTION, value, VS.SPACED)
+      self.retain(_MASKED_PATTERN_OPTION, value, VS.SPACED, separately=True)
     else:
       self.retain(text, value, value_style)
 
@@ -487,68 +482,55 @@ def parse_search_arguments(parser, arguments=None, *, pattern_metavar):
 
   options, remaining = parser.parse_known_args(wrapper_arguments)
   (
-    grep_args,
-    operands,
+    options.grep_args,
+    options.scope_arguments,
     grep_patterns,
     has_pattern_source,
-    all_patterns_known,
+    options.all_patterns_known,
   ) = _split_leading_git_options(remaining, parser)
   if path_arguments is None:
-    operands, trailing_result_idx = _pop_trailing_result_idx(operands)
+    options.scope_arguments, trailing_result_idx = _pop_trailing_result_idx(options.scope_arguments)
   else:
     path_arguments, trailing_result_idx = _pop_trailing_result_idx(path_arguments)
 
-  pattern_value = options.pattern
+  options.result_idx = None
   if has_pattern_source:
-    command_patterns = ()
-    pattern_texts = grep_patterns
-    result_idx = None
-    scope_arguments = operands
-  elif pattern_value is not None:
-    command_patterns = (pattern_value,)
-    pattern_texts = command_patterns
-    result_idx = None
-    scope_arguments = operands
+    options.pattern = None
+    options.pattern_texts = grep_patterns
+  elif options.pattern is not None:
+    options.pattern_texts = (options.pattern,)
   else:
-    if not operands:
+    if not options.scope_arguments:
       parser.error(f"{pattern_metavar} is required")
-    pattern_value, result_idx = split_result_idx(operands[0])
-    command_patterns = (pattern_value,)
-    pattern_texts = command_patterns
-    scope_arguments = operands[1:]
+    options.pattern, options.result_idx = split_result_idx(options.scope_arguments[0])
+    options.pattern_texts = (options.pattern,)
+    options.scope_arguments = options.scope_arguments[1:]
 
-  if any(argument.startswith("-") for argument in scope_arguments):
+  if any(argument.startswith("-") for argument in options.scope_arguments):
     parser.error(f"git grep options must precede {pattern_metavar}")
-  if result_idx is not None and trailing_result_idx is not None:
+  if options.result_idx is not None and trailing_result_idx is not None:
     parser.error("result number specified more than once")
   if trailing_result_idx is not None:
-    result_idx = trailing_result_idx
+    options.result_idx = trailing_result_idx
 
   if path_arguments is not None:
-    scope_arguments = [*scope_arguments, "--", *path_arguments]
-  elif not scope_arguments:
-    scope_arguments = None
+    options.scope_arguments = [*options.scope_arguments, "--", *path_arguments]
+  elif not options.scope_arguments:
+    options.scope_arguments = None
 
-  if options.show is not None and result_idx is not None:
+  if options.show is not None and options.result_idx is not None:
     parser.error(f"use either /N or --show N, not both")
   if options.json and options.open_result:
     parser.error("--json cannot be combined with --open")
-  if options.open_result and options.show is None and result_idx is None:
+  if options.open_result and options.show is None and options.result_idx is None:
     parser.error(f"--open requires --show or {pattern_metavar}/N")
-  if pattern_value == "":
+  if options.pattern == "":
     parser.error(f"{pattern_metavar.lower()} cannot be empty")
-  if scope_arguments is not None and options.root is not None:
+  if options.scope_arguments is not None and options.root is not None:
     parser.error("--root cannot be combined with revisions or paths")
-  if scope_arguments is not None and options.ext is not None:
+  if options.scope_arguments is not None and options.ext is not None:
     parser.error("--ext cannot be combined with revisions or paths")
 
-  options.pattern = pattern_value
-  options.result_idx = result_idx
-  options.grep_args = grep_args
-  options.scope_arguments = scope_arguments
-  options.command_patterns = command_patterns
-  options.pattern_texts = pattern_texts
-  options.all_patterns_known = all_patterns_known
   options.parser = parser
   return options
 
