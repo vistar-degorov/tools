@@ -408,6 +408,35 @@ var Result = GroupAlias
         match = SearchResult(path, 1, occurrence.column, text)
         self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
 
+  def test_definition_filter_handles_simple_go_declarations(self):
+    cases = (
+      (b"func Render() {}", b"Render"),
+      (b"func (node *Tree[T]) Render() {}", b"Render"),
+      (b"type Tree[T any] struct{}", b"Tree"),
+      (b"type TreeAlias = Tree[int]", b"TreeAlias"),
+      (b"var root *Tree[int]", b"root"),
+      (b"const defaultDepth = 4", b"defaultDepth"),
+      (b"child := makeNode()", b"child"),
+    )
+    for text, name in cases:
+      with self.subTest(text=text):
+        occurrence = SearchResult("tree.go", 1, text.index(name) + 1, name)
+        match = SearchResult("tree.go", 1, occurrence.column, text)
+        self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+
+  def test_definition_filter_rejects_go_usages(self):
+    cases = (
+      (b"func Render() { Render() }", b"Render"),
+      (b"var root = makeNode()", b"makeNode"),
+      (b"child := makeNode()", b"makeNode"),
+    )
+    for text, name in cases:
+      with self.subTest(text=text):
+        column = text.rindex(name) + 1
+        occurrence = SearchResult("tree.go", 1, column, name)
+        match = SearchResult("tree.go", 1, occurrence.column, text)
+        self.assertFalse(_has_definition_occurrence(match, (occurrence,)))
+
   def test_definition_filter_rejects_typescript_usages_and_destructuring(self):
     cases = (
       (b"const container = transform(sourceValue)", b"sourceValue"),
