@@ -44,6 +44,12 @@ _TYPESCRIPT_VARIABLE = re.compile(
   br"\s*(?:(?:export|declare)\s+)*(?:const|let|var)\s+"
   br"(?!enum\b)([A-Za-z_$][A-Za-z0-9_$]*)"
 )
+_GO_FUNCTION = re.compile(
+  br"\s*func\s+(?:\([^\r\n)]*\)\s+)?([A-Za-z_][A-Za-z0-9_]*)"
+)
+_GO_TYPE = re.compile(br"\s*type\s+([A-Za-z_][A-Za-z0-9_]*)")
+_GO_VALUE = re.compile(br"\s*(?:var|const)\s+([A-Za-z_][A-Za-z0-9_]*)")
+_GO_SHORT_VARIABLE = re.compile(br"\s*([A-Za-z_][A-Za-z0-9_]*)\s*:=")
 _PYTHON_IMPORT = re.compile(br"\s*(?:import\b|from\b.*\bimport\b)")
 _TYPESCRIPT_IMPORT = re.compile(br"\s*import\b")
 _TYPESCRIPT_MULTILINE_IMPORT = re.compile(
@@ -199,6 +205,8 @@ def _has_definition_occurrence(match, occurrences):
     definition_patterns = (_PYTHON_DEFINITION,)
   elif extension in (".ts", ".tsx"):
     definition_patterns = (_TYPESCRIPT_DECLARATION, _TYPESCRIPT_VARIABLE)
+  elif extension == ".go":
+    definition_patterns = (_GO_FUNCTION, _GO_TYPE, _GO_VALUE, _GO_SHORT_VARIABLE)
   else:
     return False
 
