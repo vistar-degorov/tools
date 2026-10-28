@@ -10,7 +10,7 @@ import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options, skip_only_matching_options
-from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import, _update_typescript_import_state
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import, _python_definition_occurrences, _update_typescript_import_state
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -382,6 +382,17 @@ var Result = GroupAlias
     body = SearchResult("module.py", 1, 32, b"selected")
     self.assertTrue(_has_definition_occurrence(match, (name,)))
     self.assertFalse(_has_definition_occurrence(match, (argument, body)))
+
+  def test_python_definition_occurrences_include_definition_syntax(self):
+    match = SearchResult("module.py", 7, 18, b"  async def load_resource(argument):")
+    name = SearchResult("module.py", 7, 18, b"resource")
+    argument = SearchResult("module.py", 7, 27, b"argument")
+
+    self.assertEqual(
+      _python_definition_occurrences(match, (name,)),
+      (SearchResult("module.py", 7, 3, b"async def load_resource"),),
+    )
+    self.assertEqual(_python_definition_occurrences(match, (argument,)), ())
 
   def test_definition_filter_handles_classes_async_functions_and_partial_matches(self):
     cases = (

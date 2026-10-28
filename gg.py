@@ -16,6 +16,7 @@ from lib.git_search_args import (
 )
 from lib.git_search import (
   GrepOutputMode,
+  SearchResult,
   remove_color_codes,
   build_search_command,
   build_occurrence_search_command,
@@ -198,6 +199,26 @@ def _has_quoted_occurrence(match, occurrences):
     if _is_quoted(text, head, head + len(occurrence.text)):
       return True
   return False
+
+
+def _python_definition_occurrences(match, occurrences):
+  text = remove_color_codes(match.text)
+  if (definition := _PYTHON_DEFINITION.match(text)) is None:
+    return ()
+
+  name_head, name_tail = definition.span(1)
+  if not any(
+    (occurrence_head := occurrence.column - 1) < name_tail
+    and occurrence_head + len(occurrence.text) > name_head
+    for occurrence in occurrences
+  ):
+    return ()
+
+  definition_text = definition.group(0).lstrip()
+  definition_head = definition.end() - len(definition_text)
+  return (SearchResult(
+    match.path, match.line, definition_head + 1, definition_text,
+  ),)
 
 
 def _has_definition_occurrence(match, occurrences):
