@@ -201,24 +201,34 @@ def _has_quoted_occurrence(match, occurrences):
   return False
 
 
-def _python_definition_occurrences(match, occurrences):
+def _definition_occurrences(match, occurrences):
+  extension = Path(match.path).suffix.lower()
+  if extension in (".py", ".pyi", ".pyw", ".bzl"):
+    patterns = (_PYTHON_DEFINITION,)
+  elif extension in (".ts", ".tsx"):
+    patterns = (_TYPESCRIPT_DECLARATION, _TYPESCRIPT_VARIABLE)
+  elif extension == ".go":
+    patterns = (_GO_FUNCTION, _GO_TYPE, _GO_VALUE, _GO_SHORT_VARIABLE)
+  else:
+    return ()
+
   text = remove_color_codes(match.text)
-  if (definition := _PYTHON_DEFINITION.match(text)) is None:
-    return ()
+  for pattern in patterns:
+    if (definition := pattern.match(text)) is None:
+      continue
 
-  name_head, name_tail = definition.span(1)
-  if not any(
-    (occurrence_head := occurrence.column - 1) < name_tail
-    and occurrence_head + len(occurrence.text) > name_head
-    for occurrence in occurrences
-  ):
-    return ()
-
-  definition_text = definition.group(0).lstrip()
-  definition_head = definition.end() - len(definition_text)
-  return (SearchResult(
-    match.path, match.line, definition_head + 1, definition_text,
-  ),)
+    name_head, name_tail = definition.span(1)
+    if any(
+      (occurrence_head := occurrence.column - 1) < name_tail
+      and occurrence_head + len(occurrence.text) > name_head
+      for occurrence in occurrences
+    ):
+      definition_text = definition.group(0).lstrip()
+      definition_head = definition.end() - len(definition_text)
+      return (SearchResult(
+        match.path, match.line, definition_head + 1, definition_text,
+      ),)
+  return ()
 
 
 def _has_definition_occurrence(match, occurrences):
