@@ -297,6 +297,36 @@ IndependentBinding
     match = SearchResult(str(path), 2, 1, b"IndependentBinding")
     self.assertTrue(self._has_non_import(match, (), ("IndependentBinding",)))
 
+  def test_go_import_filter(self):
+    path = self.repository / "backend/module.go"
+    self._write(path.relative_to(self.repository), """\
+package backend
+
+import SingleAlias "module/one"
+import (
+  // retained comment
+  GroupAlias "module/two"
+  _ "module/driver"
+  . "module/helpers"
+)
+
+var Result = GroupAlias
+""")
+
+    def has_non_import(line, text, name):
+      encoded_name = name.encode()
+      match = SearchResult(str(path), line, 1, text)
+      occurrence = SearchResult(str(path), line, text.index(encoded_name) + 1, encoded_name)
+      return _has_non_import(
+        match, (occurrence,), (name,), import_scanner, python_import_scanner)
+
+    with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
+      self.assertFalse(has_non_import(3, b'import SingleAlias "module/one"', "SingleAlias"))
+      self.assertFalse(has_non_import(6, b'  GroupAlias "module/two"', "GroupAlias"))
+      self.assertFalse(has_non_import(7, b'  _ "module/driver"', "driver"))
+      self.assertFalse(has_non_import(8, b'  . "module/helpers"', "helpers"))
+      self.assertTrue(has_non_import(11, b"var Result = GroupAlias", "GroupAlias"))
+
   def test_import_filter_ignores_color_codes(self):
     match = SearchResult(
       "module.py", 1, 1, b"\x1b[1;31mimport\x1b[m dependency")
@@ -377,6 +407,35 @@ IndependentBinding
         occurrence = SearchResult(path, 1, text.index(name) + 1, name)
         match = SearchResult(path, 1, occurrence.column, text)
         self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+
+  def test_definition_filter_handles_simple_go_declarations(self):
+    cases = (
+      (b"func Render() {}", b"Render"),
+      (b"func (node *Tree[T]) Render() {}", b"Render"),
+      (b"type Tree[T any] struct{}", b"Tree"),
+      (b"type TreeAlias = Tree[int]", b"TreeAlias"),
+      (b"var root *Tree[int]", b"root"),
+      (b"const defaultDepth = 4", b"defaultDepth"),
+      (b"child := makeNode()", b"child"),
+    )
+    for text, name in cases:
+      with self.subTest(text=text):
+        occurrence = SearchResult("tree.go", 1, text.index(name) + 1, name)
+        match = SearchResult("tree.go", 1, occurrence.column, text)
+        self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+
+  def test_definition_filter_rejects_go_usages(self):
+    cases = (
+      (b"func Render() { Render() }", b"Render"),
+      (b"var root = makeNode()", b"makeNode"),
+      (b"child := makeNode()", b"makeNode"),
+    )
+    for text, name in cases:
+      with self.subTest(text=text):
+        column = text.rindex(name) + 1
+        occurrence = SearchResult("tree.go", 1, column, name)
+        match = SearchResult("tree.go", 1, occurrence.column, text)
+        self.assertFalse(_has_definition_occurrence(match, (occurrence,)))
 
   def test_definition_filter_rejects_typescript_usages_and_destructuring(self):
     cases = (
