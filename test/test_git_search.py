@@ -10,7 +10,7 @@ import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options, skip_only_matching_options
-from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import, _python_definition_occurrences, _update_typescript_import_state
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import, _update_typescript_import_state
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -389,10 +389,46 @@ var Result = GroupAlias
     argument = SearchResult("module.py", 7, 27, b"argument")
 
     self.assertEqual(
-      _python_definition_occurrences(match, (name,)),
+      _definition_occurrences(match, (name,)),
       (SearchResult("module.py", 7, 3, b"async def load_resource"),),
     )
-    self.assertEqual(_python_definition_occurrences(match, (argument,)), ())
+    self.assertEqual(_definition_occurrences(match, (argument,)), ())
+
+  def test_go_definition_occurrences_include_definition_syntax(self):
+    cases = (
+      (b"  func (item *Store[T]) LoadItem() {}", b"Item", b"func (item *Store[T]) LoadItem"),
+      (b"\ttype Bucket[T any] struct{}", b"Bucket", b"type Bucket"),
+      (b"  var current *Bucket[int]", b"current", b"var current"),
+      (b"  value := construct()", b"value", b"value :="),
+    )
+    for text, occurrence_text, definition_text in cases:
+      with self.subTest(text=text):
+        occurrence = SearchResult("module.go", 7, text.index(occurrence_text) + 1, occurrence_text)
+        match = SearchResult("module.go", 7, occurrence.column, text)
+        expected = SearchResult("module.go", 7, text.index(definition_text) + 1, definition_text)
+        self.assertEqual(_definition_occurrences(match, (occurrence,)), (expected,))
+
+    text = b"func Build() { Build() }"
+    usage = SearchResult("module.go", 8, text.rindex(b"Build") + 1, b"Build")
+    match = SearchResult("module.go", 8, usage.column, text)
+    self.assertEqual(_definition_occurrences(match, (usage,)), ())
+
+  def test_definition_occurrences_select_syntax_by_filename(self):
+    cases = (
+      ("module.py", b"class Record(Base):", b"Record", b"class Record"),
+      ("module.ts", b"export const record = value", b"record", b"export const record"),
+      ("module.go", b"type Record struct{}", b"Record", b"type Record"),
+    )
+    for path, text, occurrence_text, definition_text in cases:
+      with self.subTest(path=path):
+        occurrence = SearchResult(path, 4, text.index(occurrence_text) + 1, occurrence_text)
+        match = SearchResult(path, 4, occurrence.column, text)
+        expected = SearchResult(path, 4, text.index(definition_text) + 1, definition_text)
+        self.assertEqual(_definition_occurrences(match, (occurrence,)), (expected,))
+
+    match = SearchResult("module.txt", 4, 7, b"class Record(Base):")
+    occurrence = SearchResult("module.txt", 4, 7, b"Record")
+    self.assertEqual(_definition_occurrences(match, (occurrence,)), ())
 
   def test_definition_filter_handles_classes_async_functions_and_partial_matches(self):
     cases = (
