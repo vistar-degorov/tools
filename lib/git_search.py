@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 from .git_search_args import (
-  Config, GrepOutputMode, resolve_setting, skip_context_options,
+  Config, GrepOutputMode, prepare_occurrence_options, resolve_setting,
 )
 
 
@@ -427,7 +427,7 @@ def build_occurrence_search_command(
 ):
   return build_command(
     patterns,
-    (*skip_context_options(grep_args), "-o"),
+    prepare_occurrence_options(grep_args),
     scope_arguments,
     untracked=untracked,
     word_regexp=word_regexp,

@@ -277,6 +277,18 @@ class _SkipContextOptions(ArgumentIterator):
       self.retain(text, value, value_style)
 
 
+class _SkipOnlyMatchingOptions(ArgumentIterator):
+  def inspect(self, text, key, value=None, value_style=None):
+    if key not in ("-o", "--only-matching"):
+      self.retain(text, value, value_style)
+
+
+class _PrepareOccurrenceOptions(_SkipOnlyMatchingOptions):
+  def inspect(self, text, key, value=None, value_style=None):
+    if key not in _CONTEXT_SETTINGS and not key.removeprefix("-").isdigit():
+      super().inspect(text, key, value, value_style)
+
+
 _PATH_OUTPUT_OPTIONS = frozenset((
   "-l", "-L", "--name-only", "--files-with-matches", "--files-without-match",
 ))
@@ -344,6 +356,14 @@ class _ApplyOutputOptions(ArgumentIterator):
 
 def skip_context_options(arguments):
   return _SkipContextOptions(arguments)
+
+
+def skip_only_matching_options(arguments):
+  return _SkipOnlyMatchingOptions(arguments)
+
+
+def prepare_occurrence_options(arguments):
+  return chain(_PrepareOccurrenceOptions(arguments), ("-o",))
 
 
 def _apply_output_options(arguments):
