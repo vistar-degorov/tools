@@ -342,8 +342,8 @@ class _ApplyOutputOptions(ArgumentIterator):
       self.retain(text, value, value_style)
 
 
-def skip_context_options(arguments):
-  return _SkipContextOptions(arguments)
+def prepare_occurrence_options(arguments):
+  return (*_SkipContextOptions(arguments), "-o")
 
 
 def _apply_output_options(arguments):

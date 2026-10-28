@@ -1,5 +1,3 @@
-
-
 from itertools import product
 import json
 from pathlib import Path
@@ -7,7 +5,7 @@ import tempfile
 import unittest
 
 from lib.git_search import ContextBlock, SearchResult, GrepOutputMode, ResultAction
-from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
+from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options
 from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _has_definition_occurrence, _filter_occurrence_contexts, _filter_occurrence_matches, _has_non_import, _has_quoted_occurrence, _update_typescript_import_state
 
 
@@ -406,7 +404,7 @@ var Result = GroupAlias
       GrepOutputMode.PATHS,
     )
 
-  def test_skip_context_options(self):
+  def test_occurrence_options_remove_context_options(self):
     arguments = (
       "-iA2",
       "-pWn",
@@ -419,12 +417,21 @@ var Result = GroupAlias
       "--no-context",
       "--max-depth", "7",
       "-e", "-W",
-      "--", "-B",
     )
     self.assertEqual(
-      tuple(skip_context_options(arguments)),
-      ("-i", "-n", "--no-context", "--max-depth", "7", "-e", "-W", "--", "-B"),
+      tuple(prepare_occurrence_options(arguments)),
+      ("-i", "-n", "--no-context", "--max-depth", "7", "-e", "-W", "-o"),
     )
+
+  def test_occurrence_options_append_crop_matches_option(self):
+    cases = (
+      ((), ("-o",)),
+      (("-i",), ("-i", "-o")),
+      (("-A2", "-n"), ("-n", "-o")),
+    )
+    for arguments, expected in cases:
+      with self.subTest(arguments=arguments):
+        self.assertEqual(tuple(prepare_occurrence_options(arguments)), expected)
 
   def test_argument_iterator_is_a_pass_through_iterator(self):
     cases = (
@@ -489,34 +496,34 @@ var Result = GroupAlias
     self.assertIs(plan.mode, GrepOutputMode.MATCHES)
     self.assertEqual(filtered, ("-e", "-C", "--", "-A", "3"))
 
-  def test_context_removal_preserves_attached_pager(self):
-      self.assertEqual(
-        tuple(skip_context_options(("-Opager",))),
-        ("-Opager",),
-      )
-
-  def test_context_removal_preserves_spaced_value_for_clustered_option(self):
+  def test_occurrence_options_preserve_attached_pager(self):
     self.assertEqual(
-      tuple(skip_context_options(("-ie", "needle"))),
-      ("-ie", "needle"),
+      tuple(prepare_occurrence_options(("-Opager",))),
+      ("-Opager", "-o"),
     )
 
-  def test_context_removal_preserves_spaced_value_for_abbreviated_option(self):
+  def test_occurrence_options_preserve_spaced_value_for_clustered_option(self):
+    self.assertEqual(
+      tuple(prepare_occurrence_options(("-ie", "needle"))),
+      ("-ie", "needle", "-o"),
+    )
+
+  def test_occurrence_options_preserve_spaced_value_for_abbreviated_option(self):
     arguments = ("--max-d", "4", "-A", "2")
-    self.assertEqual(tuple(skip_context_options(arguments)), ("--max-d", "4"))
+    self.assertEqual(tuple(prepare_occurrence_options(arguments)), ("--max-d", "4", "-o"))
 
-  def test_context_removal_preserves_empty_spaced_value(self):
-    self.assertEqual(tuple(skip_context_options(("-e", ""))), ("-e", ""))
+  def test_occurrence_options_preserve_empty_spaced_value(self):
+    self.assertEqual(tuple(prepare_occurrence_options(("-e", ""))), ("-e", "", "-o"))
 
-  def test_context_removal_does_not_repeat_equals_value(self):
+  def test_occurrence_options_do_not_repeat_equals_value(self):
     for arguments in (("--threads=3",), ("--max-d=4",)):
       with self.subTest(arguments=arguments):
-        self.assertEqual(tuple(skip_context_options(arguments)), arguments)
+        self.assertEqual(tuple(prepare_occurrence_options(arguments)), (*arguments, "-o"))
 
-  def test_context_removal_preserves_incomplete_and_invalid_options(self):
+  def test_occurrence_options_preserve_incomplete_and_invalid_options(self):
     for arguments in (("-ie",), ("-",), ("--123",)):
       with self.subTest(arguments=arguments):
-        self.assertEqual(tuple(skip_context_options(arguments)), arguments)
+        self.assertEqual(tuple(prepare_occurrence_options(arguments)), (*arguments, "-o"))
 
   def test_context_flags_do_not_hide_following_presentation_flags(self):
     plan, arguments = make_output_plan(("-ph",))
@@ -528,13 +535,13 @@ var Result = GroupAlias
     self.assertTrue(plan.null_terminate_filenames)
     self.assertEqual(arguments, ("-W",))
 
-  def test_context_removal_preserves_invalid_assignments(self):
-      arguments = ("--show-function=value", "--function-context=value")
-      self.assertEqual(tuple(skip_context_options(arguments)), arguments)
+  def test_occurrence_options_preserve_invalid_assignments(self):
+    arguments = ("--show-function=value", "--function-context=value")
+    self.assertEqual(tuple(prepare_occurrence_options(arguments)), (*arguments, "-o"))
 
-  def test_context_removal_recognizes_abbreviated_long_options(self):
+  def test_occurrence_options_recognize_abbreviated_long_options(self):
     arguments = ("--bef=2", "--cont", "3", "--show-f", "--function-con", "-i")
-    self.assertEqual(tuple(skip_context_options(arguments)), ("-i",))
+    self.assertEqual(tuple(prepare_occurrence_options(arguments)), ("-i", "-o"))
 
   def test_output_plan_recognizes_abbreviated_context_options(self):
     for arguments in (("--bef=2",), ("--show-f",), ("--function-con",)):
