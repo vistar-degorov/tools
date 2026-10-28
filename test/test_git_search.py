@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
-from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, skip_context_options
+from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options, skip_context_options, skip_only_matching_options
 from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import, _update_typescript_import_state
 
 
@@ -360,6 +360,20 @@ var Result = GroupAlias
     match = SearchResult("module.py", 1, 1, b'\xc3\xa9 "marker"')
     occurrence = SearchResult("module.py", 1, 5, b"marker")
     self.assertTrue(_has_quoted_occurrence(match, (occurrence,)))
+
+  def test_quoted_search_ignores_only_matching_output_mode(self):
+    script = self.repository / "gq"
+    script.symlink_to(GG)
+    python_path = self.environment.get("PYTHONPATH")
+    self.environment["PYTHONPATH"] = os.pathsep.join(
+      path for path in (str(TOOLS_DIRECTORY), python_path) if path
+    )
+
+    result = self._run(script, "-o", "--pattern", "route/123", "a.py")
+
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn('route = "route/123"', result.stdout)
+    self.assertNotIn("Traceback", result.stderr)
 
   def test_definition_filter_checks_the_occurrence_position(self):
     match = SearchResult("module.py", 1, 1, b"def selected(argument): return selected")
@@ -747,6 +761,29 @@ var Result = GroupAlias
     filtered = skip_context_options(("-i", "-A", "2"))
     self.assertIs(iter(filtered), filtered)
     self.assertEqual(tuple(filtered), ("-i",))
+
+  def test_occurrence_options_have_one_only_matching_option(self):
+    cases = (
+      (("-o",), ("-o",)),
+      (("--only-matching",), ("-o",)),
+      (("--only",), ("-o",)),
+      (("-ioo",), ("-i", "-o")),
+      (("-A2", "-o", "-n"), ("-n", "-o")),
+    )
+    for arguments, expected in cases:
+      with self.subTest(arguments=arguments):
+        self.assertEqual(tuple(prepare_occurrence_options(arguments)), expected)
+
+  def test_only_matching_options_can_be_removed_from_result_search(self):
+    cases = (
+      (("-io",), ("-i",)),
+      (("-oo",), ()),
+      (("--only-matching", "-n"), ("-n",)),
+      (("--only",), ()),
+    )
+    for arguments, expected in cases:
+      with self.subTest(arguments=arguments):
+        self.assertEqual(tuple(skip_only_matching_options(arguments)), expected)
 
   def test_argument_iterator_is_a_pass_through_iterator(self):
     cases = (
