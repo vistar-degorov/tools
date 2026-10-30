@@ -527,7 +527,7 @@ class GGFixtureIntegrationTest(unittest.TestCase):
 
     strict = self._run("def", "--pattern", "target", "--show", "999")
     self.assertEqual(strict.returncode, 2)
-    self.assertIn("result 999 is outside 1..2", strict.stderr)
+    self.assertIn("outside the result range", strict.stderr)
 
   def test_explicit_pattern_disables_slash_selection(self):
     result = self._run("gg", "--pattern", "route/123")

@@ -625,6 +625,42 @@ var Result = GroupAlias
       "--column=value", "--color=value", "--no-color=value",
     ))
 
+  def test_present_results_accepts_iterators(self):
+    plan, _ = make_output_plan(())
+    records = (
+      SearchResult("first.py", 2, 3, b"first match"),
+      SearchResult("second.py", 5, 7, b"second match"),
+    )
+
+    stdout = StringIO()
+    with redirect_stdout(stdout):
+      status = present_results(iter(records), plan, _result_action(json=True), program="search")
+    self.assertEqual(status, 0)
+    self.assertEqual(
+      [record["path"] for record in map(json.loads, stdout.getvalue().splitlines())],
+      ["first.py", "second.py"],
+    )
+
+    stdout = StringIO()
+    with redirect_stdout(stdout):
+      status = present_results(
+        iter(records), plan, _result_action(index=99, json=True, clamp_index=True), program="search")
+    self.assertEqual(status, 0)
+    self.assertEqual(json.loads(stdout.getvalue())["path"], "second.py")
+
+    stderr = StringIO()
+    with redirect_stderr(stderr):
+      status = present_results(
+        iter(records), plan, _result_action(index=99, json=True), program="search")
+    self.assertEqual(status, 2)
+    self.assertIn("outside the result range", stderr.getvalue())
+
+    stdout = StringIO()
+    with redirect_stdout(stdout):
+      status = present_results(iter(()), plan, _result_action(json=True), program="search")
+    self.assertEqual(status, 1)
+    self.assertEqual(stdout.getvalue(), "")
+
 
 if __name__ == "__main__":
   unittest.main()
