@@ -368,7 +368,7 @@ var Result = GroupAlias
     unquoted = SearchResult("module.py", 1, 30, b"plain")
     self.assertEqual(_quoted_occurrences(match, (double_quoted, single_quoted, unquoted)), ((3, 11), (16, 23)))
 
-  def test_quoted_search_ignores_only_matching_output_mode(self):
+  def test_quoted_search_only_matching_output_includes_quotes(self):
     script = self.repository / "gq"
     script.symlink_to(GG)
     python_path = self.environment.get("PYTHONPATH")
@@ -379,8 +379,19 @@ var Result = GroupAlias
     result = self._run(script, "-o", "--pattern", "route/123", "a.py")
 
     self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertIn('route = "route/123"', result.stdout)
+    self.assertTrue(result.stdout.endswith(':"route/123"\n'), result.stdout)
+    self.assertNotIn("route =", result.stdout)
     self.assertNotIn("Traceback", result.stderr)
+
+  def test_definition_only_matching_output_includes_definition_syntax(self):
+    result = self._run(DEF, "-o", "target", "a.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(result.stdout.endswith(":def target\n"), result.stdout)
+
+  def test_only_matching_output_without_a_semantic_filter(self):
+    result = self._run(GG, "--imports", "-o", "decimal", "dependencies.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(result.stdout.endswith(":decimal\n"), result.stdout)
 
   def test_definition_filter_checks_the_occurrence_position(self):
     match = SearchResult("module.py", 1, 1, b"def selected(argument): return selected")
@@ -1060,6 +1071,17 @@ var Result = GroupAlias
     self.assertGreaterEqual(len(records), 2)
     self.assertEqual(
       set(records[0]), {"path", "line", "column", "text"})
+
+  def test_only_matching_json_output_contains_projected_occurrences(self):
+    result = self._run(DEF, "--json", "-o", "target", "a.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    records = [json.loads(line) for line in result.stdout.splitlines()]
+    self.assertEqual([(record["column"], record["text"]) for record in records], [(1, "def target")])
+
+  def test_only_matching_projection_precedes_result_selection(self):
+    result = self._run(DEF, "-o", "--stdout", "target/1", "a.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(result.stdout.startswith("a.py:3:1\n"), result.stdout)
 
   def test_present_results_accepts_iterators(self):
     plan, _ = make_output_plan(())

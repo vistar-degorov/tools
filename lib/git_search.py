@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
 from itertools import chain
@@ -19,6 +19,7 @@ class SearchResult:
   line: int | None
   column: int | None
   text: bytes
+  # zero-based, half-open byte ranges in text with ANSI color codes removed
   occurrence_ranges: tuple[tuple[int, int], ...] = ()
 
   @property
@@ -52,11 +53,12 @@ class CountResult:
 
 _SEPARATOR_COLOR = b"\x1b[36m"
 _COLOR_RESET = b"\x1b[m"
+_COLOR_CODE = re.compile(br"\x1b\[[0-9;]*m")
 
 
 def remove_color_codes(text):
   if isinstance(text, bytes):
-    return re.sub(br"\x1b\[[0-9;]*m", b"", text)
+    return _COLOR_CODE.sub(b"", text)
   return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
@@ -211,6 +213,66 @@ def _colored_separator(separator, use_color):
   return _SEPARATOR_COLOR + separator + _COLOR_RESET if use_color else separator
 
 
+def _raw_text_index(text, visible_index, *, after_color_codes=False):
+  raw_index = 0
+  current_visible_index = 0
+  while current_visible_index < visible_index:
+    if color_code := _COLOR_CODE.match(text, raw_index):
+      raw_index = color_code.end()
+    else:
+      raw_index += 1
+      current_visible_index += 1
+  if after_color_codes:
+    while color_code := _COLOR_CODE.match(text, raw_index):
+      raw_index = color_code.end()
+  return raw_index
+
+
+def _active_color(text):
+  active_color = b""
+  for color_code in _COLOR_CODE.finditer(text):
+    if color_code.group() in (b"\x1b[m", b"\x1b[0m"):
+      active_color = b""
+    else:
+      active_color += color_code.group()
+  return active_color
+
+
+def _project_occurrences(result):
+  for head, tail in result.occurrence_ranges:
+    raw_head = _raw_text_index(result.text, head)
+    raw_tail = _raw_text_index(result.text, tail, after_color_codes=True)
+    text = result.text[raw_head:raw_tail]
+    if active_color := _active_color(result.text[:raw_head]):
+      if _COLOR_CODE.match(text) is None:
+        text = active_color + text
+    if _active_color(text):
+      text += _COLOR_RESET
+    yield replace(result, column=head + 1, text=text, occurrence_ranges=())
+
+
+def _only_matching_records(records, mode):
+  if mode is GrepOutputMode.MATCHES:
+    for result in records:
+      yield from _project_occurrences(result)
+  elif mode is GrepOutputMode.CONTEXT:
+    for block in records:
+      lines = []
+      has_occurrences = False
+      for result in block.lines:
+        if result.occurrence_ranges:
+          lines.extend(_project_occurrences(result))
+          has_occurrences = True
+        elif result.is_match:
+          lines.append(replace(result, column=None))
+        else:
+          lines.append(result)
+      if has_occurrences:
+        yield replace(block, lines=tuple(lines))
+  else:
+    yield from records
+
+
 def _write_line_result(stream, result, plan, *, show_filename, use_color):
   if plan.null_terminate_filenames:
     separator = b"\0"
@@ -282,6 +344,8 @@ def _write_count_results(records, plan, stream, use_color):
 
 
 def write_records(records, plan, stream):
+  if plan.only_matching:
+    records = _only_matching_records(records, plan.mode)
   writers = {
     GrepOutputMode.MATCHES: _write_match_results,
     GrepOutputMode.CONTEXT: _write_context_blocks,
@@ -486,6 +550,9 @@ def execute_search(command, output_plan, *, program, debug=False):
 
 
 def present_results(results, output_plan, result_action, *, program):
+  if output_plan.only_matching:
+    results = _only_matching_records(results, output_plan.mode)
+    output_plan = replace(output_plan, only_matching=False)
   if (results := _not_empty(results)) is None:
     return 1
 
