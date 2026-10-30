@@ -13,7 +13,6 @@ from lib.git_search_args import (
   parse_search_arguments,
   make_output_plan,
   resolve_extensions,
-  skip_only_matching_options,
 )
 from lib.git_search import (
   GrepOutputMode,
@@ -441,12 +440,9 @@ def main(arguments=None):
       cmd, output_plan.with_mode(GrepOutputMode.MATCHES), program=main_arg, debug=debug_mode)
     if not debug_mode and occurrences is None:
       return status
-    grep_args = tuple(skip_only_matching_options(scope.grep_args))
-  else:
-    grep_args = scope.grep_args
 
   cmd = build_search_command(
-    patterns, grep_args, scope.arguments, output_plan, result_action,
+    patterns, scope.grep_args, scope.arguments, output_plan, result_action,
     untracked=options.untracked,
     word_regexp=word_regexp,
   )

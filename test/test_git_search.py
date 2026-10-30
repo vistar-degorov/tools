@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, present_results, ResultAction
-from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options, skip_only_matching_options
+from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options
 from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _quoted_occurrences, _non_import_occurrences, _update_typescript_import_state
 
 
@@ -821,28 +821,15 @@ var Result = GroupAlias
       ("-i", "-n", "--no-context", "--max-depth", "7", "-e", "-W", "-o"),
     )
 
-  def test_occurrence_options_have_one_only_matching_option(self):
+  def test_occurrence_options_append_only_matching_option(self):
     cases = (
-      (("-o",), ("-o",)),
-      (("--only-matching",), ("-o",)),
-      (("--only",), ("-o",)),
-      (("-ioo",), ("-i", "-o")),
-      (("-A2", "-o", "-n"), ("-n", "-o")),
+      ((), ("-o",)),
+      (("-i",), ("-i", "-o")),
+      (("-A2", "-n"), ("-n", "-o")),
     )
     for arguments, expected in cases:
       with self.subTest(arguments=arguments):
         self.assertEqual(tuple(prepare_occurrence_options(arguments)), expected)
-
-  def test_only_matching_options_can_be_removed_from_result_search(self):
-    cases = (
-      (("-io",), ("-i",)),
-      (("-oo",), ()),
-      (("--only-matching", "-n"), ("-n",)),
-      (("--only",), ()),
-    )
-    for arguments, expected in cases:
-      with self.subTest(arguments=arguments):
-        self.assertEqual(tuple(skip_only_matching_options(arguments)), expected)
 
   def test_argument_iterator_is_a_pass_through_iterator(self):
     cases = (
@@ -964,6 +951,7 @@ var Result = GroupAlias
     self.assertTrue(default.show_filename)
     self.assertTrue(default.show_line_number)
     self.assertFalse(default.show_column_number)
+    self.assertFalse(default.only_matching)
 
     hidden, _ = make_output_plan(("-h",))
     self.assertFalse(hidden.show_filename)
@@ -983,6 +971,19 @@ var Result = GroupAlias
     self.assertTrue(paths.show_filename)
     self.assertFalse(paths.show_line_number)
 
+  def test_output_plan_tracks_only_matching(self):
+    plan, arguments = make_output_plan(("-io", "--only-matching"))
+    self.assertTrue(plan.only_matching)
+    self.assertEqual(arguments, ("-i",))
+
+    plan, arguments = make_output_plan(("-o", "--no-only-matching"))
+    self.assertFalse(plan.only_matching)
+    self.assertEqual(arguments, ())
+
+    plan, arguments = make_output_plan(("-o",), _result_action(json=True))
+    self.assertTrue(plan.only_matching)
+    self.assertEqual(arguments, ())
+
   def test_output_plan_skips_pattern_option_values(self):
     plan, _ = make_output_plan(("-e", "-h", "-f", "--column"))
     self.assertTrue(plan.show_filename)
@@ -995,11 +996,13 @@ var Result = GroupAlias
       "--heading", "--no-heading",
       "--color", "--no-color",
       "--quiet", "--no-quiet",
+      "--only-matching", "--no-only-matching",
     ))
     self.assertIs(plan.mode, GrepOutputMode.MATCHES)
     self.assertFalse(plan.heading)
     self.assertEqual(plan.color, "never")
     self.assertFalse(plan.quiet)
+    self.assertFalse(plan.only_matching)
 
   def test_output_preparation_removes_presentation_options(self):
     plan, arguments = make_output_plan((
