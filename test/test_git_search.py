@@ -12,7 +12,7 @@ import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, present_results, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options, skip_only_matching_options
-from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _has_quoted_occurrence, _has_non_import, _update_typescript_import_state
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _quoted_occurrences, _has_non_import, _update_typescript_import_state
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -358,10 +358,13 @@ var Result = GroupAlias
     self.assertFalse(self._has_non_import(
       coffee_match, (coffee_occurrence,), ("import dependency",)))
 
-  def test_quoted_filter_uses_byte_columns(self):
-    match = SearchResult("module.py", 1, 1, b'\xc3\xa9 "marker"')
-    occurrence = SearchResult("module.py", 1, 5, b"marker")
-    self.assertTrue(_has_quoted_occurrence(match, (occurrence,)))
+  def test_quoted_occurrences_use_byte_columns_and_include_quotes(self):
+    text = b'\xc3\xa9 "marker" and \'value\' plus plain'
+    match = SearchResult("module.py", 1, 1, text)
+    double_quoted = SearchResult("module.py", 1, 5, b"marker")
+    single_quoted = SearchResult("module.py", 1, 18, b"value")
+    unquoted = SearchResult("module.py", 1, 30, b"plain")
+    self.assertEqual(_quoted_occurrences(match, (double_quoted, single_quoted, unquoted)), ((3, 11), (16, 23)))
 
   def test_quoted_search_ignores_only_matching_output_mode(self):
     script = self.repository / "gq"
