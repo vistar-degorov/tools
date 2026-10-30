@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import json
 import os
+from itertools import chain
 from pathlib import Path
 import re
 import shlex
@@ -286,15 +287,43 @@ def write_records(records, plan, stream):
   writers[plan.mode](records, plan, stream, output_uses_color(plan, stream))
 
 
-def select_result(results, index, *, clamp):
-  if not results:
+def _not_empty(items):
+  try:
+    items[0]
+    return items
+  except IndexError:
     return None
-  if clamp:
-    normalized_index = min(max(index, 1), len(results))
-    return results[normalized_index - 1]
-  if index < 1 or index > len(results):
-    raise IndexError(index)
-  return results[index - 1]
+  except TypeError:
+    for item in items:
+      return chain((item,), items)
+    return None
+
+
+def select_result(results, index, *, clamp):
+  '''index is 1-based'''
+  if index < 1:
+    if not clamp:
+      raise IndexError(index)
+    index = 1
+  try:
+    result_count = len(results)
+    if result_count == 0:
+      return None
+    elif index > result_count:
+      if not clamp:
+        raise IndexError(index)
+      index = result_count
+    return results[index - 1]
+  except TypeError:
+    _idx = index
+    result = None
+    for result in results:
+      _idx -= 1
+      if _idx == 0:
+        return result
+    if _idx > 0 and not clamp:
+      raise IndexError(index)
+    return result
 
 
 def write_json_results(results):
@@ -453,20 +482,20 @@ def execute_search(command, output_plan, *, program, debug=False):
 
 
 def present_results(results, output_plan, result_action, *, program):
-  if not results:
+  if (results := _not_empty(results)) is None:
     return 1
 
   filename_only = result_action.index is not None and output_plan.mode is GrepOutputMode.PATHS
   if filename_only:
-    results = [SearchResult(result.path, None, None, b"") for result in results]
+    results = (SearchResult(result.path, None, None, b"") for result in results)
 
   if result_action.index is not None:
     try:
       result = select_result(results, result_action.index, clamp=result_action.clamp_index)
+      if result is None:
+        return 1
     except IndexError:
-      sys.stderr.write(
-        f"{program}: result {result_action.index} is outside 1..{len(results)}\n"
-      )
+      sys.stderr.write(f"{program}: result {result_action.index} is outside the result range\n")
       return 2
 
     if result_action.json:
