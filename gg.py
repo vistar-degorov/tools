@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import argparse
+from dataclasses import replace
 from itertools import groupby
 from pathlib import Path
 import re
@@ -235,22 +236,26 @@ def _definition_occurrences(match, occurrences):
   return ()
 
 
-def _filter_occurrence_matches(results, occurrences, predicate):
+def _filter_occurrence_matches(results, occurrences, extractor):
   for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
-    if predicate(match, line_occurrences):
-      yield match
+    if occurrence_ranges := extractor(match, line_occurrences):
+      yield replace(match, occurrence_ranges=occurrence_ranges)
 
 
-def _filter_occurrence_contexts(results, occurrences, predicate):
+def _filter_occurrence_contexts(results, occurrences, extractor):
   occurrence_lines = iter(_occurrences_by_line(occurrences))
   for block in results:
     keep_block = False
-    for match in block.matches:
-      line_occurrences = next(occurrence_lines, ())
-      keep_match = predicate(match, line_occurrences)
-      keep_block = keep_block or keep_match
+    lines = []
+    for result in block.lines:
+      if result.is_match:
+        line_occurrences = next(occurrence_lines, ())
+        if occurrence_ranges := extractor(result, line_occurrences):
+          result = replace(result, occurrence_ranges=occurrence_ranges)
+          keep_block = True
+      lines.append(result)
     if keep_block:
-      yield block
+      yield replace(block, lines=tuple(lines))
 
 
 class _BaseFileScanner:
@@ -400,13 +405,13 @@ def main(arguments=None):
   filtered_extensions = extensions
   if options.scope_arguments is not None:
     filtered_extensions = (*extensions, ".py", ".ts", ".tsx", ".coffee")
-  filter_predicate = None
+  range_extractor = None
   if main_arg == "def":
-    filter_predicate = _definition_occurrences
+    range_extractor = _definition_occurrences
   elif main_arg in ("gq", "gqq"):
-    filter_predicate = _quoted_occurrences
+    range_extractor = _quoted_occurrences
   elif not options.imports and main_arg != "gi":
-    filter_predicate = _non_import_occurrences
+    range_extractor = _non_import_occurrences
 
   if options.word is None:
     word_regexp = (
@@ -427,7 +432,7 @@ def main(arguments=None):
   scope = make_search_scope(options, grep_args, extensions, test_indicators=test_indicators)
   debug_mode = options.debug or scope.debug
 
-  if filter_predicate and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
+  if range_extractor and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
     cmd = build_occurrence_search_command(
       patterns, scope.grep_args, scope.arguments,
       untracked=options.untracked,
@@ -449,20 +454,20 @@ def main(arguments=None):
   if results is None:
     return status
 
-  if filter_predicate:
-    if filter_predicate is _non_import_occurrences:
+  if range_extractor:
+    if range_extractor is _non_import_occurrences:
       with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
-        predicate = lambda match, line_occurrences: _non_import_occurrences(
+        extractor = lambda match, line_occurrences: _non_import_occurrences(
           match, line_occurrences, pattern_texts, import_scanner, python_import_scanner)
         if output_plan.mode == GrepOutputMode.CONTEXT:
-          results = _filter_occurrence_contexts(results, occurrences, predicate)
+          results = _filter_occurrence_contexts(results, occurrences, extractor)
         elif output_plan.mode == GrepOutputMode.MATCHES:
-          results = _filter_occurrence_matches(results, occurrences, predicate)
+          results = _filter_occurrence_matches(results, occurrences, extractor)
     else:
       if output_plan.mode == GrepOutputMode.CONTEXT:
-        results = _filter_occurrence_contexts(results, occurrences, filter_predicate)
+        results = _filter_occurrence_contexts(results, occurrences, range_extractor)
       elif output_plan.mode == GrepOutputMode.MATCHES:
-        results = _filter_occurrence_matches(results, occurrences, filter_predicate)
+        results = _filter_occurrence_matches(results, occurrences, range_extractor)
 
   return present_results(results, output_plan, result_action, program=main_arg)
 
