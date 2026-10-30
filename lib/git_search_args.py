@@ -26,6 +26,7 @@ class OutputPlan:
   null_terminate_filenames: bool
   color: str | None
   quiet: bool = False
+  only_matching: bool = False
 
   def with_mode(self, mode: GrepOutputMode) -> "OutputPlan":
     return OutputPlan(**dict(asdict(self), mode=mode))
@@ -117,13 +118,14 @@ _LONG_BOOLEAN_SETTINGS = {
   "--break": "break_between_files",
   "--null": "null_terminate_filenames",
   "--quiet": "quiet",
+  "--only-matching": "only_matching",
 }
 
 _OTHER_OPTIONS = frozenset((
   "--all-match", "--and", "--basic-regexp", "--cached", "--exclude-standard",
   "--extended-regexp", "--fixed-strings", "--full-name", "--ignore-case", "--invert-match",
   "--no-color", "--no-exclude-standard", "--no-index", "--no-recursive", "--not", "--no-textconv",
-  "--only-matching", "--or", "--parent-basename", "--perl-regexp",
+  "--or", "--parent-basename", "--perl-regexp",
   "--recurse-submodules", "--recursive", "--text", "--textconv", "--untracked", "--word-regexp",
 ))
 
@@ -153,13 +155,14 @@ _SHORT_SETTINGS = {
   "W": ("function_context", True),
   "z": ("null_terminate_filenames", True),
   "q": ("quiet", True),
+  "o": ("only_matching", True),
 }
 
 _PRESENTATION_LONG_OPTIONS = {
-  "--line-number", "--column", "--heading", "--break", "--null", "--color",
+  "--line-number", "--column", "--heading", "--break", "--null", "--color", "--only-matching",
 }
 
-_PRESENTATION_SHORT_OPTIONS = frozenset("hHnz")
+_PRESENTATION_SHORT_OPTIONS = frozenset("hHnzo")
 _COLOR_VALUES = {"always", "auto", "never"}
 
 
@@ -277,12 +280,6 @@ class _SkipContextOptions(ArgumentIterator):
       self.retain(text, value, value_style)
 
 
-class _SkipOnlyMatchingOptions(ArgumentIterator):
-  def inspect(self, text, key, value=None, value_style=None):
-    if key not in ("-o", "--only-matching"):
-      self.retain(text, value, value_style)
-
-
 _PATH_OUTPUT_OPTIONS = frozenset((
   "-l", "-L", "--name-only", "--files-with-matches", "--files-without-match",
 ))
@@ -290,7 +287,6 @@ _PATH_OUTPUT_OPTIONS = frozenset((
 _INCOMPATIBLE_STRUCTURED_OUTPUT_OPTIONS = frozenset((
   "-c", "--count",
   "-q", "--quiet",
-  "-o", "--only-matching",
   "-O", "--open-files-in-pager",
   *_CONTEXT_SETTINGS,
 ))
@@ -348,12 +344,8 @@ class _ApplyOutputOptions(ArgumentIterator):
       self.retain(text, value, value_style)
 
 
-def skip_only_matching_options(arguments):
-  return _SkipOnlyMatchingOptions(arguments)
-
-
 def prepare_occurrence_options(arguments):
-  return (*_SkipOnlyMatchingOptions(_SkipContextOptions(arguments)), "-o")
+  return (*_SkipContextOptions(arguments), "-o")
 
 
 def _apply_output_options(arguments):
@@ -373,6 +365,7 @@ def _apply_output_options(arguments):
     show_function=False,
     function_context=False,
     quiet=False,
+    only_matching=False,
   )
   arguments = tuple(_ApplyOutputOptions(arguments, settings))
 
@@ -407,6 +400,7 @@ def _apply_output_options(arguments):
     null_terminate_filenames=settings.null_terminate_filenames,
     color=settings.color,
     quiet=settings.quiet,
+    only_matching=settings.only_matching,
   ), arguments
 
 
