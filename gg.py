@@ -178,26 +178,24 @@ def _has_non_import(match, occurrences, patterns, import_scanner, python_import_
   return False
 
 
-def _is_quoted(text: bytes, head: int, tail: int) -> bool:
-  if text[head] not in b'\'"':
-    head = max(0, head - 1)
-  if text[tail - 1] not in b'\'"':
-    tail = min(tail + 1, len(text))
-  return tail - head > 1 and (char := text[head]) == text[tail - 1] and char in b'\'"'
-
-
 def _occurrences_by_line(occurrences):
   for _, line_occurrences in groupby(occurrences, key=lambda occ: (occ.path, occ.line)):
     yield tuple(line_occurrences)
 
 
-def _has_quoted_occurrence(match, occurrences):
+def _quoted_occurrences(match, occurrences):
   text = remove_color_codes(match.text)
+  ranges = []
   for occurrence in occurrences:
     head = occurrence.column - 1
-    if _is_quoted(text, head, head + len(occurrence.text)):
-      return True
-  return False
+    tail = head + len(occurrence.text)
+    if text[head] not in b'\'"':
+      head = max(0, head - 1)
+    if text[tail - 1] not in b'\'"':
+      tail = min(tail + 1, len(text))
+    if tail - head > 1 and (char := text[head]) == text[tail - 1] and char in b'\'"':
+      ranges.append((head, tail))
+  return tuple(ranges)
 
 
 def _definition_occurrences(match, occurrences):
@@ -397,7 +395,7 @@ def main(arguments=None):
   if main_arg == "def":
     filter_predicate = _definition_occurrences
   elif main_arg in ("gq", "gqq"):
-    filter_predicate = _has_quoted_occurrence
+    filter_predicate = _quoted_occurrences
   elif not options.imports and main_arg != "gi":
     filter_predicate = _has_non_import
 
