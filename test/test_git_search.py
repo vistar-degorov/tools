@@ -12,7 +12,7 @@ import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, present_results, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options, skip_only_matching_options
-from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import, _update_typescript_import_state
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _has_quoted_occurrence, _has_non_import, _update_typescript_import_state
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -382,8 +382,8 @@ var Result = GroupAlias
     name = SearchResult("module.py", 1, 5, b"selected")
     argument = SearchResult("module.py", 1, 14, b"argument")
     body = SearchResult("module.py", 1, 32, b"selected")
-    self.assertTrue(_has_definition_occurrence(match, (name,)))
-    self.assertFalse(_has_definition_occurrence(match, (argument, body)))
+    self.assertTrue(_definition_occurrences(match, (name,)))
+    self.assertFalse(_definition_occurrences(match, (argument, body)))
 
   def test_python_definition_occurrences_include_definition_syntax(self):
     match = SearchResult("module.py", 7, 18, b"  async def load_resource(argument):")
@@ -392,7 +392,7 @@ var Result = GroupAlias
 
     self.assertEqual(
       _definition_occurrences(match, (name,)),
-      (SearchResult("module.py", 7, 3, b"async def load_resource"),),
+      ((2, 25),),
     )
     self.assertEqual(_definition_occurrences(match, (argument,)), ())
 
@@ -407,8 +407,8 @@ var Result = GroupAlias
       with self.subTest(text=text):
         occurrence = SearchResult("module.go", 7, text.index(occurrence_text) + 1, occurrence_text)
         match = SearchResult("module.go", 7, occurrence.column, text)
-        expected = SearchResult("module.go", 7, text.index(definition_text) + 1, definition_text)
-        self.assertEqual(_definition_occurrences(match, (occurrence,)), (expected,))
+        head = text.index(definition_text)
+        self.assertEqual(_definition_occurrences(match, (occurrence,)), ((head, head + len(definition_text)),))
 
     text = b"func Build() { Build() }"
     usage = SearchResult("module.go", 8, text.rindex(b"Build") + 1, b"Build")
@@ -425,8 +425,8 @@ var Result = GroupAlias
       with self.subTest(path=path):
         occurrence = SearchResult(path, 4, text.index(occurrence_text) + 1, occurrence_text)
         match = SearchResult(path, 4, occurrence.column, text)
-        expected = SearchResult(path, 4, text.index(definition_text) + 1, definition_text)
-        self.assertEqual(_definition_occurrences(match, (occurrence,)), (expected,))
+        head = text.index(definition_text)
+        self.assertEqual(_definition_occurrences(match, (occurrence,)), ((head, head + len(definition_text)),))
 
     match = SearchResult("module.txt", 4, 7, b"class Record(Base):")
     occurrence = SearchResult("module.txt", 4, 7, b"Record")
@@ -441,7 +441,7 @@ var Result = GroupAlias
       with self.subTest(text=text):
         match = SearchResult("module.py", 1, 1, text)
         occurrence = SearchResult("module.py", 1, column, occurrence_text)
-        self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+        self.assertTrue(_definition_occurrences(match, (occurrence,)))
 
   def test_definition_filter_handles_typescript_declarations(self):
     cases = (
@@ -457,7 +457,7 @@ var Result = GroupAlias
       with self.subTest(text=text):
         occurrence = SearchResult(path, 1, text.index(name) + 1, name)
         match = SearchResult(path, 1, occurrence.column, text)
-        self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+        self.assertTrue(_definition_occurrences(match, (occurrence,)))
 
   def test_definition_filter_handles_simple_typescript_variables(self):
     cases = (
@@ -469,7 +469,7 @@ var Result = GroupAlias
       with self.subTest(text=text):
         occurrence = SearchResult(path, 1, text.index(name) + 1, name)
         match = SearchResult(path, 1, occurrence.column, text)
-        self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+        self.assertTrue(_definition_occurrences(match, (occurrence,)))
 
   def test_definition_filter_handles_simple_go_declarations(self):
     cases = (
@@ -485,7 +485,7 @@ var Result = GroupAlias
       with self.subTest(text=text):
         occurrence = SearchResult("tree.go", 1, text.index(name) + 1, name)
         match = SearchResult("tree.go", 1, occurrence.column, text)
-        self.assertTrue(_has_definition_occurrence(match, (occurrence,)))
+        self.assertTrue(_definition_occurrences(match, (occurrence,)))
 
   def test_definition_filter_rejects_go_usages(self):
     cases = (
@@ -498,7 +498,7 @@ var Result = GroupAlias
         column = text.rindex(name) + 1
         occurrence = SearchResult("tree.go", 1, column, name)
         match = SearchResult("tree.go", 1, occurrence.column, text)
-        self.assertFalse(_has_definition_occurrence(match, (occurrence,)))
+        self.assertFalse(_definition_occurrences(match, (occurrence,)))
 
   def test_definition_filter_rejects_typescript_usages_and_destructuring(self):
     cases = (
@@ -511,12 +511,12 @@ var Result = GroupAlias
       with self.subTest(text=text):
         occurrence = SearchResult("module.ts", 1, text.index(name) + 1, name)
         match = SearchResult("module.ts", 1, occurrence.column, text)
-        self.assertFalse(_has_definition_occurrence(match, (occurrence,)))
+        self.assertFalse(_definition_occurrences(match, (occurrence,)))
 
   def test_definition_filter_is_language_aware(self):
     match = SearchResult("module.txt", 1, 1, b"def selected():")
     occurrence = SearchResult("module.txt", 1, 5, b"selected")
-    self.assertFalse(_has_definition_occurrence(match, (occurrence,)))
+    self.assertFalse(_definition_occurrences(match, (occurrence,)))
 
   def test_occurrence_filter_finds_definitions_in_match_results(self):
     results = (
@@ -528,7 +528,7 @@ var Result = GroupAlias
       SearchResult("module.py", 2, 1, b"selected"),
     )
     self.assertEqual(
-      list(_filter_occurrence_matches(results, occurrences, _has_definition_occurrence)),
+      list(_filter_occurrence_matches(results, occurrences, _definition_occurrences)),
       [results[0]],
     )
 
@@ -550,7 +550,7 @@ var Result = GroupAlias
     checked_lines = []
     def predicate(match, line_occurrences):
       checked_lines.append(match.line)
-      return _has_definition_occurrence(match, line_occurrences)
+      return _definition_occurrences(match, line_occurrences)
 
     self.assertEqual(list(_filter_occurrence_contexts(blocks, occurrences, predicate)), list(blocks))
     self.assertEqual(checked_lines, [1, 2, 8])

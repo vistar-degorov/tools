@@ -16,7 +16,6 @@ from lib.git_search_args import (
 )
 from lib.git_search import (
   GrepOutputMode,
-  SearchResult,
   remove_color_codes,
   build_search_command,
   build_occurrence_search_command,
@@ -225,38 +224,8 @@ def _definition_occurrences(match, occurrences):
     ):
       definition_text = definition.group(0).lstrip()
       definition_head = definition.end() - len(definition_text)
-      return (SearchResult(
-        match.path, match.line, definition_head + 1, definition_text,
-      ),)
+      return ((definition_head, definition.end()),)
   return ()
-
-
-def _has_definition_occurrence(match, occurrences):
-  extension = Path(match.path).suffix.lower()
-  if extension in (".py", ".pyi", ".pyw", ".bzl"):
-    definition_patterns = (_PYTHON_DEFINITION,)
-  elif extension in (".ts", ".tsx"):
-    definition_patterns = (_TYPESCRIPT_DECLARATION, _TYPESCRIPT_VARIABLE)
-  elif extension == ".go":
-    definition_patterns = (_GO_FUNCTION, _GO_TYPE, _GO_VALUE, _GO_SHORT_VARIABLE)
-  else:
-    return False
-
-  text = remove_color_codes(match.text)
-  definition_spans = tuple(
-    definition.span(1)
-    for pattern in definition_patterns
-    if (definition := pattern.match(text)) is not None
-  )
-  for occurrence in occurrences:
-    occurrence_head = occurrence.column - 1
-    occurrence_tail = occurrence_head + len(occurrence.text)
-    if any(
-      occurrence_head < definition_tail and occurrence_tail > definition_head
-      for definition_head, definition_tail in definition_spans
-    ):
-      return True
-  return False
 
 
 def _filter_occurrence_matches(results, occurrences, predicate):
@@ -426,7 +395,7 @@ def main(arguments=None):
     filtered_extensions = (*extensions, ".py", ".ts", ".tsx", ".coffee")
   filter_predicate = None
   if main_arg == "def":
-    filter_predicate = _has_definition_occurrence
+    filter_predicate = _definition_occurrences
   elif main_arg in ("gq", "gqq"):
     filter_predicate = _has_quoted_occurrence
   elif not options.imports and main_arg != "gi":
@@ -479,14 +448,14 @@ def main(arguments=None):
         predicate = lambda match, line_occurrences: _has_non_import(
           match, line_occurrences, pattern_texts, import_scanner, python_import_scanner)
         if output_plan.mode == GrepOutputMode.CONTEXT:
-          results = list(_filter_occurrence_contexts(results, occurrences, predicate))
+          results = _filter_occurrence_contexts(results, occurrences, predicate)
         elif output_plan.mode == GrepOutputMode.MATCHES:
-          results = list(_filter_occurrence_matches(results, occurrences, predicate))
+          results = _filter_occurrence_matches(results, occurrences, predicate)
     else:
       if output_plan.mode == GrepOutputMode.CONTEXT:
-        results = list(_filter_occurrence_contexts(results, occurrences, filter_predicate))
+        results = _filter_occurrence_contexts(results, occurrences, filter_predicate)
       elif output_plan.mode == GrepOutputMode.MATCHES:
-        results = list(_filter_occurrence_matches(results, occurrences, filter_predicate))
+        results = _filter_occurrence_matches(results, occurrences, filter_predicate)
 
   return present_results(results, output_plan, result_action, program=main_arg)
 
