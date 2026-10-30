@@ -19,9 +19,13 @@ class SearchResult:
   line: int | None
   column: int | None
   text: bytes
+  occurrence_ranges: tuple[tuple[int, int], ...] = ()
 
   @property
   def is_match(self):
+    '''
+    distinguish grep-matched lines from surrounding context lines
+    '''
     return self.line is not None and self.column is not None
 
 
