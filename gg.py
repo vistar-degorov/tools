@@ -136,6 +136,10 @@ def _occurrence_ranges(occurrences):
     yield head, head + len(occurrence.text)
 
 
+def _matching_occurrences(match, occurrences):
+  return tuple(_occurrence_ranges(occurrences))
+
+
 def _non_import_occurrences(match, occurrences, patterns, import_scanner, python_import_scanner):
   all_ranges = tuple(_occurrence_ranges(occurrences))
   extension = Path(match.path).suffix.lower()
@@ -411,6 +415,8 @@ def main(arguments=None):
     range_extractor = _quoted_occurrences
   elif not options.imports and main_arg != "gi":
     range_extractor = _non_import_occurrences
+  elif output_plan.only_matching:
+    range_extractor = _matching_occurrences
 
   if options.word is None:
     word_regexp = (
