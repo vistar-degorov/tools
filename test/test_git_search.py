@@ -534,7 +534,7 @@ var Result = GroupAlias
     )
     self.assertEqual(
       list(_filter_occurrence_matches(results, occurrences, _definition_occurrences)),
-      [results[0]],
+      [SearchResult("module.py", 1, 5, b"def selected():", occurrence_ranges=((0, 12),))],
     )
 
   def test_occurrence_context_filter_consumes_every_match_line(self):
@@ -553,11 +553,22 @@ var Result = GroupAlias
       SearchResult("module.py", 8, 15, b"second"),
     )
     checked_lines = []
-    def predicate(match, line_occurrences):
+    def extractor(match, line_occurrences):
       checked_lines.append(match.line)
       return _definition_occurrences(match, line_occurrences)
 
-    self.assertEqual(list(_filter_occurrence_contexts(blocks, occurrences, predicate)), list(blocks))
+    self.assertEqual(
+      list(_filter_occurrence_contexts(blocks, occurrences, extractor)),
+      [
+        ContextBlock("module.py", (
+          SearchResult("module.py", 1, 5, b"def first():", occurrence_ranges=((0, 9),)),
+          SearchResult("module.py", 2, 3, b"first()"),
+        )),
+        ContextBlock("module.py", (
+          SearchResult("module.py", 8, 15, b"          def second():", occurrence_ranges=((10, 20),)),
+        )),
+      ],
+    )
     self.assertEqual(checked_lines, [1, 2, 8])
 
   def test_context_filter_removes_only_import_only_blocks(self):
