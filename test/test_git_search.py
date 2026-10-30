@@ -1,4 +1,6 @@
 import errno
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -8,7 +10,7 @@ import subprocess
 import tempfile
 import unittest
 
-from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, ResultAction
+from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, present_results, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options, skip_only_matching_options
 from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _has_definition_occurrence, _has_quoted_occurrence, _has_non_import, _update_typescript_import_state
 
@@ -19,10 +21,10 @@ DEF = TOOLS_DIRECTORY / "def"
 OPEN_RESULT = TOOLS_DIRECTORY / "open_result.py"
 
 
-def _result_action(*, index=None, json=False):
+def _result_action(*, index=None, json=False, clamp_index=False):
   return ResultAction(
     index=index,
-    clamp_index=False,
+    clamp_index=clamp_index,
     json=json,
     open_result=False,
     stdout=True,
@@ -1040,6 +1042,42 @@ var Result = GroupAlias
     self.assertEqual(
       set(records[0]), {"path", "line", "column", "text"})
 
+  def test_present_results_accepts_iterators(self):
+    plan, _ = make_output_plan(())
+    records = (
+      SearchResult("first.py", 2, 3, b"first match"),
+      SearchResult("second.py", 5, 7, b"second match"),
+    )
+
+    stdout = StringIO()
+    with redirect_stdout(stdout):
+      status = present_results(iter(records), plan, _result_action(json=True), program="search")
+    self.assertEqual(status, 0)
+    self.assertEqual(
+      [record["path"] for record in map(json.loads, stdout.getvalue().splitlines())],
+      ["first.py", "second.py"],
+    )
+
+    stdout = StringIO()
+    with redirect_stdout(stdout):
+      status = present_results(
+        iter(records), plan, _result_action(index=99, json=True, clamp_index=True), program="search")
+    self.assertEqual(status, 0)
+    self.assertEqual(json.loads(stdout.getvalue())["path"], "second.py")
+
+    stderr = StringIO()
+    with redirect_stderr(stderr):
+      status = present_results(
+        iter(records), plan, _result_action(index=99, json=True), program="search")
+    self.assertEqual(status, 2)
+    self.assertIn("outside the result range", stderr.getvalue())
+
+    stdout = StringIO()
+    with redirect_stdout(stdout):
+      status = present_results(iter(()), plan, _result_action(json=True), program="search")
+    self.assertEqual(status, 1)
+    self.assertEqual(stdout.getvalue(), "")
+
   def test_selection_takes_priority_over_context_output(self):
     result = self._run(DEF, "-C", "3", "--stdout", "target/1")
     self.assertEqual(result.returncode, 0, result.stderr)
@@ -1072,7 +1110,7 @@ var Result = GroupAlias
     strict = self._run(
       DEF, "--pattern", "target", "--show", "999")
     self.assertEqual(strict.returncode, 2)
-    self.assertIn("outside 1..", strict.stderr)
+    self.assertIn("outside the result range", strict.stderr)
 
   def test_filename_only_results_can_be_selected(self):
     opened = self._run_tty(
