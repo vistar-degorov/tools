@@ -130,7 +130,14 @@ def _parse_arguments(arguments=None):
   return parse_search_arguments(_argument_parser(), arguments, pattern_metavar="PATTERN")
 
 
-def _has_non_import(match, occurrences, patterns, import_scanner, python_import_scanner):
+def _occurrence_ranges(occurrences):
+  for occurrence in occurrences:
+    head = occurrence.column - 1
+    yield head, head + len(occurrence.text)
+
+
+def _non_import_occurrences(match, occurrences, patterns, import_scanner, python_import_scanner):
+  all_ranges = tuple(_occurrence_ranges(occurrences))
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
     find_import = _PYTHON_IMPORT.match
@@ -145,37 +152,39 @@ def _has_non_import(match, occurrences, patterns, import_scanner, python_import_
     find_import = _COFFEE_IMPORT.search
     pattern_has_import = _COFFEE_IMPORT_PATTERN.search
   else:
-    return True
+    return all_ranges
 
   # if a search pattern looks like it's searching for an import, skip filtering
   if any(pattern_has_import(pattern) is not None for pattern in patterns):
-    return True
+    return all_ranges
 
   text = remove_color_codes(match.text)
 
   # multiline import detection
   if extension == ".go" and import_scanner.classify(
     match.path, match.line, _update_go_import_state) is True:
-    return False
+    return ()
 
   if _COMMA_LIST_OF_NAMES.fullmatch(text) is not None:
     if extension == ".py":
-      return python_import_scanner.classify(match.path, match.line) is not True
+      is_import = python_import_scanner.classify(match.path, match.line)
 
-    if extension in (".ts", ".tsx"):
-      return import_scanner.classify(
-        match.path, match.line, _update_typescript_import_state) is not True
+    elif extension in (".ts", ".tsx"):
+      is_import = import_scanner.classify(match.path, match.line, _update_typescript_import_state)
 
     else:
-      return True
+      is_import = False
 
-  # single line import detection
-  for occurrence in occurrences:
-    head = occurrence.column - 1
-    statement = text[text.rfind(b";", 0, head) + 1:]
-    if find_import(statement) is None:
-      return True
-  return False
+    return () if is_import is True else all_ranges
+
+  def _filter_single_line_imports():
+    for occurrence_range in all_ranges:
+      head, _ = occurrence_range
+      statement = text[text.rfind(b";", 0, head) + 1:]
+      if find_import(statement) is None:
+        yield occurrence_range
+
+  return tuple(_filter_single_line_imports())
 
 
 def _occurrences_by_line(occurrences):
@@ -397,7 +406,7 @@ def main(arguments=None):
   elif main_arg in ("gq", "gqq"):
     filter_predicate = _quoted_occurrences
   elif not options.imports and main_arg != "gi":
-    filter_predicate = _has_non_import
+    filter_predicate = _non_import_occurrences
 
   if options.word is None:
     word_regexp = (
@@ -441,9 +450,9 @@ def main(arguments=None):
     return status
 
   if filter_predicate:
-    if filter_predicate is _has_non_import:
+    if filter_predicate is _non_import_occurrences:
       with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
-        predicate = lambda match, line_occurrences: _has_non_import(
+        predicate = lambda match, line_occurrences: _non_import_occurrences(
           match, line_occurrences, pattern_texts, import_scanner, python_import_scanner)
         if output_plan.mode == GrepOutputMode.CONTEXT:
           results = _filter_occurrence_contexts(results, occurrences, predicate)

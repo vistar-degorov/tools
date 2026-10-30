@@ -12,7 +12,7 @@ import unittest
 
 from lib.git_search import ContextBlock, remove_color_codes, SearchResult, GrepOutputMode, present_results, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options, skip_only_matching_options
-from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _quoted_occurrences, _has_non_import, _update_typescript_import_state
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _quoted_occurrences, _non_import_occurrences, _update_typescript_import_state
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -126,9 +126,9 @@ export const endpointPath = "api/status"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(contents)
 
-  def _has_non_import(self, match, occurrences, patterns):
+  def _non_import_occurrences(self, match, occurrences, patterns):
     with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
-      return _has_non_import(
+      return _non_import_occurrences(
         match, occurrences, patterns, import_scanner, python_import_scanner)
 
   def _run(self, script, *arguments):
@@ -297,7 +297,9 @@ IndependentBinding
 IndependentBinding
 """)
     match = SearchResult(str(path), 2, 1, b"IndependentBinding")
-    self.assertTrue(self._has_non_import(match, (), ("IndependentBinding",)))
+    occurrence = SearchResult(str(path), 2, 1, b"IndependentBinding")
+    self.assertEqual(self._non_import_occurrences(
+      match, (occurrence,), ("IndependentBinding",)), ((0, 18),))
 
   def test_go_import_filter(self):
     path = self.repository / "backend/module.go"
@@ -315,33 +317,33 @@ import (
 var Result = GroupAlias
 """)
 
-    def has_non_import(line, text, name):
+    def non_import_occurrences(line, text, name):
       encoded_name = name.encode()
       match = SearchResult(str(path), line, 1, text)
       occurrence = SearchResult(str(path), line, text.index(encoded_name) + 1, encoded_name)
-      return _has_non_import(
+      return _non_import_occurrences(
         match, (occurrence,), (name,), import_scanner, python_import_scanner)
 
     with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
-      self.assertFalse(has_non_import(3, b'import SingleAlias "module/one"', "SingleAlias"))
-      self.assertFalse(has_non_import(6, b'  GroupAlias "module/two"', "GroupAlias"))
-      self.assertFalse(has_non_import(7, b'  _ "module/driver"', "driver"))
-      self.assertFalse(has_non_import(8, b'  . "module/helpers"', "helpers"))
-      self.assertTrue(has_non_import(11, b"var Result = GroupAlias", "GroupAlias"))
+      self.assertFalse(non_import_occurrences(3, b'import SingleAlias "module/one"', "SingleAlias"))
+      self.assertFalse(non_import_occurrences(6, b'  GroupAlias "module/two"', "GroupAlias"))
+      self.assertFalse(non_import_occurrences(7, b'  _ "module/driver"', "driver"))
+      self.assertFalse(non_import_occurrences(8, b'  . "module/helpers"', "helpers"))
+      self.assertTrue(non_import_occurrences(11, b"var Result = GroupAlias", "GroupAlias"))
 
   def test_import_filter_ignores_color_codes(self):
     match = SearchResult(
       "module.py", 1, 1, b"\x1b[1;31mimport\x1b[m dependency")
     occurrence = SearchResult("module.py", 1, 8, b"dependency")
-    self.assertFalse(self._has_non_import(match, (occurrence,), ("dependency",)))
+    self.assertFalse(self._non_import_occurrences(match, (occurrence,), ("dependency",)))
 
   def test_occurrence_import_filter_keeps_mixed_lines(self):
     match = SearchResult(
       "module.py", 1, 1, b"import package; package.run()")
     imported = SearchResult("module.py", 1, 8, b"package")
     used = SearchResult("module.py", 1, 17, b"package")
-    self.assertFalse(self._has_non_import(match, (imported,), ("package",)))
-    self.assertTrue(self._has_non_import(match, (imported, used), ("package",)))
+    self.assertEqual(self._non_import_occurrences(match, (imported,), ("package",)), ())
+    self.assertEqual(self._non_import_occurrences(match, (imported, used), ("package",)), ((16, 23),))
 
   def test_import_filter_checks_patterns_for_the_matched_language(self):
     python_match = SearchResult("module.py", 1, 1, b"import dependency")
@@ -349,13 +351,13 @@ var Result = GroupAlias
     coffee_match = SearchResult("module.coffee", 1, 1, b"{dependency} = require 'package'")
     coffee_occurrence = SearchResult("module.coffee", 1, 2, b"dependency")
 
-    self.assertTrue(self._has_non_import(
+    self.assertTrue(self._non_import_occurrences(
       python_match, (python_occurrence,), ("import dependency",)))
-    self.assertFalse(self._has_non_import(
+    self.assertFalse(self._non_import_occurrences(
       python_match, (python_occurrence,), ("{dependency} = require",)))
-    self.assertTrue(self._has_non_import(
+    self.assertTrue(self._non_import_occurrences(
       coffee_match, (coffee_occurrence,), ("{dependency} = require",)))
-    self.assertFalse(self._has_non_import(
+    self.assertFalse(self._non_import_occurrences(
       coffee_match, (coffee_occurrence,), ("import dependency",)))
 
   def test_quoted_occurrences_use_byte_columns_and_include_quotes(self):
