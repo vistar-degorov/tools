@@ -238,7 +238,7 @@ def _active_color(text):
   return active_color
 
 
-def _project_occurrences(result):
+def _to_occurrences(result):
   for head, tail in result.occurrence_ranges:
     raw_head = _raw_text_index(result.text, head)
     raw_tail = _raw_text_index(result.text, tail, after_color_codes=True)
@@ -251,17 +251,17 @@ def _project_occurrences(result):
     yield replace(result, column=head + 1, text=text, occurrence_ranges=())
 
 
-def _only_matching_records(records, mode):
+def _project_occurrences(records, mode):
   if mode is GrepOutputMode.MATCHES:
     for result in records:
-      yield from _project_occurrences(result)
+      yield from _to_occurrences(result)
   elif mode is GrepOutputMode.CONTEXT:
     for block in records:
       lines = []
       has_occurrences = False
       for result in block.lines:
         if result.occurrence_ranges:
-          lines.extend(_project_occurrences(result))
+          lines.extend(_to_occurrences(result))
           has_occurrences = True
         elif result.is_match:
           lines.append(replace(result, column=None))
@@ -344,8 +344,8 @@ def _write_count_results(records, plan, stream, use_color):
 
 
 def write_records(records, plan, stream):
-  if plan.only_matching:
-    records = _only_matching_records(records, plan.mode)
+  if plan.crop_matches:
+    records = _project_occurrences(records, plan.mode)
   writers = {
     GrepOutputMode.MATCHES: _write_match_results,
     GrepOutputMode.CONTEXT: _write_context_blocks,
@@ -550,9 +550,9 @@ def execute_search(command, output_plan, *, program, debug=False):
 
 
 def present_results(results, output_plan, result_action, *, program):
-  if output_plan.only_matching:
-    results = _only_matching_records(results, output_plan.mode)
-    output_plan = replace(output_plan, only_matching=False)
+  if output_plan.crop_matches:
+    results = _project_occurrences(results, output_plan.mode)
+    output_plan = replace(output_plan, crop_matches=False)
   if (results := _not_empty(results)) is None:
     return 1
 
