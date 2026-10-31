@@ -75,6 +75,16 @@ class StructuredOutputTest(unittest.TestCase):
       b'source.py:3:"\x1b[1;31mvalue\x1b[m"\n',
     )
 
+  def test_crop_matches_tracks_color_at_occurrence_boundaries(self):
+    result = SearchResult(
+      "source.py", 3, 1, b"plain \x1b[1;31mcolored value\x1b[m",
+      occurrence_ranges=((0, 5), (7, 13)),
+    )
+    self.assertEqual(
+      self._render((result,), GrepOutputMode.MATCHES, crop_matches=True, color="never"),
+      b"source.py:3:plain\nsource.py:3:\x1b[1;31molored\x1b[m\n",
+    )
+
   def test_match_text_round_trips_as_bytes(self):
     data = b"source.py\0" b"3\0" b"7\0" b"raw-\xff-value\n"
     records = self._parse(data, GrepOutputMode.MATCHES)
