@@ -130,18 +130,8 @@ def _parse_arguments(arguments=None):
   return parse_search_arguments(_argument_parser(), arguments, pattern_metavar="PATTERN")
 
 
-def _occurrence_ranges(occurrences):
-  for occurrence in occurrences:
-    head = occurrence.column - 1
-    yield head, head + len(occurrence.text)
-
-
-def _matching_occurrences(match, occurrences):
-  return tuple(_occurrence_ranges(occurrences))
-
-
-def _non_import_occurrences(match, occurrences, patterns, import_scanner, python_import_scanner):
-  all_ranges = tuple(_occurrence_ranges(occurrences))
+def _non_import_occurrences(match, ranges, patterns, import_scanner, python_import_scanner):
+  all_ranges = tuple(ranges)
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
     find_import = _PYTHON_IMPORT.match
@@ -192,26 +182,29 @@ def _non_import_occurrences(match, occurrences, patterns, import_scanner, python
 
 
 def _occurrences_by_line(occurrences):
+  def _ranges(_occ):
+    for occurrence in _occ:
+      head = occurrence.column - 1
+      yield head, head + len(occurrence.text)
+
   for _, line_occurrences in groupby(occurrences, key=lambda occ: (occ.path, occ.line)):
-    yield tuple(line_occurrences)
+    yield tuple(_ranges(line_occurrences))
 
 
-def _quoted_occurrences(match, occurrences):
+def _quoted_occurrences(match, ranges):
   text = remove_color_codes(match.text)
-  ranges = []
-  for occurrence in occurrences:
-    head = occurrence.column - 1
-    tail = head + len(occurrence.text)
+  quoted_ranges = []
+  for head, tail in ranges:
     if text[head] not in b'\'"':
       head = max(0, head - 1)
     if text[tail - 1] not in b'\'"':
       tail = min(tail + 1, len(text))
     if tail - head > 1 and (char := text[head]) == text[tail - 1] and char in b'\'"':
-      ranges.append((head, tail))
-  return tuple(ranges)
+      quoted_ranges.append((head, tail))
+  return tuple(quoted_ranges)
 
 
-def _definition_occurrences(match, occurrences):
+def _definition_occurrences(match, ranges):
   extension = Path(match.path).suffix.lower()
   if extension in (".py", ".pyi", ".pyw", ".bzl"):
     patterns = (_PYTHON_DEFINITION,)
@@ -228,11 +221,7 @@ def _definition_occurrences(match, occurrences):
       continue
 
     name_head, name_tail = definition.span(1)
-    if any(
-      (occurrence_head := occurrence.column - 1) < name_tail
-      and occurrence_head + len(occurrence.text) > name_head
-      for occurrence in occurrences
-    ):
+    if any(head < name_tail and tail > name_head for head, tail in ranges):
       definition_text = definition.group(0).lstrip()
       definition_head = definition.end() - len(definition_text)
       return ((definition_head, definition.end()),)
@@ -416,7 +405,7 @@ def main(arguments=None):
   elif not options.imports and main_arg != "gi":
     range_extractor = _non_import_occurrences
   elif output_plan.only_matching:
-    range_extractor = _matching_occurrences
+    range_extractor = lambda _, occ: occ
 
   if options.word is None:
     word_regexp = (
