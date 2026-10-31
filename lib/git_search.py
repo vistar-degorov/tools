@@ -213,41 +213,33 @@ def _colored_separator(separator, use_color):
   return _SEPARATOR_COLOR + separator + _COLOR_RESET if use_color else separator
 
 
-def _raw_text_index(text, visible_index, *, after_color_codes=False):
-  raw_index = 0
-  current_visible_index = 0
-  while current_visible_index < visible_index:
-    if color_code := _COLOR_CODE.match(text, raw_index):
-      raw_index = color_code.end()
-    else:
-      raw_index += 1
-      current_visible_index += 1
-  if after_color_codes:
-    while color_code := _COLOR_CODE.match(text, raw_index):
-      raw_index = color_code.end()
-  return raw_index
-
-
-def _active_color(text):
+def _raw_text_index(text, idx, *, after_color_codes=False):
+  '''
+  convert an index idx in uncolored text into the corresponding byte index in the
+  original ANSI-colored text, and return the ANSI color sequence that is active at idx.
+  '''
   active_color = b""
   for color_code in _COLOR_CODE.finditer(text):
-    if color_code.group() in (b"\x1b[m", b"\x1b[0m"):
+    if idx < color_code.start():
+      break
+    if idx == color_code.start() and not after_color_codes:
+      break
+    if (code := color_code.group()) in (b"\x1b[m", b"\x1b[0m"):
       active_color = b""
     else:
-      active_color += color_code.group()
-  return active_color
+      active_color += code
+    idx += color_code.end() - color_code.start()
+
+  return idx, active_color
 
 
 def _project_occurrences(records):
   for result in records:
     for head, tail in result.occurrence_ranges:
-      raw_head = _raw_text_index(result.text, head)
-      raw_tail = _raw_text_index(result.text, tail, after_color_codes=True)
-      text = result.text[raw_head:raw_tail]
-      if active_color := _active_color(result.text[:raw_head]):
-        if _COLOR_CODE.match(text) is None:
-          text = active_color + text
-      if _active_color(text):
+      raw_head, active_color = _raw_text_index(result.text, head)
+      raw_tail, final_color = _raw_text_index(result.text, tail, after_color_codes=True)
+      text = active_color + result.text[raw_head:raw_tail]
+      if final_color:
         text += _COLOR_RESET
       yield replace(result, column=head + 1, text=text, occurrence_ranges=())
 
