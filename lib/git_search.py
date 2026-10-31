@@ -334,18 +334,6 @@ def write_records(records, plan, stream):
   writers[plan.mode](records, plan, stream, output_uses_color(plan, stream))
 
 
-def _not_empty(items):
-  try:
-    items[0]
-    return items
-  except IndexError:
-    return None
-  except TypeError:
-    for item in items:
-      return chain((item,), items)
-    return None
-
-
 def select_result(results, index, *, clamp):
   '''index is 1-based'''
   if index < 1:
@@ -526,6 +514,17 @@ def execute_search(command, output_plan, *, program, debug=False):
   except ValueError as error:
     sys.stderr.write(f"{program}: {error}\n")
     return 2, None
+
+
+def _not_empty(items):
+  try:
+    items[0]
+    return items
+  except IndexError:
+    return None
+  except TypeError:
+    item = next(items, None)
+    return None if item is None else chain((item,), items)
 
 
 def present_results(results, output_plan, result_action, *, program):
