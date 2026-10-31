@@ -26,7 +26,7 @@ class OutputPlan:
   null_terminate_filenames: bool
   color: str | None
   quiet: bool = False
-  only_matching: bool = False
+  crop_matches: bool = False
 
   def with_mode(self, mode: GrepOutputMode) -> "OutputPlan":
     return OutputPlan(**dict(asdict(self), mode=mode))
@@ -118,7 +118,7 @@ _LONG_BOOLEAN_SETTINGS = {
   "--break": "break_between_files",
   "--null": "null_terminate_filenames",
   "--quiet": "quiet",
-  "--only-matching": "only_matching",
+  "--only-matching": "crop_matches",
 }
 
 _OTHER_OPTIONS = frozenset((
@@ -155,7 +155,7 @@ _SHORT_SETTINGS = {
   "W": ("function_context", True),
   "z": ("null_terminate_filenames", True),
   "q": ("quiet", True),
-  "o": ("only_matching", True),
+  "o": ("crop_matches", True),
 }
 
 _PRESENTATION_LONG_OPTIONS = {
@@ -365,7 +365,7 @@ def _apply_output_options(arguments):
     show_function=False,
     function_context=False,
     quiet=False,
-    only_matching=False,
+    crop_matches=False,
   )
   arguments = tuple(_ApplyOutputOptions(arguments, settings))
 
@@ -400,7 +400,7 @@ def _apply_output_options(arguments):
     null_terminate_filenames=settings.null_terminate_filenames,
     color=settings.color,
     quiet=settings.quiet,
-    only_matching=settings.only_matching,
+    crop_matches=settings.crop_matches,
   ), arguments
 
 

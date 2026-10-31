@@ -375,7 +375,7 @@ var Result = GroupAlias
     unquoted = SearchResult("module.py", 1, 30, b"plain")
     self.assertEqual(_quoted_occurrences(match, _ranges(double_quoted, single_quoted, unquoted)), ((3, 11), (16, 23)))
 
-  def test_quoted_search_only_matching_output_includes_quotes(self):
+  def test_quoted_search_crop_matches_output_includes_quotes(self):
     script = self.repository / "gq"
     script.symlink_to(GG)
     python_path = self.environment.get("PYTHONPATH")
@@ -390,12 +390,12 @@ var Result = GroupAlias
     self.assertNotIn("route =", result.stdout)
     self.assertNotIn("Traceback", result.stderr)
 
-  def test_definition_only_matching_output_includes_definition_syntax(self):
+  def test_definition_crop_matches_output_includes_definition_syntax(self):
     result = self._run(DEF, "-o", "target", "a.py")
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertTrue(result.stdout.endswith(":def target\n"), result.stdout)
 
-  def test_only_matching_output_without_a_semantic_filter(self):
+  def test_crop_matches_output_without_a_semantic_filter(self):
     result = self._run(GG, "--imports", "-o", "decimal", "dependencies.py")
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertTrue(result.stdout.endswith(":decimal\n"), result.stdout)
@@ -839,7 +839,7 @@ var Result = GroupAlias
       ("-i", "-n", "--no-context", "--max-depth", "7", "-e", "-W", "-o"),
     )
 
-  def test_occurrence_options_append_only_matching_option(self):
+  def test_occurrence_options_append_crop_matches_option(self):
     cases = (
       ((), ("-o",)),
       (("-i",), ("-i", "-o")),
@@ -969,7 +969,7 @@ var Result = GroupAlias
     self.assertTrue(default.show_filename)
     self.assertTrue(default.show_line_number)
     self.assertFalse(default.show_column_number)
-    self.assertFalse(default.only_matching)
+    self.assertFalse(default.crop_matches)
 
     hidden, _ = make_output_plan(("-h",))
     self.assertFalse(hidden.show_filename)
@@ -989,17 +989,17 @@ var Result = GroupAlias
     self.assertTrue(paths.show_filename)
     self.assertFalse(paths.show_line_number)
 
-  def test_output_plan_tracks_only_matching(self):
+  def test_output_plan_tracks_crop_matches(self):
     plan, arguments = make_output_plan(("-io", "--only-matching"))
-    self.assertTrue(plan.only_matching)
+    self.assertTrue(plan.crop_matches)
     self.assertEqual(arguments, ("-i",))
 
     plan, arguments = make_output_plan(("-o", "--no-only-matching"))
-    self.assertFalse(plan.only_matching)
+    self.assertFalse(plan.crop_matches)
     self.assertEqual(arguments, ())
 
     plan, arguments = make_output_plan(("-o",), _result_action(json=True))
-    self.assertTrue(plan.only_matching)
+    self.assertTrue(plan.crop_matches)
     self.assertEqual(arguments, ())
 
   def test_output_plan_skips_pattern_option_values(self):
@@ -1020,7 +1020,7 @@ var Result = GroupAlias
     self.assertFalse(plan.heading)
     self.assertEqual(plan.color, "never")
     self.assertFalse(plan.quiet)
-    self.assertFalse(plan.only_matching)
+    self.assertFalse(plan.crop_matches)
 
   def test_output_preparation_removes_presentation_options(self):
     plan, arguments = make_output_plan((
@@ -1079,13 +1079,13 @@ var Result = GroupAlias
     self.assertEqual(
       set(records[0]), {"path", "line", "column", "text"})
 
-  def test_only_matching_json_output_contains_projected_occurrences(self):
+  def test_crop_matches_json_output_contains_projected_occurrences(self):
     result = self._run(DEF, "--json", "-o", "target", "a.py")
     self.assertEqual(result.returncode, 0, result.stderr)
     records = [json.loads(line) for line in result.stdout.splitlines()]
     self.assertEqual([(record["column"], record["text"]) for record in records], [(1, "def target")])
 
-  def test_only_matching_projection_precedes_result_selection(self):
+  def test_crop_matches_projection_precedes_result_selection(self):
     result = self._run(DEF, "-o", "--stdout", "target/1", "a.py")
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertTrue(result.stdout.startswith("a.py:3:1\n"), result.stdout)

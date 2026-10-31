@@ -55,27 +55,27 @@ class StructuredOutputTest(unittest.TestCase):
       ],
     )
 
-  def test_only_matching_projects_every_occurrence(self):
+  def test_crop_matches_projects_every_occurrence(self):
     result = SearchResult(
       "source.py", 3, 8, b'prefix "first" and "second"',
       occurrence_ranges=((7, 14), (19, 27)),
     )
     self.assertEqual(
-      self._render((result,), GrepOutputMode.MATCHES, only_matching=True),
+      self._render((result,), GrepOutputMode.MATCHES, crop_matches=True),
       b'source.py:3:"first"\nsource.py:3:"second"\n',
     )
 
-  def test_only_matching_preserves_match_color(self):
+  def test_crop_matches_preserves_match_color(self):
     result = SearchResult(
       "source.py", 3, 8, b'prefix "\x1b[1;31mvalue\x1b[m" suffix',
       occurrence_ranges=((7, 14),),
     )
     self.assertEqual(
-      self._render((result,), GrepOutputMode.MATCHES, only_matching=True, color="never"),
+      self._render((result,), GrepOutputMode.MATCHES, crop_matches=True, color="never"),
       b'source.py:3:"\x1b[1;31mvalue\x1b[m"\n',
     )
 
-  def test_only_matching_expands_matches_inside_context_blocks(self):
+  def test_crop_matches_expands_matches_inside_context_blocks(self):
     block = ContextBlock("source.py", (
       SearchResult("source.py", 2, None, b"before"),
       SearchResult("source.py", 3, 4, b"one and two", occurrence_ranges=((0, 3), (8, 11))),
@@ -83,7 +83,7 @@ class StructuredOutputTest(unittest.TestCase):
       SearchResult("source.py", 5, None, b"after"),
     ))
     self.assertEqual(
-      self._render((block,), GrepOutputMode.CONTEXT, only_matching=True),
+      self._render((block,), GrepOutputMode.CONTEXT, crop_matches=True),
       b"source.py-2-before\nsource.py:3:one\nsource.py:3:two\nsource.py-4-filtered match\nsource.py-5-after\n",
     )
 
