@@ -404,7 +404,7 @@ def main(arguments=None):
     range_extractor = _quoted_occurrences
   elif not options.imports and main_arg != "gi":
     range_extractor = _non_import_occurrences
-  elif output_plan.only_matching:
+  elif output_plan.crop_matches:
     range_extractor = lambda _, occ: occ
 
   if options.word is None:
