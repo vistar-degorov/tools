@@ -1,0 +1,2 @@
+def scoped():
+  return True
