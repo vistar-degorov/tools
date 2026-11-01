@@ -17,13 +17,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_default_word_search",
-        "test_json_output",
-        "test_human_and_strict_selection",
-        "test_output_plan_tracks_visible_fields",
-        "test_output_plan_honors_negated_options"
-      ],
       "mode": "matches",
       "name": "word_matches",
       "result": "556feeada470d6f6"
@@ -44,10 +37,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_terminal_output_is_colored",
-        "test_explicit_color_and_quiet_output"
-      ],
       "mode": "matches",
       "name": "colored_matches",
       "result": "fba689ca8504f193"
@@ -66,9 +55,6 @@
         "route/123",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_explicit_pattern_disables_slash_selection"
       ],
       "mode": "matches",
       "name": "regex_slash",
@@ -89,9 +75,6 @@
         "missing_name",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_exit_codes_distinguish_matches_and_errors"
       ],
       "mode": "matches",
       "name": "no_matches",
@@ -114,9 +97,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_exit_codes_distinguish_matches_and_errors"
-      ],
       "mode": "matches",
       "name": "invalid_option",
       "result": "d5296fafbfafe76d"
@@ -136,9 +116,6 @@
         "os",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_import_and_test_filters"
       ],
       "mode": "matches",
       "name": "import_name",
@@ -160,9 +137,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_import_and_test_filters"
-      ],
       "mode": "matches",
       "name": "import_statement",
       "result": "9c0f91464959a583"
@@ -183,9 +157,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_completed_multiline_python_import_is_filtered"
-      ],
       "mode": "matches",
       "name": "multiline_import",
       "result": "f7f5265f50e56275"
@@ -205,9 +176,6 @@
         "UncertainMarker",
         "--",
         "syntax_errors.py"
-      ],
-      "covers": [
-        "test_incomplete_multiline_python_import_is_kept"
       ],
       "mode": "matches",
       "name": "malformed_import",
@@ -231,10 +199,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_output_plan_classifies_git_output_modes",
-        "test_context_filter_removes_only_import_only_blocks"
-      ],
       "mode": "context",
       "name": "after_context_spaced",
       "result": "190625fd38131ae7"
@@ -256,9 +220,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_output_plan_classifies_git_output_modes"
-      ],
       "mode": "context",
       "name": "before_context_attached",
       "result": "a8210e84504ce3da"
@@ -279,9 +240,6 @@
         "target",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_output_plan_classifies_git_output_modes"
       ],
       "mode": "context",
       "name": "numeric_context",
@@ -305,9 +263,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_context_filter_removes_only_import_only_blocks"
-      ],
       "mode": "context",
       "name": "centered_context",
       "result": "190625fd38131ae7"
@@ -328,10 +283,6 @@
         "target",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_output_plan_classifies_git_output_modes",
-        "test_context_flags_do_not_hide_following_presentation_flags"
       ],
       "mode": "context",
       "name": "show_function",
@@ -354,10 +305,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_output_plan_classifies_git_output_modes",
-        "test_context_flags_do_not_hide_following_presentation_flags"
-      ],
       "mode": "context",
       "name": "function_context",
       "result": "a0dca1d1a4b1880b"
@@ -378,9 +325,6 @@
         "target",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_output_plan_recognizes_abbreviated_context_options"
       ],
       "mode": "context",
       "name": "abbreviated_before_context",
@@ -403,9 +347,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_output_plan_recognizes_abbreviated_context_options"
-      ],
       "mode": "context",
       "name": "abbreviated_show_function",
       "result": "f937dcbd10dc7ec8"
@@ -426,9 +367,6 @@
         "target",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_output_plan_recognizes_abbreviated_context_options"
       ],
       "mode": "context",
       "name": "abbreviated_function_context",
@@ -452,9 +390,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_argument_iterator_is_a_pass_through_iterator"
-      ],
       "mode": "context",
       "name": "case_insensitive_context_cluster",
       "result": "4b0f24e6f4880416"
@@ -475,10 +410,6 @@
         "decimal",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_aggregate_modes_are_not_import_filtered",
-        "test_output_plan_tracks_visible_fields"
       ],
       "mode": "paths",
       "name": "paths",
@@ -502,9 +433,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_output_plan_classifies_git_output_modes"
-      ],
       "mode": "paths",
       "name": "paths_take_precedence",
       "result": "fde94062188ba327"
@@ -526,9 +454,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_incompatible_output_filter_can_preserve_path_modes"
-      ],
       "mode": "paths",
       "name": "files_without_matches",
       "result": "f80084d5ed9ac4fb"
@@ -549,10 +474,6 @@
         "decimal",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_aggregate_modes_are_not_import_filtered",
-        "test_output_plan_tracks_visible_fields"
       ],
       "mode": "counts",
       "name": "counts",
@@ -577,9 +498,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_output_plan_classifies_git_output_modes"
-      ],
       "mode": "counts",
       "name": "counts_with_context",
       "result": "78aee13352ea6bc3"
@@ -602,9 +520,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_output_preparation_removes_presentation_options"
-      ],
       "mode": "counts",
       "name": "counts_with_clustered_options",
       "result": "db0f756832d98fbb"
@@ -626,10 +541,6 @@
         "BetaMarker",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_pattern_options_can_be_repeated_and_mixed",
-        "test_repeated_patterns_support_trailing_result_selection"
       ],
       "mode": "matches",
       "name": "multiple_patterns",
@@ -656,9 +567,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_pattern_aliases_preserve_expression_order"
-      ],
       "mode": "matches",
       "name": "boolean_patterns",
       "result": "f80084d5ed9ac4fb"
@@ -680,9 +588,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_pattern_option_at_end_of_short_option_cluster"
-      ],
       "mode": "matches",
       "name": "perl_case_insensitive",
       "result": "e105509ba6b7bfee"
@@ -702,9 +607,6 @@
         "target",
         "HEAD",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_revision_and_path_arguments_are_left_for_git"
       ],
       "mode": "matches",
       "name": "revision_and_path",
@@ -727,10 +629,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_occurrence_options_append_crop_matches_option",
-        "test_output_plan_tracks_crop_matches"
-      ],
       "mode": "matches",
       "name": "occurrences",
       "result": "194b341634401932"
@@ -752,10 +650,6 @@
         "target",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_occurrence_options_append_crop_matches_option",
-        "test_occurrence_options_recognize_abbreviated_long_options"
       ],
       "mode": "matches",
       "name": "case_insensitive_occurrences",
@@ -785,9 +679,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_occurrence_options_remove_context_options"
-      ],
       "mode": "matches",
       "name": "complex_occurrence_options",
       "result": "506d6c744bc0268a"
@@ -808,9 +699,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_occurrence_options_preserve_spaced_value_for_clustered_option"
-      ],
       "mode": "matches",
       "name": "clustered_pattern_occurrences",
       "result": "f80084d5ed9ac4fb"
@@ -830,9 +718,6 @@
         "-o",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_occurrence_options_preserve_empty_spaced_value"
       ],
       "mode": "matches",
       "name": "empty_pattern_occurrences",
@@ -857,9 +742,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_occurrence_options_preserve_spaced_value_for_abbreviated_option"
-      ],
       "mode": "matches",
       "name": "max_depth_occurrences",
       "result": "194b341634401932"
@@ -881,9 +763,6 @@
         "target",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_occurrence_options_do_not_repeat_equals_value"
       ],
       "mode": "matches",
       "name": "threaded_occurrences",
@@ -907,9 +786,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_occurrence_options_preserve_incomplete_and_invalid_options"
-      ],
       "mode": "matches",
       "name": "invalid_occurrence_option",
       "result": "9dea5c9ced75ff17"
@@ -932,9 +808,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_occurrence_options_preserve_invalid_assignments"
-      ],
       "mode": "matches",
       "name": "invalid_show_function_assignment",
       "result": "8ce9815477eec693"
@@ -954,9 +827,6 @@
         "route/123",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_quoted_occurrences_use_byte_columns_and_include_quotes"
       ],
       "mode": "matches",
       "name": "quoted_occurrences",
@@ -979,10 +849,6 @@
         "--",
         "valid_code.go"
       ],
-      "covers": [
-        "test_go_definition_occurrences_include_definition_syntax",
-        "test_definition_filter_rejects_go_usages"
-      ],
       "mode": "matches",
       "name": "repeated_line_occurrences",
       "result": "c0b6bb19e13056d6"
@@ -1003,9 +869,6 @@
         "DataStore",
         "--",
         "valid_code.ts"
-      ],
-      "covers": [
-        "test_definition_filter_handles_typescript_declarations"
       ],
       "mode": "matches",
       "name": "typescript_definitions",
@@ -1028,9 +891,6 @@
         "--",
         "valid_code.go"
       ],
-      "covers": [
-        "test_definition_filter_handles_simple_go_declarations"
-      ],
       "mode": "matches",
       "name": "go_definitions",
       "result": "1c56b7184ddca900"
@@ -1049,9 +909,6 @@
         "",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_argument_iterator_is_a_pass_through_iterator"
       ],
       "mode": "matches",
       "name": "empty_pattern",
@@ -1076,9 +933,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_argument_iterator_is_a_pass_through_iterator"
-      ],
       "mode": "matches",
       "name": "max_depth_and_threads",
       "result": "556feeada470d6f6"
@@ -1101,9 +955,6 @@
         "2",
         ""
       ],
-      "covers": [
-        "test_argument_iterator_is_a_pass_through_iterator"
-      ],
       "mode": "matches",
       "name": "option_like_operands",
       "result": "d5e8c13437993693"
@@ -1125,9 +976,6 @@
         "fallback_expression",
         "source"
       ],
-      "covers": [
-        "test_leading_git_options_use_shared_option_parsing"
-      ],
       "mode": "matches",
       "name": "leading_pattern_sources",
       "result": "cddfb69d7fe492f7"
@@ -1147,9 +995,6 @@
         "--",
         "-A",
         "3"
-      ],
-      "covers": [
-        "test_incompatible_output_filter_preserves_option_values_and_operands"
       ],
       "mode": "matches",
       "name": "pattern_value_and_option_like_operands",
@@ -1174,9 +1019,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_incompatible_output_filter_can_preserve_path_modes"
-      ],
       "mode": "paths",
       "name": "path_mode_aliases",
       "result": "f80084d5ed9ac4fb"
@@ -1198,9 +1040,6 @@
         "--",
         "valid_code.py"
       ],
-      "covers": [
-        "test_output_preparation_preserves_invalid_assignments"
-      ],
       "mode": "matches",
       "name": "invalid_column_assignment",
       "result": "00e39a9099c7d2bc"
@@ -1221,9 +1060,6 @@
         "target",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_output_preparation_preserves_invalid_assignments"
       ],
       "mode": "matches",
       "name": "invalid_color_assignment",
@@ -1248,10 +1084,6 @@
         "--no-count",
         "--",
         "valid_code.py"
-      ],
-      "covers": [
-        "test_output_preparation_preserves_git_options_and_values",
-        "test_output_plan_skips_pattern_option_values"
       ],
       "mode": "matches",
       "name": "pattern_and_file_values",
