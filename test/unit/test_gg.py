@@ -32,15 +32,13 @@ def _ranges(*occurrences):
 class GGUnitTest(unittest.TestCase):
   def setUp(self):
     self.temporary_directory = tempfile.TemporaryDirectory()
-    self.repository = Path(self.temporary_directory.name)
+    self.fixture_root = Path(self.temporary_directory.name)
 
   def tearDown(self):
     self.temporary_directory.cleanup()
 
-  def _write(self, relative_path, contents):
-    path = self.repository / relative_path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(contents)
+  def _write(self, filename, contents):
+    (self.fixture_root / filename).write_text(contents)
 
   def _non_import_occurrences(self, match, occurrences, patterns):
     with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
@@ -71,10 +69,10 @@ class GGUnitTest(unittest.TestCase):
 
           source = f"from package import (\n{imported_names}\n"
           compile(source, "<multiline-import>", "exec")
-          relative_path = f"imports/variant_{int(one_name_per_line)}_{int(trailing_comma)}_{int(closing_paren_on_name_line)}.py"
-          self._write(relative_path, source)
+          filename = f"variant_{int(one_name_per_line)}_{int(trailing_comma)}_{int(closing_paren_on_name_line)}.py"
+          self._write(filename, source)
 
-          self.assertTrue(scanner.classify(str(self.repository / relative_path), target_line))
+          self.assertTrue(scanner.classify(str(self.fixture_root / filename), target_line))
 
   def test_python_import_scanner_reuses_incremental_parser(self):
     self._write("multiline_import.py", """\
@@ -83,22 +81,22 @@ from package import (
 
 ImportedMarker()
 """)
-    path = str(self.repository / "multiline_import.py")
+    path = str(self.fixture_root / "multiline_import.py")
     with PythonImportScanner() as scanner:
       self.assertIsNone(scanner.classify(path, 1))
       self.assertTrue(scanner.classify(path, 2))
       self.assertFalse(scanner.classify(path, 4))
 
   def test_import_scanner_returns_unknown_if_requested_line_was_not_read(self):
-    path = self.repository / "frontend/incomplete.ts"
-    self._write(path.relative_to(self.repository), "import {\n  MissingSymbol,\n")
+    path = self.fixture_root / "incomplete.ts"
+    self._write(path.name, "import {\n  MissingSymbol,\n")
     with ImportScanner() as scanner:
       self.assertTrue(scanner.classify(str(path), 2, _update_typescript_import_state))
       self.assertIsNone(scanner.classify(str(path), 20, _update_typescript_import_state))
 
   def test_import_scanner_restarts_at_lookback_window_after_large_gap(self):
-    path = self.repository / "frontend/long_import.ts"
-    self._write(path.relative_to(self.repository), """\
+    path = self.fixture_root / "long_import.ts"
+    self._write(path.name, """\
 first line
 second line
 import {
@@ -110,8 +108,8 @@ import {
       self.assertFalse(scanner.classify(str(path), 6, _update_typescript_import_state))
 
   def test_import_scanner_ignores_complete_typescript_imports(self):
-    path = self.repository / "frontend/single_import.ts"
-    self._write(path.relative_to(self.repository), """\
+    path = self.fixture_root / "single_import.ts"
+    self._write(path.name, """\
 import {ExistingBinding} from "dependency"
 IndependentBinding
 """)
@@ -129,8 +127,8 @@ IndependentBinding
         self.assertIsNotNone(_TYPESCRIPT_MULTILINE_IMPORT.match(header))
 
   def test_coffeescript_comma_list_match_is_not_scanned(self):
-    path = self.repository / "legacy/module.coffee"
-    self._write(path.relative_to(self.repository), """\
+    path = self.fixture_root / "module.coffee"
+    self._write(path.name, """\
 {ExistingBinding} = require "dependency"
 IndependentBinding
 """)
@@ -140,8 +138,8 @@ IndependentBinding
       match, (occurrence,), ("IndependentBinding",)), ((0, 18),))
 
   def test_go_import_filter(self):
-    path = self.repository / "backend/module.go"
-    self._write(path.relative_to(self.repository), """\
+    path = self.fixture_root / "module.go"
+    self._write(path.name, """\
 package backend
 
 import SingleAlias "module/one"
