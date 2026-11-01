@@ -19,6 +19,19 @@ DEF = TOOLS_DIRECTORY / "def"
 OPEN_RESULT = TOOLS_DIRECTORY / "open_result.py"
 
 
+def _copy_corpus_tree(source, destination, renames=None):
+  renames = renames or {}
+  for source_path in sorted(source.rglob("*")):
+    if not source_path.is_file():
+      continue
+    relative_path = source_path.relative_to(source)
+    destination_path = destination / renames.get(relative_path, relative_path)
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    if destination_path.exists():
+      raise FileExistsError(destination_path)
+    shutil.copy2(source_path, destination_path)
+
+
 class GGIntegrationTest(unittest.TestCase):
   def setUp(self):
     self.temporary_directory = tempfile.TemporaryDirectory()
@@ -26,7 +39,12 @@ class GGIntegrationTest(unittest.TestCase):
     subprocess.run(
       ("git", "init", "--quiet"), cwd=self.repository, check=True)
 
-    shutil.copytree(CORPUS_DIRECTORY / "tracked", self.repository, dirs_exist_ok=True)
+    _copy_corpus_tree(CORPUS_DIRECTORY / "search", self.repository)
+    _copy_corpus_tree(
+      CORPUS_DIRECTORY / "filesystem" / "tracked",
+      self.repository,
+      {Path("mock-gitignore"): Path(".gitignore")},
+    )
     subprocess.run(
       ("git", "add", "."), cwd=self.repository, check=True)
     subprocess.run(
@@ -38,8 +56,8 @@ class GGIntegrationTest(unittest.TestCase):
       check=True,
     )
 
-    shutil.copytree(CORPUS_DIRECTORY / "untracked", self.repository, dirs_exist_ok=True)
-    shutil.copytree(CORPUS_DIRECTORY / "ignored", self.repository, dirs_exist_ok=True)
+    _copy_corpus_tree(CORPUS_DIRECTORY / "filesystem" / "untracked", self.repository)
+    _copy_corpus_tree(CORPUS_DIRECTORY / "filesystem" / "ignored", self.repository)
 
     self.environment = os.environ.copy()
     for name in (
@@ -350,22 +368,22 @@ class GGIntegrationTest(unittest.TestCase):
           included.stdout.startswith("tests/test_app.py:"), included.stdout)
 
   def test_definition_search_accepts_paths_with_optional_separator(self):
-    self.environment["GG_SEARCH_IN_DEFAULT"] = "nested/"
+    self.environment["GG_SEARCH_IN_DEFAULT"] = "frontend/"
     for separator in ((), ("--",)):
       with self.subTest(separator=separator):
-        result = self._run(DEF, "target", *separator, "b.py")
+        result = self._run(DEF, "scoped", *separator, "nested/scoped.py")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("b.py:", result.stdout)
+        self.assertIn("nested/scoped.py:", result.stdout)
 
   def test_git_options_must_precede_the_search_term(self):
-    result = self._run(GG, "target", "-i", "a.py")
+    result = self._run(GG, "scoped", "-i", "nested/scoped.py")
     self.assertEqual(result.returncode, 2)
     self.assertIn("git grep options must precede PATTERN", result.stderr)
 
   def test_revision_and_path_arguments_are_left_for_git(self):
-    result = self._run(GG, "target", "HEAD", "b.py")
+    result = self._run(GG, "scoped", "HEAD", "nested/scoped.py")
     self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertIn("HEAD:b.py:", result.stdout)
+    self.assertIn("HEAD:nested/scoped.py:", result.stdout)
     self.assertEqual(
       self._run(GG, "TEST_ONLY", "HEAD", "tests").returncode, 1)
     self.assertEqual(
@@ -401,7 +419,7 @@ class GGIntegrationTest(unittest.TestCase):
   def test_explicit_path_options_are_not_silently_ignored(self):
     for option in (("--root", "nested/"), ("--ext", "py")):
       with self.subTest(option=option[0]):
-        result = self._run(GG, *option, "target", "--", "a.py")
+        result = self._run(GG, *option, "scoped", "--", "nested/scoped.py")
         self.assertEqual(result.returncode, 2)
         self.assertIn("cannot be combined", result.stderr)
 
@@ -481,11 +499,11 @@ class GGIntegrationTest(unittest.TestCase):
   def test_trailing_result_selection_after_paths(self):
     absolute_path = str(self.repository)
     attached = self._run(
-      GG, "--stdout", "target/1", absolute_path)
+      GG, "--stdout", "scoped/1", absolute_path)
     trailing = self._run(
-      GG, "--stdout", "target", absolute_path, "/1")
+      GG, "--stdout", "scoped", absolute_path, "/1")
     separated = self._run(
-      GG, "--stdout", "target", "--", absolute_path, "/1")
+      GG, "--stdout", "scoped", "--", absolute_path, "/1")
     self.assertEqual(attached.returncode, 0, attached.stderr)
     self.assertEqual(trailing.returncode, 0, trailing.stderr)
     self.assertEqual(separated.returncode, 0, separated.stderr)
@@ -493,11 +511,11 @@ class GGIntegrationTest(unittest.TestCase):
     self.assertEqual(attached.stdout, separated.stdout)
 
   def test_duplicate_result_selection_is_rejected(self):
-    attached = self._run(GG, "target/1", "a.py", "/2")
+    attached = self._run(GG, "scoped/1", "nested/scoped.py", "/2")
     self.assertEqual(attached.returncode, 2)
     self.assertIn("specified more than once", attached.stderr)
 
-    strict = self._run(GG, "--show", "1", "target", "a.py", "/2")
+    strict = self._run(GG, "--show", "1", "scoped", "nested/scoped.py", "/2")
     self.assertEqual(strict.returncode, 2)
     self.assertIn("either /N or --show N", strict.stderr)
 
