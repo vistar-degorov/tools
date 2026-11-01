@@ -4,62 +4,25 @@ import os
 from pathlib import Path
 import pty
 import shlex
-import shutil
 import subprocess
 import tempfile
 import unittest
 
 from lib.git_search import remove_color_codes
+from test.support.gg_corpus import create_gg_repository
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[2]
-CORPUS_DIRECTORY = Path(__file__).resolve().parents[1] / "corpus" / "gg"
 GG = TOOLS_DIRECTORY / "gg.py"
 DEF = TOOLS_DIRECTORY / "def"
 OPEN_RESULT = TOOLS_DIRECTORY / "open_result.py"
-
-
-def _copy_corpus_tree(source, destination, renames=None):
-  renames = renames or {}
-  for source_path in sorted(source.rglob("*")):
-    if not source_path.is_file():
-      continue
-    relative_path = source_path.relative_to(source)
-    destination_path = destination / renames.get(relative_path, relative_path)
-    destination_path.parent.mkdir(parents=True, exist_ok=True)
-    if destination_path.exists():
-      raise FileExistsError(destination_path)
-    shutil.copy2(source_path, destination_path)
 
 
 class GGIntegrationTest(unittest.TestCase):
   def setUp(self):
     self.temporary_directory = tempfile.TemporaryDirectory()
     self.repository = Path(self.temporary_directory.name)
-    subprocess.run(
-      ("git", "init", "--quiet"), cwd=self.repository, check=True)
-
-    _copy_corpus_tree(CORPUS_DIRECTORY / "search", self.repository)
-    _copy_corpus_tree(
-      CORPUS_DIRECTORY / "filesystem" / "tracked",
-      self.repository,
-      {Path("mock-gitignore"): Path(".gitignore")},
-    )
-    subprocess.run(
-      ("git", "add", "."), cwd=self.repository, check=True)
-    subprocess.run(
-      (
-        "git", "-c", "user.name=Test", "-c", "user.email=test@example.com",
-        "commit", "--quiet", "-m", "initial",
-      ),
-      cwd=self.repository,
-      check=True,
-    )
-
-    _copy_corpus_tree(CORPUS_DIRECTORY / "filesystem" / "untracked", self.repository)
-    _copy_corpus_tree(CORPUS_DIRECTORY / "filesystem" / "ignored", self.repository)
-
-    self.environment = os.environ.copy()
+    self.environment = create_gg_repository(self.repository, include_filesystem=True)
     for name in (
       "GG_SEARCH_IN", "GG_SEARCH_IN_DEFAULT",
       "GG_SEARCH_EXT", "GG_SEARCH_EXT_DEFAULT",
