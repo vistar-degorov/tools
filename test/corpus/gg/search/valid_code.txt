@@ -1,0 +1,5 @@
+class Record(Base):
+  pass
+
+def selected():
+  pass

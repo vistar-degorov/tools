@@ -24,3 +24,68 @@ from package import (
   ImportedMarker)
 
 ImportedMarker()
+
+from package import (
+  FirstBinding, SelectedBinding
+)
+
+from package import (
+  FirstBinding, SelectedBinding)
+
+from package import (
+  FirstBinding, SelectedBinding,
+)
+
+from package import (
+  FirstBinding, SelectedBinding,)
+
+from package import (
+  FirstBinding,
+  SelectedBinding
+)
+
+from package import (
+  FirstBinding,
+  SelectedBinding)
+
+from package import (
+  FirstBinding,
+  SelectedBinding,
+)
+
+from package import (
+  FirstBinding,
+  SelectedBinding,)
+
+import package; package.run()
+import dependency
+
+def selected(argument): return selected
+
+class AsyncContainer:
+  async def load_resource(argument):
+    pass
+
+class Record(Base):
+  pass
+
+class ServiceFactory(Base):
+  pass
+
+class AsyncService:
+  async def load_resource():
+    pass
+
+def selected():
+  pass
+
+selected()
+
+def first():
+  pass
+
+first()
+
+if True:
+          def second():
+            pass
