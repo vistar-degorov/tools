@@ -1,6 +1,7 @@
 import errno
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
+from itertools import product
 import json
 import os
 from pathlib import Path
@@ -245,6 +246,35 @@ export const endpointPath = "api/status"
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertNotIn("  ImportedMarker)", result.stdout)
     self.assertIn("ImportedMarker()", result.stdout)
+
+  def test_python_import_scanner_classifies_complete_multiline_import_forms(self):
+    with PythonImportScanner() as scanner:
+      for one_name_per_line, trailing_comma, closing_paren_on_name_line in product((False, True), repeat=3):
+        with self.subTest(
+          one_name_per_line=one_name_per_line,
+          trailing_comma=trailing_comma,
+          closing_paren_on_name_line=closing_paren_on_name_line,
+        ):
+          target = "SelectedBinding"
+          if one_name_per_line:
+            imported_names = f"  FirstBinding,\n  {target}"
+            target_line = 3
+          else:
+            imported_names = f"  FirstBinding, {target}"
+            target_line = 2
+          if trailing_comma:
+            imported_names += ","
+          if closing_paren_on_name_line:
+            imported_names += ")"
+          else:
+            imported_names += "\n)"
+
+          source = f"from package import (\n{imported_names}\n"
+          compile(source, "<multiline-import>", "exec")
+          relative_path = f"imports/variant_{int(one_name_per_line)}_{int(trailing_comma)}_{int(closing_paren_on_name_line)}.py"
+          self._write(relative_path, source)
+
+          self.assertTrue(scanner.classify(str(self.repository / relative_path), target_line))
 
   def test_incomplete_multiline_python_import_is_kept(self):
     result = self._run(GG, "UncertainMarker")
