@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import pty
 import shlex
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -12,6 +13,7 @@ from lib.git_search import remove_color_codes
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[2]
+CORPUS_DIRECTORY = Path(__file__).resolve().parents[1] / "corpus" / "gg"
 GG = TOOLS_DIRECTORY / "gg.py"
 DEF = TOOLS_DIRECTORY / "def"
 OPEN_RESULT = TOOLS_DIRECTORY / "open_result.py"
@@ -24,62 +26,7 @@ class GGIntegrationTest(unittest.TestCase):
     subprocess.run(
       ("git", "init", "--quiet"), cwd=self.repository, check=True)
 
-    self._write("a.py", """\
-import os
-
-def target():
-  return os.getcwd()
-
-def target_extra():
-  return None
-
-VALUE = 1
-route = "route/123"
-AlphaMarker = object()
-""")
-    self._write("b.py", """\
-class Target:
-  pass
-
-def target():
-  return "second"
-
-BetaMarker = object()
-""")
-    self._write("dependencies.py", "import decimal\n")
-    self._write("multiline_import.py", """\
-from package import (
-  ImportedMarker)
-
-ImportedMarker()
-""")
-    self._write("incomplete_import.py", """\
-from package import (
-  UncertainMarker,
-""")
-    self._write("tests/test_app.py", """\
-def target():
-  return "test"
-
-TEST_ONLY = True
-""")
-    self._write("nested/scoped.py", """\
-def scoped():
-  return True
-""")
-    self._write("import directory/plain.py", """\
-PATH_MARKER = True
-""")
-    self._write("frontend/index.tsx", """\
-export const featureToggle = true
-""")
-    self._write("frontend/routes/api.ts", """\
-export const endpointPath = "api/status"
-""")
-    self._write("backend/routes/api.ts", """\
-export const endpointPath = "api/status"
-""")
-    self._write(".gitignore", "ignored.py\n")
+    shutil.copytree(CORPUS_DIRECTORY / "tracked", self.repository, dirs_exist_ok=True)
     subprocess.run(
       ("git", "add", "."), cwd=self.repository, check=True)
     subprocess.run(
@@ -91,8 +38,8 @@ export const endpointPath = "api/status"
       check=True,
     )
 
-    self._write("untracked.py", "class Untracked:\n  pass\n")
-    self._write("ignored.py", "class Ignored:\n  pass\n")
+    shutil.copytree(CORPUS_DIRECTORY / "untracked", self.repository, dirs_exist_ok=True)
+    shutil.copytree(CORPUS_DIRECTORY / "ignored", self.repository, dirs_exist_ok=True)
 
     self.environment = os.environ.copy()
     for name in (
@@ -105,11 +52,6 @@ export const endpointPath = "api/status"
 
   def tearDown(self):
     self.temporary_directory.cleanup()
-
-  def _write(self, relative_path, contents):
-    path = self.repository / relative_path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(contents)
 
   def _run(self, script, *arguments):
     return subprocess.run(
