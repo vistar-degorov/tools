@@ -81,7 +81,6 @@ def generate_fixtures():
         "name": case.name,
         "command": list(case.command),
         "mode": case.mode,
-        "covers": list(case.covers),
         "result": result_id,
       })
 
