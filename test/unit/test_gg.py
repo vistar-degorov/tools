@@ -1,17 +1,20 @@
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from itertools import product
+import json
 from pathlib import Path
 import tempfile
 import unittest
 
-from lib.git_search import ContextBlock, SearchResult, GrepOutputMode, ResultAction
-from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan
-from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _filter_occurrence_contexts, _filter_occurrence_matches, _update_typescript_import_state
+from lib.git_search import ContextBlock, SearchResult, GrepOutputMode, present_results, ResultAction
+from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _non_import_occurrences, _quoted_occurrences, _update_typescript_import_state
 
 
-def _result_action(*, index=None, json=False):
+def _result_action(*, index=None, json=False, clamp_index=False):
   return ResultAction(
     index=index,
-    clamp_index=False,
+    clamp_index=clamp_index,
     json=json,
     open_result=False,
     stdout=True,
@@ -202,31 +205,6 @@ var Result = GroupAlias
     single_quoted = SearchResult("module.py", 1, 18, b"value")
     unquoted = SearchResult("module.py", 1, 30, b"plain")
     self.assertEqual(_quoted_occurrences(match, _ranges(double_quoted, single_quoted, unquoted)), ((3, 11), (16, 23)))
-
-  def test_quoted_search_crop_matches_output_includes_quotes(self):
-    script = self.repository / "gq"
-    script.symlink_to(GG)
-    python_path = self.environment.get("PYTHONPATH")
-    self.environment["PYTHONPATH"] = os.pathsep.join(
-      path for path in (str(TOOLS_DIRECTORY), python_path) if path
-    )
-
-    result = self._run(script, "-o", "--pattern", "route/123", "a.py")
-
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.endswith(':"route/123"\n'), result.stdout)
-    self.assertNotIn("route =", result.stdout)
-    self.assertNotIn("Traceback", result.stderr)
-
-  def test_definition_crop_matches_output_includes_definition_syntax(self):
-    result = self._run(DEF, "-o", "target", "a.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.endswith(":def target\n"), result.stdout)
-
-  def test_crop_matches_output_without_a_semantic_filter(self):
-    result = self._run(GG, "--imports", "-o", "decimal", "dependencies.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.endswith(":decimal\n"), result.stdout)
 
   def test_definition_filter_checks_the_occurrence_position(self):
     match = SearchResult("module.py", 1, 1, b"def selected(argument): return selected")
@@ -676,6 +654,42 @@ var Result = GroupAlias
     self.assertEqual(arguments, (
       "--column=value", "--color=value", "--no-color=value",
     ))
+
+  def test_present_results_accepts_iterators(self):
+    plan, _ = make_output_plan(())
+    records = (
+      SearchResult("first.py", 2, 3, b"first match"),
+      SearchResult("second.py", 5, 7, b"second match"),
+    )
+
+    stdout = StringIO()
+    with redirect_stdout(stdout):
+      status = present_results(iter(records), plan, _result_action(json=True), program="search")
+    self.assertEqual(status, 0)
+    self.assertEqual(
+      [record["path"] for record in map(json.loads, stdout.getvalue().splitlines())],
+      ["first.py", "second.py"],
+    )
+
+    stdout = StringIO()
+    with redirect_stdout(stdout):
+      status = present_results(
+        iter(records), plan, _result_action(index=99, json=True, clamp_index=True), program="search")
+    self.assertEqual(status, 0)
+    self.assertEqual(json.loads(stdout.getvalue())["path"], "second.py")
+
+    stderr = StringIO()
+    with redirect_stderr(stderr):
+      status = present_results(
+        iter(records), plan, _result_action(index=99, json=True), program="search")
+    self.assertEqual(status, 2)
+    self.assertIn("outside the result range", stderr.getvalue())
+
+    stdout = StringIO()
+    with redirect_stdout(stdout):
+      status = present_results(iter(()), plan, _result_action(json=True), program="search")
+    self.assertEqual(status, 1)
+    self.assertEqual(stdout.getvalue(), "")
 
 
 if __name__ == "__main__":

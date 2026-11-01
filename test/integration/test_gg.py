@@ -259,6 +259,31 @@ export const endpointPath = "api/status"
     self.assertEqual(null_result.returncode, 0, null_result.stderr)
     self.assertEqual(null_result.stdout, "a.py\x003\x00def target():\n")
 
+  def test_quoted_search_crop_matches_output_includes_quotes(self):
+    script = self.repository / "gq"
+    script.symlink_to(GG)
+    python_path = self.environment.get("PYTHONPATH")
+    self.environment["PYTHONPATH"] = os.pathsep.join(
+      path for path in (str(TOOLS_DIRECTORY), python_path) if path
+    )
+
+    result = self._run(script, "-o", "--pattern", "route/123", "a.py")
+
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(result.stdout.endswith(':"route/123"\n'), result.stdout)
+    self.assertNotIn("route =", result.stdout)
+    self.assertNotIn("Traceback", result.stderr)
+
+  def test_definition_crop_matches_output_includes_definition_syntax(self):
+    result = self._run(DEF, "-o", "target", "a.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(result.stdout.endswith(":def target\n"), result.stdout)
+
+  def test_crop_matches_output_without_a_semantic_filter(self):
+    result = self._run(GG, "--imports", "-o", "decimal", "dependencies.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(result.stdout.endswith(":decimal\n"), result.stdout)
+
   def test_explicit_color_and_quiet_output(self):
     colored = self._run(GG, "--color=always", "target", "a.py")
     self.assertEqual(colored.returncode, 0, colored.stderr)
@@ -454,6 +479,17 @@ export const endpointPath = "api/status"
     self.assertEqual(
       set(records[0]), {"path", "line", "column", "text"})
 
+  def test_crop_matches_json_output_contains_projected_occurrences(self):
+    result = self._run(DEF, "--json", "-o", "target", "a.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    records = [json.loads(line) for line in result.stdout.splitlines()]
+    self.assertEqual([(record["column"], record["text"]) for record in records], [(1, "def target")])
+
+  def test_crop_matches_projection_precedes_result_selection(self):
+    result = self._run(DEF, "-o", "--stdout", "target/1", "a.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertTrue(result.stdout.startswith("a.py:3:1\n"), result.stdout)
+
   def test_selection_takes_priority_over_context_output(self):
     result = self._run(DEF, "-C", "3", "--stdout", "target/1")
     self.assertEqual(result.returncode, 0, result.stderr)
@@ -486,7 +522,7 @@ export const endpointPath = "api/status"
     strict = self._run(
       DEF, "--pattern", "target", "--show", "999")
     self.assertEqual(strict.returncode, 2)
-    self.assertIn("outside 1..", strict.stderr)
+    self.assertIn("outside the result range", strict.stderr)
 
   def test_filename_only_results_can_be_selected(self):
     opened = self._run_tty(
