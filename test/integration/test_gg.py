@@ -24,20 +24,25 @@ OPEN_RESULT = TOOLS_DIRECTORY / "open_result.py"
 
 
 class GGIntegrationTest(unittest.TestCase):
-  def setUp(self):
-    self.temporary_directory = tempfile.TemporaryDirectory()
-    self.repository = Path(self.temporary_directory.name)
-    self.environment = create_gg_repository(self.repository, include_filesystem=True)
+  @classmethod
+  def setUpClass(cls):
+    cls.temporary_directory = tempfile.TemporaryDirectory()
+    cls.repository = Path(cls.temporary_directory.name)
+    cls.base_environment = create_gg_repository(cls.repository, include_filesystem=True)
     for name in (
       "GG_SEARCH_IN", "GG_SEARCH_IN_DEFAULT",
       "GG_SEARCH_EXT", "GG_SEARCH_EXT_DEFAULT",
       "GG_TOOL", "GG_TOOL_DEFAULT",
     ):
-      self.environment.pop(name, None)
-    self.environment["GG_TOOL_DEFAULT"] = "tool-that-must-not-run"
+      cls.base_environment.pop(name, None)
+    cls.base_environment["GG_TOOL_DEFAULT"] = "tool-that-must-not-run"
 
-  def tearDown(self):
-    self.temporary_directory.cleanup()
+  @classmethod
+  def tearDownClass(cls):
+    cls.temporary_directory.cleanup()
+
+  def setUp(self):
+    self.environment = self.base_environment.copy()
 
   def _run(self, script, *arguments):
     return subprocess.run(
