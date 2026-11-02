@@ -563,6 +563,12 @@ class GGFixtureIntegrationTest(unittest.TestCase):
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn('route = "route/123"', result.stdout)
 
+  def test_quoted_search_with_multiple_occurrences_per_line(self):
+    result = self._run("gq", "-o", "RepeatToken", "valid_code.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(len(result.stdout.splitlines()), 4)
+    self.assertEqual(result.stdout.count("RepeatToken"), 4)
+
 
 if __name__ == "__main__":
   unittest.main()
