@@ -89,3 +89,5 @@ first()
 if True:
           def second():
             pass
+
+repeated_values = ("RepeatToken", "RepeatToken", "RepeatToken", "RepeatToken")
