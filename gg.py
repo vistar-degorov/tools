@@ -2,6 +2,7 @@
 
 import argparse
 from dataclasses import replace
+from contextlib import ExitStack
 from itertools import groupby
 from pathlib import Path
 import re
@@ -388,8 +389,7 @@ class PythonImportScanner(_BaseFileScanner):
 
 def main(argv):
   main_arg = Path(argv[0]).name
-  arguments = argv[1:]
-  options = _parse_arguments(arguments)
+  options = _parse_arguments(argv[1:])
   result_action = make_result_action(options)
   output_plan, grep_args = make_output_plan(options.grep_args, result_action)
   patterns = () if options.pattern is None else (options.pattern,)
@@ -446,22 +446,20 @@ def main(argv):
   if results is None:
     return status
 
-  if range_extractor:
+  with ExitStack() as stack:
     if range_extractor is _non_import_occurrences:
-      with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
-        extractor = lambda match, line_occurrences: _non_import_occurrences(
-          match, line_occurrences, pattern_texts, import_scanner, python_import_scanner)
-        if output_plan.mode == GrepOutputMode.CONTEXT:
-          results = _filter_occurrence_contexts(results, occurrences, extractor)
-        elif output_plan.mode == GrepOutputMode.MATCHES:
-          results = _filter_occurrence_matches(results, occurrences, extractor)
-    else:
+      import_scanner = stack.enter_context(ImportScanner())
+      python_import_scanner = stack.enter_context(PythonImportScanner())
+      range_extractor = lambda match, line_occurrences: _non_import_occurrences(
+        match, line_occurrences, pattern_texts, import_scanner, python_import_scanner)
+
+    if range_extractor is not None:
       if output_plan.mode == GrepOutputMode.CONTEXT:
         results = _filter_occurrence_contexts(results, occurrences, range_extractor)
       elif output_plan.mode == GrepOutputMode.MATCHES:
         results = _filter_occurrence_matches(results, occurrences, range_extractor)
 
-  return present_results(results, output_plan, result_action, program=main_arg)
+    return present_results(results, output_plan, result_action, program=main_arg)
 
 
 if __name__ == "__main__":
