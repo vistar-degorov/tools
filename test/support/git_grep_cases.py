@@ -27,6 +27,10 @@ def _search(name, pattern="target", *, grep_args=(), paths=("valid_code.py",), p
   return _case(name, arguments, mode=mode, color=color)
 
 
+_GG_DEFAULT_PYTHON_SCOPE = ("--", ":!:*[Tt]est*", "./*.py")
+_GG_EXPLICIT_PYTHON_SCOPE = ("valid_code.py", ":!:*[Tt]est*", ":!:*[Ss]pec*")
+
+
 GIT_GREP_CASES = (
   _search("word_matches"),
   _search("colored_matches", color="always"),
@@ -89,6 +93,43 @@ GIT_GREP_CASES = (
   _search(
     "definition_crop_matches", "target_extra",
     scope=("valid_code.py", ":!:*[Tt]est*", ":!:*[Ss]pec*"),
+  ),
+  _search("gg_default_target_occurrences", grep_args=("-o",), scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_default_target_matches", scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_missing_occurrences", "missing_name", grep_args=("-o",), scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_invalid_option_occurrences", grep_args=("--bad-git-option", "-o"), scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_default_os_occurrences", "os", grep_args=("-o",), scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_default_os_matches", "os", scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_import_statement_occurrences", "import os", grep_args=("-o",), scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_import_statement_matches", "import os", scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_multiline_import_occurrences", "ImportedMarker", grep_args=("-o",), scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_multiline_import_matches", "ImportedMarker", scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_malformed_import_occurrences", "UncertainMarker", grep_args=("-o",), scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_malformed_import_matches", "UncertainMarker", scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_explicit_os_occurrences", "os", grep_args=("-o",), scope=_GG_EXPLICIT_PYTHON_SCOPE),
+  _search("gg_after_context", "os", grep_args=("-A", "1"), mode="context", scope=_GG_EXPLICIT_PYTHON_SCOPE),
+  _search("gg_centered_context", "os", grep_args=("-C", "2"), mode="context", scope=_GG_EXPLICIT_PYTHON_SCOPE),
+  _search("gg_default_decimal_occurrences", "decimal", grep_args=("-o",), scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_default_decimal_matches", "decimal", scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_default_decimal_paths", "decimal", grep_args=("-l",), mode="paths", scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_default_decimal_counts", "decimal", grep_args=("-c",), mode="counts", scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _search("gg_explicit_decimal_occurrences", "decimal", grep_args=("-o",), scope=_GG_EXPLICIT_PYTHON_SCOPE),
+  _search("gg_explicit_decimal_matches", "decimal", scope=_GG_EXPLICIT_PYTHON_SCOPE),
+  _case(
+    "gg_quoted_occurrences",
+    ("-w", "-e", "route/123", "-o", *_GG_EXPLICIT_PYTHON_SCOPE),
+  ),
+  _search("gg_quoted_matches", "route/123", scope=_GG_EXPLICIT_PYTHON_SCOPE),
+  _search("gg_explicit_target_occurrences", grep_args=("-o",), scope=_GG_EXPLICIT_PYTHON_SCOPE),
+  _search("gg_explicit_target_matches", scope=_GG_EXPLICIT_PYTHON_SCOPE),
+  _case(
+    "gg_default_route_occurrences",
+    ("-w", "-e", "route/123", "-o", *_GG_DEFAULT_PYTHON_SCOPE),
+  ),
+  _search("gg_default_route_matches", "route/123", scope=_GG_DEFAULT_PYTHON_SCOPE),
+  _case(
+    "gg_explicit_pattern_target_occurrences",
+    ("-w", "-e", "target", "-o", *_GG_DEFAULT_PYTHON_SCOPE),
   ),
   _search("empty_pattern", "", word=False),
   _search("max_depth_and_threads", grep_args=("--max-d", "4", "--threads=2")),

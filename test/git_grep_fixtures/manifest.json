@@ -1,5 +1,5 @@
 {
-  "case_count": 53,
+  "case_count": 81,
   "cases": [
     {
       "command": [
@@ -948,6 +948,615 @@
         "-n",
         "--column",
         "-z",
+        "-w",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_target_occurrences",
+      "result": "194b341634401932"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_target_matches",
+      "result": "556feeada470d6f6"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "missing_name",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_missing_occurrences",
+      "result": "f80084d5ed9ac4fb"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--bad-git-option",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_invalid_option_occurrences",
+      "result": "d5296fafbfafe76d"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "os",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_os_occurrences",
+      "result": "bd2976a170d5d7c0"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "os",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_os_matches",
+      "result": "42462d2d3fd96442"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "import os",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_import_statement_occurrences",
+      "result": "9c0f91464959a583"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "import os",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_import_statement_matches",
+      "result": "9c0f91464959a583"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "ImportedMarker",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_multiline_import_occurrences",
+      "result": "4cb2a9f7e55d9fdc"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "ImportedMarker",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_multiline_import_matches",
+      "result": "f7f5265f50e56275"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "UncertainMarker",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_malformed_import_occurrences",
+      "result": "af28a4c63c15735e"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "UncertainMarker",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_malformed_import_matches",
+      "result": "a00cd56118d4e71f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "os",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_os_occurrences",
+      "result": "bd2976a170d5d7c0"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-A",
+        "1",
+        "-e",
+        "os",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "context",
+      "name": "gg_after_context",
+      "result": "b8c3e50c7b3529ca"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-C",
+        "2",
+        "-e",
+        "os",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "context",
+      "name": "gg_centered_context",
+      "result": "190625fd38131ae7"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "decimal",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_decimal_occurrences",
+      "result": "b4513e73a228507b"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "decimal",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_decimal_matches",
+      "result": "5a46677d90f1980d"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-l",
+        "-e",
+        "decimal",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "paths",
+      "name": "gg_default_decimal_paths",
+      "result": "fde94062188ba327"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-c",
+        "-e",
+        "decimal",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "counts",
+      "name": "gg_default_decimal_counts",
+      "result": "f1d20dcc687832d0"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "decimal",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_decimal_occurrences",
+      "result": "b4513e73a228507b"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "decimal",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_decimal_matches",
+      "result": "5a46677d90f1980d"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "route/123",
+        "-o",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_quoted_occurrences",
+      "result": "b9df650ce26365ae"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "route/123",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_quoted_matches",
+      "result": "0dd606d9dc6bb23f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "target",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_target_occurrences",
+      "result": "194b341634401932"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_target_matches",
+      "result": "556feeada470d6f6"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "route/123",
+        "-o",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_route_occurrences",
+      "result": "b9df650ce26365ae"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "route/123",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_route_matches",
+      "result": "0dd606d9dc6bb23f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "-o",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_pattern_target_occurrences",
+      "result": "194b341634401932"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
         "-e",
         "",
         "--",
@@ -1165,7 +1774,7 @@
     ],
     "version": "git version 2.34.1"
   },
-  "result_count": 40,
+  "result_count": 46,
   "results": {
     "00e39a9099c7d2bc": {
       "returncode": 129,
@@ -1297,6 +1906,19 @@
         "sha256": "94fc553220d84f19b9f3471737d5b1973ca5345ca9f60084e73b22c1e6199280"
       }
     },
+    "4cb2a9f7e55d9fdc": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/4cb2a9f7e55d9fdc.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 68,
+        "path": "results/4cb2a9f7e55d9fdc.stdout",
+        "sha256": "4e22a8d8db3fb5dfcf4a6d1510420fcccbf1c6510c557e2ee40e7a31badadc55"
+      }
+    },
     "4de6707f78e09489": {
       "returncode": 0,
       "stderr": {
@@ -1334,6 +1956,19 @@
         "bytes": 65,
         "path": "results/556feeada470d6f6.stdout",
         "sha256": "d465626d2a875908f372bb48a01a68793b96be7d34f8d613a1a34d983d401df9"
+      }
+    },
+    "5a46677d90f1980d": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/5a46677d90f1980d.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 34,
+        "path": "results/5a46677d90f1980d.stdout",
+        "sha256": "02bc7d52048a84f1b88a7b9355bb3b8e86a254250f6e3c168616ab116d5ef0ca"
       }
     },
     "78aee13352ea6bc3": {
@@ -1466,6 +2101,45 @@
         "sha256": "cb144323d05c2cc027344663dc56d8d7ececa9d4892624a7071f6127bf00cc04"
       }
     },
+    "af28a4c63c15735e": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/af28a4c63c15735e.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 37,
+        "path": "results/af28a4c63c15735e.stdout",
+        "sha256": "d061d58530f73a7f925bb6bfc694c7065e9c9c6b8703ad3ade9d927aec131dcb"
+      }
+    },
+    "b4513e73a228507b": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/b4513e73a228507b.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 27,
+        "path": "results/b4513e73a228507b.stdout",
+        "sha256": "36c574988a32f4c82dfe25f1f499113af81a1651d963855ccbef33f3d264b871"
+      }
+    },
+    "b8c3e50c7b3529ca": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/b8c3e50c7b3529ca.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 105,
+        "path": "results/b8c3e50c7b3529ca.stdout",
+        "sha256": "282909538ba79d8b55c17a4fde9a0b58f34bf7600a9669e1c0b9eb02d537294f"
+      }
+    },
     "b9df650ce26365ae": {
       "returncode": 0,
       "stderr": {
@@ -1477,6 +2151,19 @@
         "bytes": 30,
         "path": "results/b9df650ce26365ae.stdout",
         "sha256": "427e7de65f6cf7aa1085504f13e5a4ca5de9240352d6ba26f88091c9b465f6d1"
+      }
+    },
+    "bd2976a170d5d7c0": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/bd2976a170d5d7c0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 43,
+        "path": "results/bd2976a170d5d7c0.stdout",
+        "sha256": "6af4015255b70df36d4e8a78c22992961252132b81d82de173ff3b8d65d27885"
       }
     },
     "c0b6bb19e13056d6": {
