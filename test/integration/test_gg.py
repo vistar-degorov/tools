@@ -521,12 +521,11 @@ class GGFixtureIntegrationTest(unittest.TestCase):
     errors = io.StringIO()
 
     with (
-      patch.object(sys, "argv", ["def"]),
       patch("lib.git_search.subprocess.run", fixture_runner),
       patch.object(sys, "stdout", output),
       patch.object(sys, "stderr", errors),
     ):
-      status = gg.main(("-o", "target_extra", "valid_code.py"))
+      status = gg.main(("def", "-o", "target_extra", "valid_code.py"))
       output.flush()
 
     fixture_runner.assert_complete()
