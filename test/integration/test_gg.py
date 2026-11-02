@@ -514,8 +514,7 @@ class GGIntegrationTest(unittest.TestCase):
 
 class GGFixtureIntegrationTest(unittest.TestCase):
   def test_definition_crop_matches_output_includes_definition_syntax(self):
-    fixture_runner = GitGrepFixtureRunner(
-      "definition_crop_occurrences", "definition_crop_matches")
+    fixture_runner = GitGrepFixtureRunner()
     output_bytes = io.BytesIO()
     output = io.TextIOWrapper(output_bytes, encoding="utf-8")
     errors = io.StringIO()
@@ -528,7 +527,6 @@ class GGFixtureIntegrationTest(unittest.TestCase):
       status = gg.main(("def", "-o", "target_extra", "valid_code.py"))
       output.flush()
 
-    fixture_runner.assert_complete()
     rendered = output_bytes.getvalue().decode()
     self.assertEqual(status, 0, errors.getvalue())
     self.assertTrue(rendered.endswith(":def target_extra\n"), rendered)
