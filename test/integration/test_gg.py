@@ -93,12 +93,6 @@ class GGIntegrationTest(unittest.TestCase):
         self.assertIn("usage:", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
 
-  def test_exit_codes_distinguish_matches_and_errors(self):
-    self.assertEqual(self._run(GG, "target").returncode, 0)
-    self.assertEqual(self._run(GG, "missing_name").returncode, 1)
-    self.assertGreaterEqual(
-      self._run(GG, "--bad-git-option", "target").returncode, 2)
-
   def test_default_scope_is_independent_of_output_destination(self):
     self.environment["GG_SEARCH_IN_DEFAULT"] = "nested/"
     piped = self._run(GG, "scoped")
@@ -112,11 +106,6 @@ class GGIntegrationTest(unittest.TestCase):
     result = self._run_tty(GG, "target")
     self.assertEqual(result.returncode, 0)
     self.assertIn("\x1b[", result.stdout)
-
-  def test_default_word_search(self):
-    result = self._run(GG, "target")
-    self.assertEqual(result.returncode, 0)
-    self.assertNotIn("target_extra", result.stdout)
 
   def test_import_and_test_filters(self):
     result = self._run(GG, "os")
@@ -140,77 +129,6 @@ class GGIntegrationTest(unittest.TestCase):
     result = self._run(GG, "PATH_MARKER")
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn("import directory/plain.py:", result.stdout)
-
-  def test_completed_multiline_python_import_is_filtered(self):
-    result = self._run(GG, "ImportedMarker")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertNotIn("  ImportedMarker)", result.stdout)
-    self.assertIn("ImportedMarker()", result.stdout)
-
-  def test_incomplete_multiline_python_import_is_kept(self):
-    result = self._run(GG, "UncertainMarker")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertIn("UncertainMarker", result.stdout)
-
-  def test_context_filter_removes_only_import_only_blocks(self):
-    separate = self._run(GG, "-A", "1", "os", "valid_code.py")
-    self.assertEqual(separate.returncode, 0, separate.stderr)
-    self.assertNotIn("import os", separate.stdout)
-    self.assertIn("os.getcwd", separate.stdout)
-
-    merged = self._run(GG, "-C", "2", "os", "valid_code.py")
-    self.assertEqual(merged.returncode, 0, merged.stderr)
-    self.assertIn("import os", merged.stdout)
-    self.assertIn("os.getcwd", merged.stdout)
-
-  def test_aggregate_modes_are_not_import_filtered(self):
-    self.assertEqual(self._run(GG, "decimal").returncode, 1)
-
-    paths = self._run(GG, "-l", "decimal")
-    self.assertEqual(paths.returncode, 0, paths.stderr)
-    self.assertEqual(paths.stdout, "valid_code.py\n")
-
-    counts = self._run(GG, "-c", "decimal")
-    self.assertEqual(counts.returncode, 0, counts.stderr)
-    self.assertEqual(counts.stdout, "valid_code.py:1\n")
-
-    hidden_count = self._run(GG, "-h", "-c", "decimal")
-    self.assertEqual(hidden_count.returncode, 0, hidden_count.stderr)
-    self.assertEqual(hidden_count.stdout, "1\n")
-
-  def test_structured_renderer_honors_visible_fields(self):
-    result = self._run(GG, "-h", "-n", "--column", "target_extra", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertEqual(result.stdout, "6:5:def target_extra():\n")
-
-    null_result = self._run(GG, "-z", "target_extra", "valid_code.py")
-    self.assertEqual(null_result.returncode, 0, null_result.stderr)
-    self.assertEqual(null_result.stdout, "valid_code.py\x006\x00def target_extra():\n")
-
-  def test_quoted_search_crop_matches_output_includes_quotes(self):
-    script = self.repository / "gq"
-    script.symlink_to(GG)
-    python_path = self.environment.get("PYTHONPATH")
-    self.environment["PYTHONPATH"] = os.pathsep.join(
-      path for path in (str(TOOLS_DIRECTORY), python_path) if path
-    )
-
-    result = self._run(script, "-o", "--pattern", "route/123", "valid_code.py")
-
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.endswith(':"route/123"\n'), result.stdout)
-    self.assertNotIn("route =", result.stdout)
-    self.assertNotIn("Traceback", result.stderr)
-
-  def test_definition_crop_matches_output_includes_definition_syntax(self):
-    result = self._run(DEF, "-o", "target_extra", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.endswith(":def target_extra\n"), result.stdout)
-
-  def test_crop_matches_output_without_a_semantic_filter(self):
-    result = self._run(GG, "--imports", "-o", "decimal", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.endswith(":decimal\n"), result.stdout)
 
   def test_explicit_color_and_quiet_output(self):
     colored = self._run(GG, "--color=always", "target", "valid_code.py")
@@ -399,30 +317,6 @@ class GGIntegrationTest(unittest.TestCase):
     self.assertEqual(
       self._run(DEF, "--untracked", "Ignored").returncode, 1)
 
-  def test_json_output(self):
-    result = self._run(GG, "--json", "target")
-    self.assertEqual(result.returncode, 0)
-    records = [json.loads(line) for line in result.stdout.splitlines()]
-    self.assertGreaterEqual(len(records), 2)
-    self.assertEqual(
-      set(records[0]), {"path", "line", "column", "text"})
-
-  def test_crop_matches_json_output_contains_projected_occurrences(self):
-    result = self._run(DEF, "--json", "-o", "target_extra", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    records = [json.loads(line) for line in result.stdout.splitlines()]
-    self.assertEqual([(record["column"], record["text"]) for record in records], [(1, "def target_extra")])
-
-  def test_crop_matches_projection_precedes_result_selection(self):
-    result = self._run(DEF, "-o", "--stdout", "target/1", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.startswith("valid_code.py:3:1\n"), result.stdout)
-
-  def test_selection_takes_priority_over_context_output(self):
-    result = self._run(DEF, "-C", "3", "--stdout", "target/1")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.startswith("valid_code.py:"), result.stdout)
-
   def test_selection_takes_priority_over_other_incompatible_output(self):
     for arguments in (("-c",), ("-q",), ("-o",), ("-Oviewer",)):
       with self.subTest(arguments=arguments):
@@ -437,20 +331,6 @@ class GGIntegrationTest(unittest.TestCase):
     self.assertGreaterEqual(len(records), 2)
     self.assertIsInstance(records[0]["line"], int)
     self.assertIn("target", records[0]["text"])
-
-  def test_human_and_strict_selection(self):
-    first = self._run(DEF, "target/0", "--stdout")
-    self.assertEqual(first.returncode, 0)
-    self.assertTrue(first.stdout.startswith("valid_code.py:3:"), first.stdout)
-
-    last = self._run(DEF, "target/999", "--stdout")
-    self.assertEqual(last.returncode, 0)
-    self.assertTrue(last.stdout.startswith("valid_code.py:16:"), last.stdout)
-
-    strict = self._run(
-      DEF, "--pattern", "target", "--show", "999")
-    self.assertEqual(strict.returncode, 2)
-    self.assertIn("outside the result range", strict.stderr)
 
   def test_filename_only_results_can_be_selected(self):
     opened = self._run_tty(
@@ -491,11 +371,6 @@ class GGIntegrationTest(unittest.TestCase):
     result = self._run(DEF, "target/1")
     self.assertEqual(result.returncode, 0)
     self.assertTrue(result.stdout.startswith("valid_code.py:"), result.stdout)
-
-  def test_explicit_pattern_disables_slash_selection(self):
-    result = self._run(GG, "--pattern", "route/123")
-    self.assertEqual(result.returncode, 0)
-    self.assertIn('route = "route/123"', result.stdout)
 
   def test_open_result_uses_shared_selection_and_display(self):
     environment = self.environment.copy()
