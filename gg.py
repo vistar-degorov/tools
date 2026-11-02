@@ -123,10 +123,10 @@ def _argument_parser():
   return parser
 
 
-def _parse_arguments(arguments=None):
-  arguments = list(sys.argv[1:] if arguments is None else arguments)
-  if arguments == ["-h"]:
-    arguments = ["--help"]
+def _parse_arguments(arguments):
+  match arguments:
+    case ("-h",):
+      arguments = ["--help"]
   return parse_search_arguments(_argument_parser(), arguments, pattern_metavar="PATTERN")
 
 
@@ -386,11 +386,12 @@ class PythonImportScanner(_BaseFileScanner):
     return False
 
 
-def main(arguments=None):
+def main(argv):
+  main_arg = Path(argv[0]).name
+  arguments = argv[1:]
   options = _parse_arguments(arguments)
   result_action = make_result_action(options)
   output_plan, grep_args = make_output_plan(options.grep_args, result_action)
-  main_arg = Path(sys.argv[0]).name
   patterns = () if options.pattern is None else (options.pattern,)
   pattern_texts = options.pattern_texts
   extensions = resolve_extensions(options.ext)
@@ -464,4 +465,4 @@ def main(arguments=None):
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+  sys.exit(main(sys.argv))
