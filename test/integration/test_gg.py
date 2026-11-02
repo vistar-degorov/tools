@@ -1,15 +1,20 @@
 import errno
+import io
 import json
 import os
 from pathlib import Path
 import pty
 import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
+import gg
 from lib.git_search import remove_color_codes
 from test.support.gg_corpus import create_gg_repository
+from test.support.git_grep_fixtures import GitGrepFixtureRunner
 
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[2]
@@ -506,6 +511,28 @@ class GGIntegrationTest(unittest.TestCase):
     self.assertEqual(result.returncode, 0)
     self.assertTrue(result.stdout.startswith("valid_code.py:16:0\n"), result.stdout)
 
+
+class GGFixtureIntegrationTest(unittest.TestCase):
+  def test_definition_crop_matches_output_includes_definition_syntax(self):
+    fixture_runner = GitGrepFixtureRunner(
+      "definition_crop_occurrences", "definition_crop_matches")
+    output_bytes = io.BytesIO()
+    output = io.TextIOWrapper(output_bytes, encoding="utf-8")
+    errors = io.StringIO()
+
+    with (
+      patch.object(sys, "argv", ["def"]),
+      patch("lib.git_search.subprocess.run", fixture_runner),
+      patch.object(sys, "stdout", output),
+      patch.object(sys, "stderr", errors),
+    ):
+      status = gg.main(("-o", "target_extra", "valid_code.py"))
+      output.flush()
+
+    fixture_runner.assert_complete()
+    rendered = output_bytes.getvalue().decode()
+    self.assertEqual(status, 0, errors.getvalue())
+    self.assertTrue(rendered.endswith(":def target_extra\n"), rendered)
 
 
 if __name__ == "__main__":

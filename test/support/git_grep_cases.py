@@ -82,6 +82,14 @@ GIT_GREP_CASES = (
   _search("repeated_line_occurrences", "Render", grep_args=("-o",), paths=("valid_code.go",)),
   _search("typescript_definitions", "DataStore", grep_args=("-o",), paths=("valid_code.ts",)),
   _search("go_definitions", "Tree", grep_args=("-o",), paths=("valid_code.go",)),
+  _search(
+    "definition_crop_occurrences", "target_extra", grep_args=("-o",),
+    scope=("valid_code.py", ":!:*[Tt]est*", ":!:*[Ss]pec*"),
+  ),
+  _search(
+    "definition_crop_matches", "target_extra",
+    scope=("valid_code.py", ":!:*[Tt]est*", ":!:*[Ss]pec*"),
+  ),
   _search("empty_pattern", "", word=False),
   _search("max_depth_and_threads", grep_args=("--max-d", "4", "--threads=2")),
   _case(

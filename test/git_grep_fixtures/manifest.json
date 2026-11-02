@@ -1,5 +1,5 @@
 {
-  "case_count": 51,
+  "case_count": 53,
   "cases": [
     {
       "command": [
@@ -905,6 +905,49 @@
         "-n",
         "--column",
         "-z",
+        "-w",
+        "-o",
+        "-e",
+        "target_extra",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "definition_crop_occurrences",
+      "result": "8421b3de6ffe9735"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target_extra",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "definition_crop_matches",
+      "result": "81252f8fdf02baab"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
         "-e",
         "",
         "--",
@@ -1122,7 +1165,7 @@
     ],
     "version": "git version 2.34.1"
   },
-  "result_count": 38,
+  "result_count": 40,
   "results": {
     "00e39a9099c7d2bc": {
       "returncode": 129,
@@ -1304,6 +1347,32 @@
         "bytes": 16,
         "path": "results/78aee13352ea6bc3.stdout",
         "sha256": "e26785bbb302f4cd64184308379e41a0917cde14a33932d36a724f86ebe416e3"
+      }
+    },
+    "81252f8fdf02baab": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/81252f8fdf02baab.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 38,
+        "path": "results/81252f8fdf02baab.stdout",
+        "sha256": "ea08f06c3d74be5f35ef59c0f3be8378ae0780e5dfe1f08ce2febbe1c495d1ea"
+      }
+    },
+    "8421b3de6ffe9735": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/8421b3de6ffe9735.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 31,
+        "path": "results/8421b3de6ffe9735.stdout",
+        "sha256": "f9fdd0c526492cfb71a0276b9d7eafdefcdb628ed31b9980b96a0632c40ab658"
       }
     },
     "8ce9815477eec693": {
