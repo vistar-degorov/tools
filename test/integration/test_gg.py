@@ -1,3 +1,4 @@
+from contextlib import redirect_stderr, redirect_stdout
 import errno
 import io
 import json
@@ -6,7 +7,6 @@ from pathlib import Path
 import pty
 import shlex
 import subprocess
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -521,8 +521,8 @@ class GGFixtureIntegrationTest(unittest.TestCase):
 
     with (
       patch("lib.git_search.subprocess.run", fixture_runner),
-      patch.object(sys, "stdout", output),
-      patch.object(sys, "stderr", errors),
+      redirect_stdout(output),
+      redirect_stderr(errors),
     ):
       status = gg.main(("def", "-o", "target_extra", "valid_code.py"))
       output.flush()
