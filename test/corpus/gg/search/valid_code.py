@@ -57,6 +57,17 @@ from package import (
   FirstBinding,
   SelectedBinding,)
 
+from package import (
+  FirstBinding,
+  SecondBinding,
+  ThirdBinding,
+  FourthBinding,
+  FifthBinding,
+  SelectedBinding,
+  SeventhBinding,
+  EighthBinding,
+)
+
 import package; package.run()
 import dependency
 
