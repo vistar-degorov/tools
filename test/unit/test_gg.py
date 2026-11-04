@@ -2,13 +2,15 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from itertools import product
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from lib.git_search import ContextBlock, SearchResult, GrepOutputMode, present_results, ResultAction
 from lib.git_search_args import _split_leading_git_options, ArgumentIterator, make_output_plan, prepare_occurrence_options
-from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _non_import_occurrences, _quoted_occurrences, _update_typescript_import_state
+from gg import ImportScanner, PythonImportScanner, _TYPESCRIPT_MULTILINE_IMPORT, _definition_occurrences, _filter_occurrence_contexts, _filter_occurrence_matches, _first_occurrences_by_line, _git_has_buggy_columns, _non_import_occurrences, _occurrences_by_line, _quoted_occurrences, _update_typescript_import_state
 
 
 def _result_action(*, index=None, json=False, clamp_index=False):
@@ -355,9 +357,54 @@ var Result = GroupAlias
       SearchResult("module.py", 2, 1, b"selected"),
     )
     self.assertEqual(
-      list(_filter_occurrence_matches(results, occurrences, _definition_occurrences)),
+      list(_filter_occurrence_matches(results, _occurrences_by_line(occurrences), _definition_occurrences)),
       [SearchResult("module.py", 1, 5, b"def selected():", occurrence_ranges=((0, 12),))],
     )
+
+  def test_git_version_controls_column_workaround(self):
+    cases = (
+      ("git version 2.34.1", True),
+      ("2.54.9", True),
+      ("git version 2.55.0", False),
+      ("2.55.1.windows.1", False),
+      ("3.0", False),
+      ("", False),
+      ("unknown", False),
+    )
+    for version, expected in cases:
+      with self.subTest(version=version), patch.dict(os.environ, {"GG_GIT_VERSION": version}):
+        self.assertEqual(_git_has_buggy_columns(), expected)
+    with patch.dict(os.environ, {}, clear=True):
+      self.assertFalse(_git_has_buggy_columns())
+
+  def test_occurrence_filters_can_keep_only_first_match_per_line(self):
+    results = (
+      SearchResult("module.py", 1, 1, b"a a"),
+      SearchResult("module.py", 2, 1, b"b b"),
+      SearchResult("other.py", 2, 1, b"c c"),
+    )
+    occurrences = (
+      SearchResult("module.py", 1, 1, b"a"),
+      SearchResult("module.py", 1, 3, b"a"),
+      SearchResult("module.py", 2, 1, b"b"),
+      SearchResult("module.py", 2, 3, b"b"),
+      SearchResult("other.py", 2, 1, b"c"),
+      SearchResult("other.py", 2, 3, b"c"),
+    )
+    extractor = lambda match, ranges: ranges
+    for group_occurrences, expected_ranges in (
+      (_first_occurrences_by_line, ((0, 1),)),
+      (_occurrences_by_line, ((0, 1), (2, 3))),
+    ):
+      with self.subTest(group_occurrences=group_occurrences.__name__):
+        filtered = list(_filter_occurrence_matches(results, group_occurrences(occurrences), extractor))
+        self.assertEqual([result.occurrence_ranges for result in filtered], [expected_ranges] * 3)
+        blocks = (ContextBlock("module.py", results[:2]), ContextBlock("other.py", results[2:]))
+        filtered_blocks = list(_filter_occurrence_contexts(blocks, group_occurrences(occurrences), extractor))
+        self.assertEqual(
+          [result.occurrence_ranges for block in filtered_blocks for result in block.matches],
+          [expected_ranges] * 3,
+        )
 
   def test_occurrence_context_filter_consumes_every_match_line(self):
     blocks = (
@@ -380,7 +427,7 @@ var Result = GroupAlias
       return _definition_occurrences(match, line_occurrences)
 
     self.assertEqual(
-      list(_filter_occurrence_contexts(blocks, occurrences, extractor)),
+      list(_filter_occurrence_contexts(blocks, _occurrences_by_line(occurrences), extractor)),
       [
         ContextBlock("module.py", (
           SearchResult("module.py", 1, 5, b"def first():", occurrence_ranges=((0, 9),)),

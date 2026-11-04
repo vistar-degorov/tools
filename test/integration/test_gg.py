@@ -564,6 +564,13 @@ class GGFixtureIntegrationTest(unittest.TestCase):
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn('route = "route/123"', result.stdout)
 
+  def test_quoted_search_with_multiple_occurrences_per_line(self):
+    with patch.dict(self.environment, {"GG_GIT_VERSION": "git version 2.34.1"}):
+      result = self._run("gq", "-o", "RepeatToken", "valid_code.py")
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertEqual(len(result.stdout.splitlines()), 1)
+    self.assertTrue(result.stdout.endswith(':"RepeatToken"\n'), result.stdout)
+
 
 if __name__ == "__main__":
   unittest.main()
