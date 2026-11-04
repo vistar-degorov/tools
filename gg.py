@@ -4,6 +4,7 @@ import argparse
 from dataclasses import replace
 from contextlib import ExitStack
 from itertools import groupby
+import os
 from pathlib import Path
 import re
 import sys
@@ -102,7 +103,9 @@ def _argument_parser():
       "are passed to git grep as revisions or paths; -- before paths is "
       "optional. Explicit operands override the default root and extension "
       "filters.\n"
-      "Results include line numbers by default, so -n is unnecessary."
+      "Results include line numbers by default, so -n is unnecessary.\n"
+      "Set GG_GIT_VERSION to the output of git --version to enable compatibility "
+      "with older Git versions."
     ),
   )
   parser.add_argument(
@@ -192,6 +195,21 @@ def _occurrences_by_line(occurrences):
     yield tuple(_ranges(line_occurrences))
 
 
+def _first_occurrences_by_line(occurrences):
+  for _, line_occurrences in groupby(occurrences, key=lambda occ: (occ.path, occ.line)):
+    occurrence = next(line_occurrences)
+    head = occurrence.column - 1
+    yield ((head, head + len(occurrence.text)),)
+
+
+def _git_has_buggy_columns():
+  version = os.environ.get("GG_GIT_VERSION", "")
+  match = re.match(r"\s*(?:git version\s+)?(\d+)\.(\d+)(?:\.(\d+))?", version)
+  if match is None:
+    return False
+  return tuple(int(part or 0) for part in match.groups()) < (2, 55, 0)
+
+
 def _quoted_occurrences(match, ranges):
   text = remove_color_codes(match.text)
   quoted_ranges = []
@@ -229,20 +247,20 @@ def _definition_occurrences(match, ranges):
   return ()
 
 
-def _filter_occurrence_matches(results, occurrences, extractor):
-  for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
+def _filter_occurrence_matches(results, occurrences_by_line, extractor):
+  for match, line_occurrences in zip(results, occurrences_by_line):
     if occurrence_ranges := extractor(match, line_occurrences):
       yield replace(match, occurrence_ranges=occurrence_ranges)
 
 
-def _filter_occurrence_contexts(results, occurrences, extractor):
-  occurrence_lines = iter(_occurrences_by_line(occurrences))
+def _filter_occurrence_contexts(results, occurrences_by_line, extractor):
+  occurrences_by_line = iter(occurrences_by_line)
   for block in results:
     keep_block = False
     lines = []
     for result in block.lines:
       if result.is_match:
-        line_occurrences = next(occurrence_lines, ())
+        line_occurrences = next(occurrences_by_line, ())
         if occurrence_ranges := extractor(result, line_occurrences):
           result = replace(result, occurrence_ranges=occurrence_ranges)
           keep_block = True
@@ -453,11 +471,12 @@ def main(argv):
       range_extractor = lambda match, line_occurrences: _non_import_occurrences(
         match, line_occurrences, pattern_texts, import_scanner, python_import_scanner)
 
-    if range_extractor is not None:
+    if range_extractor is not None and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
+      group_by_line = _first_occurrences_by_line if _git_has_buggy_columns() else _occurrences_by_line
       if output_plan.mode == GrepOutputMode.CONTEXT:
-        results = _filter_occurrence_contexts(results, occurrences, range_extractor)
-      elif output_plan.mode == GrepOutputMode.MATCHES:
-        results = _filter_occurrence_matches(results, occurrences, range_extractor)
+        results = _filter_occurrence_contexts(results, group_by_line(occurrences), range_extractor)
+      else:
+        results = _filter_occurrence_matches(results, group_by_line(occurrences), range_extractor)
 
     return present_results(results, output_plan, result_action, program=main_arg)
 

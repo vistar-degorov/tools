@@ -403,6 +403,7 @@ class GGFixtureIntegrationTest(unittest.TestCase):
       "GG_SEARCH_IN", "GG_SEARCH_IN_DEFAULT",
       "GG_SEARCH_EXT", "GG_SEARCH_EXT_DEFAULT",
       "GG_TOOL", "GG_TOOL_DEFAULT",
+      "GG_GIT_VERSION",
     ):
       cls.environment.pop(name, None)
 
@@ -564,10 +565,11 @@ class GGFixtureIntegrationTest(unittest.TestCase):
     self.assertIn('route = "route/123"', result.stdout)
 
   def test_quoted_search_with_multiple_occurrences_per_line(self):
-    result = self._run("gq", "-o", "RepeatToken", "valid_code.py")
+    with patch.dict(self.environment, {"GG_GIT_VERSION": "git version 2.34.1"}):
+      result = self._run("gq", "-o", "RepeatToken", "valid_code.py")
     self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertEqual(len(result.stdout.splitlines()), 4)
-    self.assertEqual(result.stdout.count("RepeatToken"), 4)
+    self.assertEqual(len(result.stdout.splitlines()), 1)
+    self.assertTrue(result.stdout.endswith(':"RepeatToken"\n'), result.stdout)
 
 
 if __name__ == "__main__":
