@@ -102,3 +102,4 @@ if True:
             pass
 
 repeated_values = ("RepeatToken", "RepeatToken", "RepeatToken", "RepeatToken")
+mixed_values = (MixedMarker, "MixedMarker")

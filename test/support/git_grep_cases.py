@@ -139,6 +139,14 @@ GIT_GREP_CASES = (
     "quoted_repeated_line_matches", "RepeatToken",
     scope=_GG_EXPLICIT_PYTHON_SCOPE,
   ),
+  _search(
+    "quoted_later_occurrence", "MixedMarker", grep_args=("-o",),
+    scope=_GG_EXPLICIT_PYTHON_SCOPE,
+  ),
+  _search(
+    "quoted_later_match_line", "MixedMarker",
+    scope=_GG_EXPLICIT_PYTHON_SCOPE,
+  ),
   _search("empty_pattern", "", word=False),
   _search("max_depth_and_threads", grep_args=("--max-d", "4", "--threads=2")),
   _case(
