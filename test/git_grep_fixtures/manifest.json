@@ -1,5 +1,5 @@
 {
-  "case_count": 83,
+  "case_count": 85,
   "cases": [
     {
       "command": [
@@ -1600,6 +1600,49 @@
         "-n",
         "--column",
         "-z",
+        "-w",
+        "-o",
+        "-e",
+        "MixedMarker",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "quoted_later_occurrence",
+      "result": "a3957c39698bfc8f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "MixedMarker",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "quoted_later_match_line",
+      "result": "b472e2c6675ec85d"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
         "-e",
         "",
         "--",
@@ -1607,7 +1650,7 @@
       ],
       "mode": "matches",
       "name": "empty_pattern",
-      "result": "d80616e89b2c3724"
+      "result": "ac1c1a58f766f649"
     },
     {
       "command": [
@@ -1787,8 +1830,8 @@
   ],
   "corpus": {
     "path": "test/corpus/gg/search",
-    "repository_head": "4a81dcc2f0e258186aea609e670b448952b25827",
-    "sha256": "e9431c4f84e207421f15673ce50829e144e5609113d82b666646429e6cdebcba"
+    "repository_head": "320799eaa7a40056b6830bc7bc1fecc7d05567bc",
+    "sha256": "812d85a0fab2cb2ae9a746143ae112a415caf7dece000b317252f31f5b95ab6d"
   },
   "environment": {
     "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+00:00",
@@ -1817,7 +1860,7 @@
     ],
     "version": "git version 2.34.1"
   },
-  "result_count": 48,
+  "result_count": 50,
   "results": {
     "00e39a9099c7d2bc": {
       "returncode": 129,
@@ -2157,6 +2200,19 @@
         "sha256": "9a31b8d66e6f05d4591ebc9efb884127a0d77dec6637b18354147f13eb8f307d"
       }
     },
+    "a3957c39698bfc8f": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/a3957c39698bfc8f.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 66,
+        "path": "results/a3957c39698bfc8f.stdout",
+        "sha256": "7f924c283d82f51f08fe4155a6a5e3255ddbabb412f67d2d4b3dbd0d3774770e"
+      }
+    },
     "a8210e84504ce3da": {
       "returncode": 0,
       "stderr": {
@@ -2168,6 +2224,19 @@
         "bytes": 184,
         "path": "results/a8210e84504ce3da.stdout",
         "sha256": "cb144323d05c2cc027344663dc56d8d7ececa9d4892624a7071f6127bf00cc04"
+      }
+    },
+    "ac1c1a58f766f649": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/ac1c1a58f766f649.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 3428,
+        "path": "results/ac1c1a58f766f649.stdout",
+        "sha256": "37c68cee994bf255253bb86ee072217c657ed219ec1bdb82fca32f2607afe827"
       }
     },
     "af28a4c63c15735e": {
@@ -2194,6 +2263,19 @@
         "bytes": 27,
         "path": "results/b4513e73a228507b.stdout",
         "sha256": "36c574988a32f4c82dfe25f1f499113af81a1651d963855ccbef33f3d264b871"
+      }
+    },
+    "b472e2c6675ec85d": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/b472e2c6675ec85d.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 65,
+        "path": "results/b472e2c6675ec85d.stdout",
+        "sha256": "3e8d5d4fb6d47209866c8ead9421080fd41d3447708d478f8f92c5970845c0de"
       }
     },
     "b8c3e50c7b3529ca": {
@@ -2298,19 +2380,6 @@
         "bytes": 0,
         "path": "results/d740a6962ffd0bcc.stdout",
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      }
-    },
-    "d80616e89b2c3724": {
-      "returncode": 0,
-      "stderr": {
-        "bytes": 0,
-        "path": "results/d80616e89b2c3724.stderr",
-        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      },
-      "stdout": {
-        "bytes": 3364,
-        "path": "results/d80616e89b2c3724.stdout",
-        "sha256": "92f8151f5bfe9a7ca272d89db0fdbb0948da4f55809d7475da37a98fbb0f414f"
       }
     },
     "db0f756832d98fbb": {
