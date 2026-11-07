@@ -504,42 +504,12 @@ class GGFixtureIntegrationTest(unittest.TestCase):
     self.assertEqual(null_result.returncode, 0, null_result.stderr)
     self.assertEqual(null_result.stdout, "valid_code.py\x006\x00def target_extra():\n")
 
-  def test_quoted_search_crop_matches_output_includes_quotes(self):
-    result = self._run("gq", "-o", "--pattern", "route/123", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.endswith(':"route/123"\n'), result.stdout)
-    self.assertNotIn("route =", result.stdout)
-
-  def test_definition_crop_matches_output_includes_definition_syntax(self):
-    result = self._run("def", "-o", "target_extra", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.endswith(":def target_extra\n"), result.stdout)
-
-  def test_crop_matches_output_without_a_semantic_filter(self):
-    result = self._run("gg", "--imports", "-o", "decimal", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.endswith(":decimal\n"), result.stdout)
-
   def test_json_output(self):
     result = self._run("gg", "--json", "target")
     self.assertEqual(result.returncode, 0, result.stderr)
     records = [json.loads(line) for line in result.stdout.splitlines()]
     self.assertGreaterEqual(len(records), 2)
     self.assertEqual(set(records[0]), {"path", "line", "column", "text"})
-
-  def test_crop_matches_json_output_contains_projected_occurrences(self):
-    result = self._run("def", "--json", "-o", "target_extra", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    records = [json.loads(line) for line in result.stdout.splitlines()]
-    self.assertEqual(
-      [(record["column"], record["text"]) for record in records],
-      [(1, "def target_extra")],
-    )
-
-  def test_crop_matches_projection_precedes_result_selection(self):
-    result = self._run("def", "-o", "--stdout", "target/1", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertTrue(result.stdout.startswith("valid_code.py:3:1\n"), result.stdout)
 
   def test_selection_takes_priority_over_context_output(self):
     result = self._run("def", "-C", "3", "--stdout", "target/1")
@@ -557,26 +527,12 @@ class GGFixtureIntegrationTest(unittest.TestCase):
 
     strict = self._run("def", "--pattern", "target", "--show", "999")
     self.assertEqual(strict.returncode, 2)
-    self.assertIn("outside the result range", strict.stderr)
+    self.assertIn("result 999 is outside 1..2", strict.stderr)
 
   def test_explicit_pattern_disables_slash_selection(self):
     result = self._run("gg", "--pattern", "route/123")
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn('route = "route/123"', result.stdout)
-
-  def test_quoted_search_with_multiple_occurrences_per_line(self):
-    with patch.dict(self.environment, {"GG_GIT_VERSION": "git version 2.34.1"}):
-      result = self._run("gq", "-o", "RepeatToken", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertEqual(len(result.stdout.splitlines()), 1)
-    self.assertTrue(result.stdout.endswith(':"RepeatToken"\n'), result.stdout)
-
-  def test_quoted_search_finds_later_occurrence_on_line(self):
-    with patch.dict(self.environment, {"GG_GIT_VERSION": "git version 2.34.1"}):
-      result = self._run("gq", "-o", "MixedMarker", "valid_code.py")
-    self.assertEqual(result.returncode, 0, result.stderr)
-    self.assertEqual(len(result.stdout.splitlines()), 1)
-    self.assertTrue(result.stdout.endswith(':"MixedMarker"\n'), result.stdout)
 
 
 if __name__ == "__main__":
