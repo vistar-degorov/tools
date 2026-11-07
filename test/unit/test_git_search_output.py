@@ -20,7 +20,7 @@ class TerminalBytesIO(BytesIO):
     return True
 
 
-class StructuredOutputTest(unittest.TestCase):
+class GitSearchOutputUnitTest(unittest.TestCase):
   def _parse(self, data, mode):
     return list(parse_grep_results(data, mode))
 

@@ -1,0 +1,2517 @@
+{
+  "case_count": 85,
+  "cases": [
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "word_matches",
+      "result": "556feeada470d6f6"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=always",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "colored_matches",
+      "result": "fba689ca8504f193"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-e",
+        "route/123",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "regex_slash",
+      "result": "0dd606d9dc6bb23f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "missing_name",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "no_matches",
+      "result": "f80084d5ed9ac4fb"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--bad-git-option",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "invalid_option",
+      "result": "d5296fafbfafe76d"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "os",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "import_name",
+      "result": "42462d2d3fd96442"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "import os",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "import_statement",
+      "result": "9c0f91464959a583"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "ImportedMarker",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "multiline_import",
+      "result": "f7f5265f50e56275"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "UncertainMarker",
+        "--",
+        "syntax_errors.py"
+      ],
+      "mode": "matches",
+      "name": "malformed_import",
+      "result": "a00cd56118d4e71f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-A",
+        "2",
+        "-e",
+        "os",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "after_context_spaced",
+      "result": "190625fd38131ae7"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-B3",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "before_context_attached",
+      "result": "a8210e84504ce3da"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-2",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "numeric_context",
+      "result": "4de6707f78e09489"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-C",
+        "2",
+        "-e",
+        "os",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "centered_context",
+      "result": "190625fd38131ae7"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--show-function",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "show_function",
+      "result": "f937dcbd10dc7ec8"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-W",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "function_context",
+      "result": "a0dca1d1a4b1880b"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--bef=2",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "abbreviated_before_context",
+      "result": "2d663f0f76d10b94"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--show-f",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "abbreviated_show_function",
+      "result": "f937dcbd10dc7ec8"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--function-con",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "abbreviated_function_context",
+      "result": "a0dca1d1a4b1880b"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-in",
+        "-A2",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "context",
+      "name": "case_insensitive_context_cluster",
+      "result": "4b0f24e6f4880416"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-l",
+        "-e",
+        "decimal",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "paths",
+      "name": "paths",
+      "result": "fde94062188ba327"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-c",
+        "-l",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "paths",
+      "name": "paths_take_precedence",
+      "result": "fde94062188ba327"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-L",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "paths",
+      "name": "files_without_matches",
+      "result": "f80084d5ed9ac4fb"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-c",
+        "-e",
+        "decimal",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "counts",
+      "name": "counts",
+      "result": "f1d20dcc687832d0"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-c",
+        "-A",
+        "2",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "counts",
+      "name": "counts_with_context",
+      "result": "78aee13352ea6bc3"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-iA2",
+        "-c",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "counts",
+      "name": "counts_with_clustered_options",
+      "result": "db0f756832d98fbb"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "AlphaMarker",
+        "-e",
+        "BetaMarker",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "multiple_patterns",
+      "result": "f29ef033e9e7296c"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "AlphaMarker",
+        "--and",
+        "(",
+        "-e",
+        "BetaMarker",
+        ")",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "boolean_patterns",
+      "result": "f80084d5ed9ac4fb"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-iP",
+        "-e",
+        "alphamarker",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "perl_case_insensitive",
+      "result": "e105509ba6b7bfee"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "HEAD",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "revision_and_path",
+      "result": "247625eba9bb9482"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "occurrences",
+      "result": "194b341634401932"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-i",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "case_insensitive_occurrences",
+      "result": "506d6c744bc0268a"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-i",
+        "-n",
+        "--no-context",
+        "--max-depth",
+        "7",
+        "-e",
+        "-W",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "complex_occurrence_options",
+      "result": "506d6c744bc0268a"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-ie",
+        "needle",
+        "-o",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "clustered_pattern_occurrences",
+      "result": "f80084d5ed9ac4fb"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-e",
+        "",
+        "-o",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "empty_pattern_occurrences",
+      "result": "dbf555a599114a6e"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--max-d",
+        "4",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "max_depth_occurrences",
+      "result": "194b341634401932"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--threads=3",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "threaded_occurrences",
+      "result": "194b341634401932"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--123",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "invalid_occurrence_option",
+      "result": "9dea5c9ced75ff17"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--show-function=value",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "invalid_show_function_assignment",
+      "result": "8ce9815477eec693"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-o",
+        "-e",
+        "route/123",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "quoted_occurrences",
+      "result": "b9df650ce26365ae"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "Render",
+        "--",
+        "valid_code.go"
+      ],
+      "mode": "matches",
+      "name": "repeated_line_occurrences",
+      "result": "c0b6bb19e13056d6"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "DataStore",
+        "--",
+        "valid_code.ts"
+      ],
+      "mode": "matches",
+      "name": "typescript_definitions",
+      "result": "213742eb52b0075e"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "Tree",
+        "--",
+        "valid_code.go"
+      ],
+      "mode": "matches",
+      "name": "go_definitions",
+      "result": "1c56b7184ddca900"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "target_extra",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "definition_crop_occurrences",
+      "result": "8421b3de6ffe9735"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target_extra",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "definition_crop_matches",
+      "result": "81252f8fdf02baab"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_target_occurrences",
+      "result": "194b341634401932"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_target_matches",
+      "result": "556feeada470d6f6"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "missing_name",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_missing_occurrences",
+      "result": "f80084d5ed9ac4fb"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--bad-git-option",
+        "-o",
+        "-e",
+        "target",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_invalid_option_occurrences",
+      "result": "d5296fafbfafe76d"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "os",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_os_occurrences",
+      "result": "bd2976a170d5d7c0"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "os",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_os_matches",
+      "result": "42462d2d3fd96442"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "import os",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_import_statement_occurrences",
+      "result": "9c0f91464959a583"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "import os",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_import_statement_matches",
+      "result": "9c0f91464959a583"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "ImportedMarker",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_multiline_import_occurrences",
+      "result": "4cb2a9f7e55d9fdc"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "ImportedMarker",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_multiline_import_matches",
+      "result": "f7f5265f50e56275"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "UncertainMarker",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_malformed_import_occurrences",
+      "result": "af28a4c63c15735e"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "UncertainMarker",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_malformed_import_matches",
+      "result": "a00cd56118d4e71f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "os",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_os_occurrences",
+      "result": "bd2976a170d5d7c0"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-A",
+        "1",
+        "-e",
+        "os",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "context",
+      "name": "gg_after_context",
+      "result": "b8c3e50c7b3529ca"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-C",
+        "2",
+        "-e",
+        "os",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "context",
+      "name": "gg_centered_context",
+      "result": "190625fd38131ae7"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "decimal",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_decimal_occurrences",
+      "result": "b4513e73a228507b"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "decimal",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_decimal_matches",
+      "result": "5a46677d90f1980d"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-l",
+        "-e",
+        "decimal",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "paths",
+      "name": "gg_default_decimal_paths",
+      "result": "fde94062188ba327"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-c",
+        "-e",
+        "decimal",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "counts",
+      "name": "gg_default_decimal_counts",
+      "result": "f1d20dcc687832d0"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "decimal",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_decimal_occurrences",
+      "result": "b4513e73a228507b"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "decimal",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_decimal_matches",
+      "result": "5a46677d90f1980d"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "route/123",
+        "-o",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_quoted_occurrences",
+      "result": "b9df650ce26365ae"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "route/123",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_quoted_matches",
+      "result": "0dd606d9dc6bb23f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "target",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_target_occurrences",
+      "result": "194b341634401932"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_target_matches",
+      "result": "556feeada470d6f6"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "route/123",
+        "-o",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_route_occurrences",
+      "result": "b9df650ce26365ae"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "route/123",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_default_route_matches",
+      "result": "0dd606d9dc6bb23f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "-o",
+        "--",
+        ":!:*[Tt]est*",
+        "./*.py"
+      ],
+      "mode": "matches",
+      "name": "gg_explicit_pattern_target_occurrences",
+      "result": "194b341634401932"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "RepeatToken",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "quoted_repeated_line_occurrences",
+      "result": "a2a19ef1000b6252"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "RepeatToken",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "quoted_repeated_line_matches",
+      "result": "8f0cd12192f1acc4"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-o",
+        "-e",
+        "MixedMarker",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "quoted_later_occurrence",
+      "result": "a3957c39698bfc8f"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "MixedMarker",
+        "valid_code.py",
+        ":!:*[Tt]est*",
+        ":!:*[Ss]pec*"
+      ],
+      "mode": "matches",
+      "name": "quoted_later_match_line",
+      "result": "b472e2c6675ec85d"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-e",
+        "",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "empty_pattern",
+      "result": "ac1c1a58f766f649"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--max-d",
+        "4",
+        "--threads=2",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "max_depth_and_threads",
+      "result": "556feeada470d6f6"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-e",
+        "target",
+        "--",
+        "-A",
+        "2",
+        ""
+      ],
+      "mode": "matches",
+      "name": "option_like_operands",
+      "result": "d5e8c13437993693"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-iA",
+        "2",
+        "-efirst_expression",
+        "-fpatterns.txt",
+        "fallback_expression",
+        "source"
+      ],
+      "mode": "matches",
+      "name": "leading_pattern_sources",
+      "result": "cddfb69d7fe492f7"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-e",
+        "-C",
+        "--",
+        "-A",
+        "3"
+      ],
+      "mode": "matches",
+      "name": "pattern_value_and_option_like_operands",
+      "result": "f80084d5ed9ac4fb"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "-ilL",
+        "--name-only",
+        "--files-without-match",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "paths",
+      "name": "path_mode_aliases",
+      "result": "f80084d5ed9ac4fb"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--column=value",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "invalid_column_assignment",
+      "result": "00e39a9099c7d2bc"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-w",
+        "--color=value",
+        "-e",
+        "target",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "invalid_color_assignment",
+      "result": "d740a6962ffd0bcc"
+    },
+    {
+      "command": [
+        "git",
+        "grep",
+        "--color=never",
+        "-I",
+        "-H",
+        "-n",
+        "--column",
+        "-z",
+        "-e",
+        "--column",
+        "-f",
+        "-h",
+        "--max-depth",
+        "3",
+        "--no-count",
+        "--",
+        "valid_code.py"
+      ],
+      "mode": "matches",
+      "name": "pattern_and_file_values",
+      "result": "941e1654b339852a"
+    }
+  ],
+  "corpus": {
+    "path": "test/corpus/gg/search",
+    "repository_head": "320799eaa7a40056b6830bc7bc1fecc7d05567bc",
+    "sha256": "812d85a0fab2cb2ae9a746143ae112a415caf7dece000b317252f31f5b95ab6d"
+  },
+  "environment": {
+    "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+00:00",
+    "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+    "GIT_AUTHOR_NAME": "Fixture Generator",
+    "GIT_COMMITTER_DATE": "2000-01-01T00:00:00+00:00",
+    "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    "GIT_COMMITTER_NAME": "Fixture Generator",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_PAGER": "cat",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "PAGER": "cat",
+    "TZ": "UTC"
+  },
+  "generator": "python -m test.support.generate_git_grep_fixtures",
+  "git": {
+    "build_options": [
+      "git version 2.34.1",
+      "cpu: x86_64",
+      "no commit associated with this build",
+      "sizeof-long: 8",
+      "sizeof-size_t: 8",
+      "shell-path: /bin/sh"
+    ],
+    "version": "git version 2.34.1"
+  },
+  "result_count": 50,
+  "results": {
+    "00e39a9099c7d2bc": {
+      "returncode": 129,
+      "stderr": {
+        "bytes": 38,
+        "path": "results/00e39a9099c7d2bc.stderr",
+        "sha256": "81237db590020d9663bddd611267670d3588c6c01140d05fd12e909e5f1bc4fb"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/00e39a9099c7d2bc.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "0dd606d9dc6bb23f": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/0dd606d9dc6bb23f.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 40,
+        "path": "results/0dd606d9dc6bb23f.stdout",
+        "sha256": "fa49647a793c44d0a866d3c8ab232d713cf42d540d709955ab1f2958b94bdc80"
+      }
+    },
+    "190625fd38131ae7": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/190625fd38131ae7.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 168,
+        "path": "results/190625fd38131ae7.stdout",
+        "sha256": "9044c7ae467ed6bb5fb38a939efd579028174ebed178fd50c3bfe868928c80ab"
+      }
+    },
+    "194b341634401932": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/194b341634401932.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 51,
+        "path": "results/194b341634401932.stdout",
+        "sha256": "516534bd9eb6d993e26289d04f33b4f3f474161c5eed9fe6e0249e3a00a64d13"
+      }
+    },
+    "1c56b7184ddca900": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/1c56b7184ddca900.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 99,
+        "path": "results/1c56b7184ddca900.stdout",
+        "sha256": "8a2c9f17b9d6a920a9e474feb16fa7e735288d05e92fe0e2ae476fcd9a7b16a6"
+      }
+    },
+    "213742eb52b0075e": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/213742eb52b0075e.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 29,
+        "path": "results/213742eb52b0075e.stdout",
+        "sha256": "16a4f48562d3f8f99b7100400cbf3eec0e458b7870e55e953a366968d536e462"
+      }
+    },
+    "247625eba9bb9482": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/247625eba9bb9482.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 75,
+        "path": "results/247625eba9bb9482.stdout",
+        "sha256": "3c93d37697461bc9b1761dc2da07b5e653bc3c21a90f22ceb1d6573197d30c2c"
+      }
+    },
+    "2d663f0f76d10b94": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/2d663f0f76d10b94.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 153,
+        "path": "results/2d663f0f76d10b94.stdout",
+        "sha256": "f7ab93aaf635ad01da5fc73b61a048ca41fb4c0d8152f5f742f1c3f16e0dae4d"
+      }
+    },
+    "42462d2d3fd96442": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/42462d2d3fd96442.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 68,
+        "path": "results/42462d2d3fd96442.stdout",
+        "sha256": "5103e48b93dd3e364e54404b4254e421898da8abfe3f84834519b1530b99973e"
+      }
+    },
+    "4b0f24e6f4880416": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/4b0f24e6f4880416.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 250,
+        "path": "results/4b0f24e6f4880416.stdout",
+        "sha256": "94fc553220d84f19b9f3471737d5b1973ca5345ca9f60084e73b22c1e6199280"
+      }
+    },
+    "4cb2a9f7e55d9fdc": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/4cb2a9f7e55d9fdc.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 68,
+        "path": "results/4cb2a9f7e55d9fdc.stdout",
+        "sha256": "4e22a8d8db3fb5dfcf4a6d1510420fcccbf1c6510c557e2ee40e7a31badadc55"
+      }
+    },
+    "4de6707f78e09489": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/4de6707f78e09489.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 260,
+        "path": "results/4de6707f78e09489.stdout",
+        "sha256": "8c07dfc916e91a34b277487820ed4e567f18b21f31289e274e0e41c2a2757361"
+      }
+    },
+    "506d6c744bc0268a": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/506d6c744bc0268a.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 77,
+        "path": "results/506d6c744bc0268a.stdout",
+        "sha256": "88466f28d82b92806470c9cd573195f3870760728b0bafe561cc27218f7ce890"
+      }
+    },
+    "556feeada470d6f6": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/556feeada470d6f6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 65,
+        "path": "results/556feeada470d6f6.stdout",
+        "sha256": "d465626d2a875908f372bb48a01a68793b96be7d34f8d613a1a34d983d401df9"
+      }
+    },
+    "5a46677d90f1980d": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/5a46677d90f1980d.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 34,
+        "path": "results/5a46677d90f1980d.stdout",
+        "sha256": "02bc7d52048a84f1b88a7b9355bb3b8e86a254250f6e3c168616ab116d5ef0ca"
+      }
+    },
+    "78aee13352ea6bc3": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/78aee13352ea6bc3.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 16,
+        "path": "results/78aee13352ea6bc3.stdout",
+        "sha256": "e26785bbb302f4cd64184308379e41a0917cde14a33932d36a724f86ebe416e3"
+      }
+    },
+    "81252f8fdf02baab": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/81252f8fdf02baab.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 38,
+        "path": "results/81252f8fdf02baab.stdout",
+        "sha256": "ea08f06c3d74be5f35ef59c0f3be8378ae0780e5dfe1f08ce2febbe1c495d1ea"
+      }
+    },
+    "8421b3de6ffe9735": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/8421b3de6ffe9735.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 31,
+        "path": "results/8421b3de6ffe9735.stdout",
+        "sha256": "f9fdd0c526492cfb71a0276b9d7eafdefcdb628ed31b9980b96a0632c40ab658"
+      }
+    },
+    "8ce9815477eec693": {
+      "returncode": 129,
+      "stderr": {
+        "bytes": 45,
+        "path": "results/8ce9815477eec693.stderr",
+        "sha256": "94a688cdb4e3ed6580ba7325cbc9dad59ef14655aee20fac3e7756c7b01331c9"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/8ce9815477eec693.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "8f0cd12192f1acc4": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/8f0cd12192f1acc4.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 100,
+        "path": "results/8f0cd12192f1acc4.stdout",
+        "sha256": "d5f0767cf26076da6e0619c26f96913fddd3d859b5a2a085635a201647382ed1"
+      }
+    },
+    "941e1654b339852a": {
+      "returncode": 128,
+      "stderr": {
+        "bytes": 51,
+        "path": "results/941e1654b339852a.stderr",
+        "sha256": "cdf2697e7cae78e31ab812eabca402cd0c6b3b8e337ecba3abaf41e96fde9ca4"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/941e1654b339852a.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "9c0f91464959a583": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/9c0f91464959a583.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 28,
+        "path": "results/9c0f91464959a583.stdout",
+        "sha256": "44ab5cc606625ccf985541bacda3c1ae4a17a89f0f4a1f8b66962159a6ac0a6a"
+      }
+    },
+    "9dea5c9ced75ff17": {
+      "returncode": 129,
+      "stderr": {
+        "bytes": 3210,
+        "path": "results/9dea5c9ced75ff17.stderr",
+        "sha256": "819e62649fa9c332fa6f9798d7c7cc92f31ce24cbb311400bd731ef57efbcd2e"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/9dea5c9ced75ff17.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "a00cd56118d4e71f": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/a00cd56118d4e71f.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 40,
+        "path": "results/a00cd56118d4e71f.stdout",
+        "sha256": "48ae88ef343ec5a39e12721822f80bdcf01276c69970f42daf2cd1836f9decb6"
+      }
+    },
+    "a0dca1d1a4b1880b": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/a0dca1d1a4b1880b.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 140,
+        "path": "results/a0dca1d1a4b1880b.stdout",
+        "sha256": "10d992fa50db931e402e7968834c4770af478337a738eb0e264b3f4c5d0b3948"
+      }
+    },
+    "a2a19ef1000b6252": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/a2a19ef1000b6252.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 132,
+        "path": "results/a2a19ef1000b6252.stdout",
+        "sha256": "9a31b8d66e6f05d4591ebc9efb884127a0d77dec6637b18354147f13eb8f307d"
+      }
+    },
+    "a3957c39698bfc8f": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/a3957c39698bfc8f.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 66,
+        "path": "results/a3957c39698bfc8f.stdout",
+        "sha256": "7f924c283d82f51f08fe4155a6a5e3255ddbabb412f67d2d4b3dbd0d3774770e"
+      }
+    },
+    "a8210e84504ce3da": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/a8210e84504ce3da.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 184,
+        "path": "results/a8210e84504ce3da.stdout",
+        "sha256": "cb144323d05c2cc027344663dc56d8d7ececa9d4892624a7071f6127bf00cc04"
+      }
+    },
+    "ac1c1a58f766f649": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/ac1c1a58f766f649.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 3428,
+        "path": "results/ac1c1a58f766f649.stdout",
+        "sha256": "37c68cee994bf255253bb86ee072217c657ed219ec1bdb82fca32f2607afe827"
+      }
+    },
+    "af28a4c63c15735e": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/af28a4c63c15735e.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 37,
+        "path": "results/af28a4c63c15735e.stdout",
+        "sha256": "d061d58530f73a7f925bb6bfc694c7065e9c9c6b8703ad3ade9d927aec131dcb"
+      }
+    },
+    "b4513e73a228507b": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/b4513e73a228507b.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 27,
+        "path": "results/b4513e73a228507b.stdout",
+        "sha256": "36c574988a32f4c82dfe25f1f499113af81a1651d963855ccbef33f3d264b871"
+      }
+    },
+    "b472e2c6675ec85d": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/b472e2c6675ec85d.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 65,
+        "path": "results/b472e2c6675ec85d.stdout",
+        "sha256": "3e8d5d4fb6d47209866c8ead9421080fd41d3447708d478f8f92c5970845c0de"
+      }
+    },
+    "b8c3e50c7b3529ca": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/b8c3e50c7b3529ca.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 105,
+        "path": "results/b8c3e50c7b3529ca.stdout",
+        "sha256": "282909538ba79d8b55c17a4fde9a0b58f34bf7600a9669e1c0b9eb02d537294f"
+      }
+    },
+    "b9df650ce26365ae": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/b9df650ce26365ae.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 30,
+        "path": "results/b9df650ce26365ae.stdout",
+        "sha256": "427e7de65f6cf7aa1085504f13e5a4ca5de9240352d6ba26f88091c9b465f6d1"
+      }
+    },
+    "bd2976a170d5d7c0": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/bd2976a170d5d7c0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 43,
+        "path": "results/bd2976a170d5d7c0.stdout",
+        "sha256": "6af4015255b70df36d4e8a78c22992961252132b81d82de173ff3b8d65d27885"
+      }
+    },
+    "c0b6bb19e13056d6": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/c0b6bb19e13056d6.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 133,
+        "path": "results/c0b6bb19e13056d6.stdout",
+        "sha256": "f58296bc6663468e9a39d842452877845e91afb1a29ffc1e9430443ba975e6b8"
+      }
+    },
+    "cddfb69d7fe492f7": {
+      "returncode": 128,
+      "stderr": {
+        "bytes": 61,
+        "path": "results/cddfb69d7fe492f7.stderr",
+        "sha256": "a6d616ed2c5fca2e4a4910c3f532990d08fac0dd3169f153f96367d9459b1636"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/cddfb69d7fe492f7.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "d5296fafbfafe76d": {
+      "returncode": 129,
+      "stderr": {
+        "bytes": 3221,
+        "path": "results/d5296fafbfafe76d.stderr",
+        "sha256": "baf99fa67606f3e7f6b170e70b319e1538e1de7662d3f82573c7c2582ae2823c"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/d5296fafbfafe76d.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "d5e8c13437993693": {
+      "returncode": 128,
+      "stderr": {
+        "bytes": 98,
+        "path": "results/d5e8c13437993693.stderr",
+        "sha256": "0e61dfeacc3410ca9cec2ff80a12007eeb2cb9783fc337d0babf63a04821649c"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/d5e8c13437993693.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "d740a6962ffd0bcc": {
+      "returncode": 129,
+      "stderr": {
+        "bytes": 59,
+        "path": "results/d740a6962ffd0bcc.stderr",
+        "sha256": "1ee10d45d124243ab45f24f09e049856a44c05ca78413394b1f96376d3fe5b4b"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/d740a6962ffd0bcc.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "db0f756832d98fbb": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/db0f756832d98fbb.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 16,
+        "path": "results/db0f756832d98fbb.stdout",
+        "sha256": "3989fdfe5101011c489cf36fb4434de90984d87e8d7d885facbdf80585b275a2"
+      }
+    },
+    "dbf555a599114a6e": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/dbf555a599114a6e.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/dbf555a599114a6e.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "e105509ba6b7bfee": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/e105509ba6b7bfee.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 42,
+        "path": "results/e105509ba6b7bfee.stdout",
+        "sha256": "7e502387670c677f9afb04a6dda1b75daa5c53ad1bbd34e49716c91f071e5294"
+      }
+    },
+    "f1d20dcc687832d0": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/f1d20dcc687832d0.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 16,
+        "path": "results/f1d20dcc687832d0.stdout",
+        "sha256": "67a5fd1daf6e63de8dab74d709798c0ec38ed586eaf1e919fb7e1c9978027758"
+      }
+    },
+    "f29ef033e9e7296c": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/f29ef033e9e7296c.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 83,
+        "path": "results/f29ef033e9e7296c.stdout",
+        "sha256": "ab50780771f0c739b7ef4bc72eb866e2246cbb37b86defd54ed705b30fd7f2b2"
+      }
+    },
+    "f7f5265f50e56275": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/f7f5265f50e56275.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 73,
+        "path": "results/f7f5265f50e56275.stdout",
+        "sha256": "e8f89e4595de591755c2fef86108875aafceee6ed610a53833ae0ecccfbd2619"
+      }
+    },
+    "f80084d5ed9ac4fb": {
+      "returncode": 1,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/f80084d5ed9ac4fb.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 0,
+        "path": "results/f80084d5ed9ac4fb.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "f937dcbd10dc7ec8": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/f937dcbd10dc7ec8.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 122,
+        "path": "results/f937dcbd10dc7ec8.stdout",
+        "sha256": "393cc2cfdd7d87e80a07b1b47dfb55a04b0d4ae8e3084b373a74d578545cef37"
+      }
+    },
+    "fba689ca8504f193": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/fba689ca8504f193.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 85,
+        "path": "results/fba689ca8504f193.stdout",
+        "sha256": "cf057c2a5dcae55d6abab9cbe439223becd04d5c801c297fbe420724ea30c10e"
+      }
+    },
+    "fde94062188ba327": {
+      "returncode": 0,
+      "stderr": {
+        "bytes": 0,
+        "path": "results/fde94062188ba327.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": {
+        "bytes": 14,
+        "path": "results/fde94062188ba327.stdout",
+        "sha256": "4c784c8391b1c24730615abdabdf479c34171b1c0f7b8d289af7f120c799808f"
+      }
+    }
+  },
+  "schema_version": 1
+}
