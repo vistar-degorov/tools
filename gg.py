@@ -400,9 +400,9 @@ class PythonImportScanner(_BaseFileScanner):
       if end[0] < line:
         break
 
-    if parser.import_in_progress or parser.failed or parser.advanced_through < line:
+    if parser.failed or parser.advanced_through < line:
       return None
-    return False
+    return parser.import_in_progress
 
 
 def main(argv):
