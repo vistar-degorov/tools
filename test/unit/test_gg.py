@@ -85,9 +85,14 @@ ImportedMarker()
 """)
     path = str(self.fixture_root / "multiline_import.py")
     with PythonImportScanner() as scanner:
-      self.assertIsNone(scanner.classify(path, 1))
+      self.assertTrue(scanner.classify(path, 1))
       self.assertTrue(scanner.classify(path, 2))
       self.assertFalse(scanner.classify(path, 4))
+
+  def test_python_import_scanner_classifies_unfinished_import_as_import(self):
+    self._write("unfinished.py", "from package import (\n  Member,\n  Other,\n")
+    with PythonImportScanner() as scanner:
+      self.assertTrue(scanner.classify(str(self.fixture_root / "unfinished.py"), 2))
 
   def test_import_scanner_returns_unknown_if_requested_line_was_not_read(self):
     path = self.fixture_root / "incomplete.ts"
