@@ -26,6 +26,7 @@ class OutputPlan:
   null_terminate_filenames: bool
   color: str | None
   quiet: bool = False
+  crop_matches: bool = False
 
   def with_mode(self, mode: GrepOutputMode) -> "OutputPlan":
     return OutputPlan(**dict(asdict(self), mode=mode))
@@ -117,13 +118,14 @@ _LONG_BOOLEAN_SETTINGS = {
   "--break": "break_between_files",
   "--null": "null_terminate_filenames",
   "--quiet": "quiet",
+  "--only-matching": "crop_matches",
 }
 
 _OTHER_OPTIONS = frozenset((
   "--all-match", "--and", "--basic-regexp", "--cached", "--exclude-standard",
   "--extended-regexp", "--fixed-strings", "--full-name", "--ignore-case", "--invert-match",
   "--no-color", "--no-exclude-standard", "--no-index", "--no-recursive", "--not", "--no-textconv",
-  "--only-matching", "--or", "--parent-basename", "--perl-regexp",
+  "--or", "--parent-basename", "--perl-regexp",
   "--recurse-submodules", "--recursive", "--text", "--textconv", "--untracked", "--word-regexp",
 ))
 
@@ -153,13 +155,14 @@ _SHORT_SETTINGS = {
   "W": ("function_context", True),
   "z": ("null_terminate_filenames", True),
   "q": ("quiet", True),
+  "o": ("crop_matches", True),
 }
 
 _PRESENTATION_LONG_OPTIONS = {
-  "--line-number", "--column", "--heading", "--break", "--null", "--color",
+  "--line-number", "--column", "--heading", "--break", "--null", "--color", "--only-matching",
 }
 
-_PRESENTATION_SHORT_OPTIONS = frozenset("hHnz")
+_PRESENTATION_SHORT_OPTIONS = frozenset("hHnzo")
 _COLOR_VALUES = {"always", "auto", "never"}
 
 
@@ -284,7 +287,6 @@ _PATH_OUTPUT_OPTIONS = frozenset((
 _INCOMPATIBLE_STRUCTURED_OUTPUT_OPTIONS = frozenset((
   "-c", "--count",
   "-q", "--quiet",
-  "-o", "--only-matching",
   "-O", "--open-files-in-pager",
   *_CONTEXT_SETTINGS,
 ))
@@ -342,8 +344,8 @@ class _ApplyOutputOptions(ArgumentIterator):
       self.retain(text, value, value_style)
 
 
-def skip_context_options(arguments):
-  return _SkipContextOptions(arguments)
+def prepare_occurrence_options(arguments):
+  return (*_SkipContextOptions(arguments), "-o")
 
 
 def _apply_output_options(arguments):
@@ -363,6 +365,7 @@ def _apply_output_options(arguments):
     show_function=False,
     function_context=False,
     quiet=False,
+    crop_matches=False,
   )
   arguments = tuple(_ApplyOutputOptions(arguments, settings))
 
@@ -397,6 +400,7 @@ def _apply_output_options(arguments):
     null_terminate_filenames=settings.null_terminate_filenames,
     color=settings.color,
     quiet=settings.quiet,
+    crop_matches=settings.crop_matches,
   ), arguments
 
 

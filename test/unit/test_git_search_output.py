@@ -55,6 +55,36 @@ class GitSearchOutputUnitTest(unittest.TestCase):
       ],
     )
 
+  def test_crop_matches_projects_every_occurrence(self):
+    result = SearchResult(
+      "source.py", 3, 8, b'prefix "first" and "second"',
+      occurrence_ranges=((7, 14), (19, 27)),
+    )
+    self.assertEqual(
+      self._render((result,), GrepOutputMode.MATCHES, crop_matches=True),
+      b'source.py:3:"first"\nsource.py:3:"second"\n',
+    )
+
+  def test_crop_matches_preserves_match_color(self):
+    result = SearchResult(
+      "source.py", 3, 8, b'prefix "\x1b[1;31mvalue\x1b[m" suffix',
+      occurrence_ranges=((7, 14),),
+    )
+    self.assertEqual(
+      self._render((result,), GrepOutputMode.MATCHES, crop_matches=True, color="never"),
+      b'source.py:3:"\x1b[1;31mvalue\x1b[m"\n',
+    )
+
+  def test_crop_matches_tracks_color_at_occurrence_boundaries(self):
+    result = SearchResult(
+      "source.py", 3, 1, b"plain \x1b[1;31mcolored value\x1b[m",
+      occurrence_ranges=((0, 5), (7, 13)),
+    )
+    self.assertEqual(
+      self._render((result,), GrepOutputMode.MATCHES, crop_matches=True, color="never"),
+      b"source.py:3:plain\nsource.py:3:\x1b[1;31molored\x1b[m\n",
+    )
+
   def test_match_text_round_trips_as_bytes(self):
     data = b"source.py\0" b"3\0" b"7\0" b"raw-\xff-value\n"
     records = self._parse(data, GrepOutputMode.MATCHES)

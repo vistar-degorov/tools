@@ -1,7 +1,10 @@
 #! /usr/bin/python
 
 import argparse
+from dataclasses import replace
+from contextlib import ExitStack
 from itertools import groupby
+import os
 from pathlib import Path
 import re
 import sys
@@ -100,7 +103,9 @@ def _argument_parser():
       "are passed to git grep as revisions or paths; -- before paths is "
       "optional. Explicit operands override the default root and extension "
       "filters.\n"
-      "Results include line numbers by default, so -n is unnecessary."
+      "Results include line numbers by default, so -n is unnecessary.\n"
+      "Set GG_GIT_VERSION to the output of git --version to enable compatibility "
+      "with older Git versions."
     ),
   )
   parser.add_argument(
@@ -129,7 +134,8 @@ def _parse_arguments(arguments):
   return parse_search_arguments(_argument_parser(), arguments, pattern_metavar="PATTERN")
 
 
-def _has_non_import(match, occurrences, patterns, import_scanner, python_import_scanner):
+def _non_import_occurrences(match, ranges, patterns, import_scanner, python_import_scanner):
+  all_ranges = tuple(ranges)
   extension = Path(match.path).suffix.lower()
   if extension == ".py":
     find_import = _PYTHON_IMPORT.match
@@ -144,105 +150,123 @@ def _has_non_import(match, occurrences, patterns, import_scanner, python_import_
     find_import = _COFFEE_IMPORT.search
     pattern_has_import = _COFFEE_IMPORT_PATTERN.search
   else:
-    return True
+    return all_ranges
 
   # if a search pattern looks like it's searching for an import, skip filtering
   if any(pattern_has_import(pattern) is not None for pattern in patterns):
-    return True
+    return all_ranges
 
   text = remove_color_codes(match.text)
 
   # multiline import detection
   if extension == ".go" and import_scanner.classify(
     match.path, match.line, _update_go_import_state) is True:
-    return False
+    return ()
 
   if _COMMA_LIST_OF_NAMES.fullmatch(text) is not None:
     if extension == ".py":
-      return python_import_scanner.classify(match.path, match.line) is not True
+      is_import = python_import_scanner.classify(match.path, match.line)
 
-    if extension in (".ts", ".tsx"):
-      return import_scanner.classify(
-        match.path, match.line, _update_typescript_import_state) is not True
+    elif extension in (".ts", ".tsx"):
+      is_import = import_scanner.classify(match.path, match.line, _update_typescript_import_state)
 
     else:
-      return True
+      is_import = False
 
-  # single line import detection
-  for occurrence in occurrences:
-    head = occurrence.column - 1
-    statement = text[text.rfind(b";", 0, head) + 1:]
-    if find_import(statement) is None:
-      return True
-  return False
+    return () if is_import is True else all_ranges
 
+  def _filter_single_line_imports():
+    for occurrence_range in all_ranges:
+      head, _ = occurrence_range
+      statement = text[text.rfind(b";", 0, head) + 1:]
+      if find_import(statement) is None:
+        yield occurrence_range
 
-def _is_quoted(text: bytes, head: int, tail: int) -> bool:
-  if text[head] not in b'\'"':
-    head = max(0, head - 1)
-  if text[tail - 1] not in b'\'"':
-    tail = min(tail + 1, len(text))
-  return tail - head > 1 and (char := text[head]) == text[tail - 1] and char in b'\'"'
+  return tuple(_filter_single_line_imports())
 
 
 def _occurrences_by_line(occurrences):
+  def _ranges(_occ):
+    for occurrence in _occ:
+      head = occurrence.column - 1
+      yield head, head + len(occurrence.text)
+
   for _, line_occurrences in groupby(occurrences, key=lambda occ: (occ.path, occ.line)):
-    yield tuple(line_occurrences)
+    yield tuple(_ranges(line_occurrences))
 
 
-def _has_quoted_occurrence(match, occurrences):
-  text = remove_color_codes(match.text)
-  for occurrence in occurrences:
+def _first_occurrences_by_line(occurrences):
+  for _, line_occurrences in groupby(occurrences, key=lambda occ: (occ.path, occ.line)):
+    occurrence = next(line_occurrences)
     head = occurrence.column - 1
-    if _is_quoted(text, head, head + len(occurrence.text)):
-      return True
-  return False
+    yield ((head, head + len(occurrence.text)),)
 
 
-def _has_definition_occurrence(match, occurrences):
+def _git_has_buggy_columns():
+  version = os.environ.get("GG_GIT_VERSION", "")
+  match = re.match(r"\s*(?:git version\s+)?(\d+)\.(\d+)(?:\.(\d+))?", version)
+  if match is None:
+    return False
+  return tuple(int(part or 0) for part in match.groups()) < (2, 55, 0)
+
+
+def _quoted_occurrences(match, ranges):
+  text = remove_color_codes(match.text)
+  quoted_ranges = []
+  for head, tail in ranges:
+    if text[head] not in b'\'"':
+      head = max(0, head - 1)
+    if text[tail - 1] not in b'\'"':
+      tail = min(tail + 1, len(text))
+    if tail - head > 1 and (char := text[head]) == text[tail - 1] and char in b'\'"':
+      quoted_ranges.append((head, tail))
+  return tuple(quoted_ranges)
+
+
+def _definition_occurrences(match, ranges):
   extension = Path(match.path).suffix.lower()
   if extension in (".py", ".pyi", ".pyw", ".bzl"):
-    definition_patterns = (_PYTHON_DEFINITION,)
+    patterns = (_PYTHON_DEFINITION,)
   elif extension in (".ts", ".tsx"):
-    definition_patterns = (_TYPESCRIPT_DECLARATION, _TYPESCRIPT_VARIABLE)
+    patterns = (_TYPESCRIPT_DECLARATION, _TYPESCRIPT_VARIABLE)
   elif extension == ".go":
-    definition_patterns = (_GO_FUNCTION, _GO_TYPE, _GO_VALUE, _GO_SHORT_VARIABLE)
+    patterns = (_GO_FUNCTION, _GO_TYPE, _GO_VALUE, _GO_SHORT_VARIABLE)
   else:
-    return False
+    return ()
 
   text = remove_color_codes(match.text)
-  definition_spans = tuple(
-    definition.span(1)
-    for pattern in definition_patterns
-    if (definition := pattern.match(text)) is not None
-  )
-  for occurrence in occurrences:
-    occurrence_head = occurrence.column - 1
-    occurrence_tail = occurrence_head + len(occurrence.text)
-    if any(
-      occurrence_head < definition_tail and occurrence_tail > definition_head
-      for definition_head, definition_tail in definition_spans
-    ):
-      return True
-  return False
+  for pattern in patterns:
+    if (definition := pattern.match(text)) is None:
+      continue
+
+    name_head, name_tail = definition.span(1)
+    if any(head < name_tail and tail > name_head for head, tail in ranges):
+      definition_text = definition.group(0).lstrip()
+      definition_head = definition.end() - len(definition_text)
+      return ((definition_head, definition.end()),)
+  return ()
 
 
-def _filter_occurrence_matches(results, occurrences, predicate):
-  for match, line_occurrences in zip(results, _occurrences_by_line(occurrences)):
-    if predicate(match, line_occurrences):
-      yield match
+def _filter_occurrence_matches(results, occurrences_by_line, extractor):
+  for match, line_occurrences in zip(results, occurrences_by_line):
+    if occurrence_ranges := extractor(match, line_occurrences):
+      yield replace(match, occurrence_ranges=occurrence_ranges)
 
 
-def _filter_occurrence_contexts(results, occurrences, predicate):
-  occurrence_lines = iter(_occurrences_by_line(occurrences))
+def _filter_occurrence_contexts(results, occurrences_by_line, extractor):
+  occurrences_by_line = iter(occurrences_by_line)
   for block in results:
     keep_block = False
-    for match in block.matches:
-      line_occurrences = next(occurrence_lines, ())
-      keep_match = predicate(match, line_occurrences)
-      keep_block = keep_block or keep_match
+    lines = []
+    for result in block.lines:
+      if result.is_match:
+        line_occurrences = next(occurrences_by_line, ())
+        if occurrence_ranges := extractor(result, line_occurrences):
+          result = replace(result, occurrence_ranges=occurrence_ranges)
+          keep_block = True
+      lines.append(result)
     if keep_block:
-      yield block
+      yield replace(block, lines=tuple(lines))
 
 
 class _BaseFileScanner:
@@ -383,8 +407,7 @@ class PythonImportScanner(_BaseFileScanner):
 
 def main(argv):
   main_arg = Path(argv[0]).name
-  arguments = argv[1:]
-  options = _parse_arguments(arguments)
+  options = _parse_arguments(argv[1:])
   result_action = make_result_action(options)
   output_plan, grep_args = make_output_plan(options.grep_args, result_action)
   patterns = () if options.pattern is None else (options.pattern,)
@@ -393,13 +416,15 @@ def main(argv):
   filtered_extensions = extensions
   if options.scope_arguments is not None:
     filtered_extensions = (*extensions, ".py", ".ts", ".tsx", ".coffee")
-  filter_predicate = None
+  range_extractor = None
   if main_arg == "def":
-    filter_predicate = _has_definition_occurrence
+    range_extractor = _definition_occurrences
   elif main_arg in ("gq", "gqq"):
-    filter_predicate = _has_quoted_occurrence
+    range_extractor = _quoted_occurrences
   elif not options.imports and main_arg != "gi":
-    filter_predicate = _has_non_import
+    range_extractor = _non_import_occurrences
+  elif output_plan.crop_matches and output_plan.mode is GrepOutputMode.MATCHES:
+    range_extractor = lambda _, occ: occ
 
   if options.word is None:
     word_regexp = (
@@ -420,7 +445,7 @@ def main(argv):
   scope = make_search_scope(options, grep_args, extensions, test_indicators=test_indicators)
   debug_mode = options.debug or scope.debug
 
-  if filter_predicate and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
+  if range_extractor and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
     cmd = build_occurrence_search_command(
       patterns, scope.grep_args, scope.arguments,
       untracked=options.untracked,
@@ -439,22 +464,21 @@ def main(argv):
   if results is None:
     return status
 
-  if filter_predicate:
-    if filter_predicate is _has_non_import:
-      with ImportScanner() as import_scanner, PythonImportScanner() as python_import_scanner:
-        predicate = lambda match, line_occurrences: _has_non_import(
-          match, line_occurrences, pattern_texts, import_scanner, python_import_scanner)
-        if output_plan.mode == GrepOutputMode.CONTEXT:
-          results = list(_filter_occurrence_contexts(results, occurrences, predicate))
-        elif output_plan.mode == GrepOutputMode.MATCHES:
-          results = list(_filter_occurrence_matches(results, occurrences, predicate))
-    else:
-      if output_plan.mode == GrepOutputMode.CONTEXT:
-        results = list(_filter_occurrence_contexts(results, occurrences, filter_predicate))
-      elif output_plan.mode == GrepOutputMode.MATCHES:
-        results = list(_filter_occurrence_matches(results, occurrences, filter_predicate))
+  with ExitStack() as stack:
+    if range_extractor is _non_import_occurrences:
+      import_scanner = stack.enter_context(ImportScanner())
+      python_import_scanner = stack.enter_context(PythonImportScanner())
+      range_extractor = lambda match, line_occurrences: _non_import_occurrences(
+        match, line_occurrences, pattern_texts, import_scanner, python_import_scanner)
 
-  return present_results(results, output_plan, result_action, program=main_arg)
+    if range_extractor is not None and output_plan.mode in (GrepOutputMode.MATCHES, GrepOutputMode.CONTEXT):
+      group_by_line = _first_occurrences_by_line if _git_has_buggy_columns() else _occurrences_by_line
+      if output_plan.mode == GrepOutputMode.CONTEXT:
+        results = _filter_occurrence_contexts(results, group_by_line(occurrences), range_extractor)
+      else:
+        results = _filter_occurrence_matches(results, group_by_line(occurrences), range_extractor)
+
+    return present_results(results, output_plan, result_action, program=main_arg)
 
 
 if __name__ == "__main__":

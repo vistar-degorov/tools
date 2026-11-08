@@ -1,6 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
+from itertools import chain
 from pathlib import Path
 import re
 import shlex
@@ -8,7 +9,7 @@ import subprocess
 import sys
 
 from .git_search_args import (
-  Config, GrepOutputMode, resolve_setting, skip_context_options,
+  Config, GrepOutputMode, prepare_occurrence_options, resolve_setting,
 )
 
 
@@ -18,9 +19,14 @@ class SearchResult:
   line: int | None
   column: int | None
   text: bytes
+  # zero-based, half-open byte ranges in text with ANSI color codes removed
+  occurrence_ranges: tuple[tuple[int, int], ...] = ()
 
   @property
   def is_match(self):
+    '''
+    distinguish grep-matched lines from surrounding context lines
+    '''
     return self.line is not None and self.column is not None
 
 
@@ -47,11 +53,12 @@ class CountResult:
 
 _SEPARATOR_COLOR = b"\x1b[36m"
 _COLOR_RESET = b"\x1b[m"
+_COLOR_CODE = re.compile(br"\x1b\[[0-9;]*m")
 
 
 def remove_color_codes(text):
   if isinstance(text, bytes):
-    return re.sub(br"\x1b\[[0-9;]*m", b"", text)
+    return _COLOR_CODE.sub(b"", text)
   return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
@@ -206,6 +213,37 @@ def _colored_separator(separator, use_color):
   return _SEPARATOR_COLOR + separator + _COLOR_RESET if use_color else separator
 
 
+def _raw_text_index(text, idx, *, after_color_codes=False):
+  '''
+  convert an index idx in uncolored text into the corresponding byte index in the
+  original ANSI-colored text, and return the ANSI color sequence that is active at idx.
+  '''
+  active_color = b""
+  for color_code in _COLOR_CODE.finditer(text):
+    if idx < color_code.start():
+      break
+    if idx == color_code.start() and not after_color_codes:
+      break
+    if (code := color_code.group()) in (b"\x1b[m", b"\x1b[0m"):
+      active_color = b""
+    else:
+      active_color += code
+    idx += color_code.end() - color_code.start()
+
+  return idx, active_color
+
+
+def _project_occurrences(records):
+  for result in records:
+    for head, tail in result.occurrence_ranges:
+      raw_head, active_color = _raw_text_index(result.text, head)
+      raw_tail, final_color = _raw_text_index(result.text, tail, after_color_codes=True)
+      text = active_color + result.text[raw_head:raw_tail]
+      if final_color:
+        text += _COLOR_RESET
+      yield replace(result, column=head + 1, text=text, occurrence_ranges=())
+
+
 def _write_line_result(stream, result, plan, *, show_filename, use_color):
   if plan.null_terminate_filenames:
     separator = b"\0"
@@ -277,6 +315,8 @@ def _write_count_results(records, plan, stream, use_color):
 
 
 def write_records(records, plan, stream):
+  if plan.crop_matches and plan.mode is GrepOutputMode.MATCHES:
+    records = _project_occurrences(records)
   writers = {
     GrepOutputMode.MATCHES: _write_match_results,
     GrepOutputMode.CONTEXT: _write_context_blocks,
@@ -287,14 +327,30 @@ def write_records(records, plan, stream):
 
 
 def select_result(results, index, *, clamp):
-  if not results:
-    return None
-  if clamp:
-    normalized_index = min(max(index, 1), len(results))
-    return results[normalized_index - 1]
-  if index < 1 or index > len(results):
-    raise IndexError(index)
-  return results[index - 1]
+  '''index is 1-based'''
+  if index < 1:
+    if not clamp:
+      raise IndexError(index)
+    index = 1
+  try:
+    result_count = len(results)
+    if result_count == 0:
+      return None
+    elif index > result_count:
+      if not clamp:
+        raise IndexError(index)
+      index = result_count
+    return results[index - 1]
+  except TypeError:
+    _idx = index
+    result = None
+    for result in results:
+      _idx -= 1
+      if _idx == 0:
+        return result
+    if _idx > 0 and not clamp:
+      raise IndexError(index)
+    return result
 
 
 def write_json_results(results):
@@ -427,7 +483,7 @@ def build_occurrence_search_command(
 ):
   return build_command(
     patterns,
-    (*skip_context_options(grep_args), "-o"),
+    prepare_occurrence_options(grep_args),
     scope_arguments,
     untracked=untracked,
     word_regexp=word_regexp,
@@ -452,21 +508,35 @@ def execute_search(command, output_plan, *, program, debug=False):
     return 2, None
 
 
+def _not_empty(items):
+  try:
+    items[0]
+    return items
+  except IndexError:
+    return None
+  except TypeError:
+    item = next(items, None)
+    return None if item is None else chain((item,), items)
+
+
 def present_results(results, output_plan, result_action, *, program):
-  if not results:
+  if output_plan.crop_matches and output_plan.mode is GrepOutputMode.MATCHES:
+    results = _project_occurrences(results)
+    output_plan = replace(output_plan, crop_matches=False)
+  if (results := _not_empty(results)) is None:
     return 1
 
   filename_only = result_action.index is not None and output_plan.mode is GrepOutputMode.PATHS
   if filename_only:
-    results = [SearchResult(result.path, None, None, b"") for result in results]
+    results = (SearchResult(result.path, None, None, b"") for result in results)
 
   if result_action.index is not None:
     try:
       result = select_result(results, result_action.index, clamp=result_action.clamp_index)
+      if result is None:
+        return 1
     except IndexError:
-      sys.stderr.write(
-        f"{program}: result {result_action.index} is outside 1..{len(results)}\n"
-      )
+      sys.stderr.write(f"{program}: result {result_action.index} is outside the result range\n")
       return 2
 
     if result_action.json:
